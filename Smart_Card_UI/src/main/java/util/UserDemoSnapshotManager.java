@@ -107,6 +107,27 @@ public class UserDemoSnapshotManager {
         }
     }
 
+    /**
+     * Lấy tất cả snapshots
+     * @return Map<String, UserCardSnapshot> với key là cardIdHex, hoặc null nếu lỗi
+     */
+    public static Map<String, UserCardSnapshot> getAllSnapshots() {
+        ensureFileExists();
+        
+        try {
+            DemoSnapshotContainer container = loadSnapshots();
+            if (container == null || container.snapshots == null) {
+                return new HashMap<>();
+            }
+            
+            return container.snapshots;
+        } catch (Exception e) {
+            System.err.println("[UserDemoSnapshotManager] Lỗi khi đọc tất cả snapshots: " + e.getMessage());
+            e.printStackTrace();
+            return new HashMap<>();
+        }
+    }
+
 
     /**
      * Load snapshots từ file JSON

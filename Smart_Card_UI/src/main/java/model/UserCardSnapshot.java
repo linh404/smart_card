@@ -30,6 +30,9 @@ public class UserCardSnapshot {
     @SerializedName("pinUserDefault")
     private String pinUserDefault; // PIN mặc định (plaintext, chỉ để demo)
     
+    @SerializedName("pinAdminReset")
+    private String pinAdminReset; // PIN admin reset (plaintext, chỉ để demo)
+    
     @SerializedName("createdAt")
     private String createdAt; // Timestamp tạo snapshot
     
@@ -123,6 +126,14 @@ public class UserCardSnapshot {
 
     public void setUpdatedAt(String updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getPinAdminReset() {
+        return pinAdminReset;
+    }
+
+    public void setPinAdminReset(String pinAdminReset) {
+        this.pinAdminReset = pinAdminReset;
     }
 
     /**

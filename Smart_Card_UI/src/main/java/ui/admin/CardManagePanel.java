@@ -567,6 +567,19 @@ public class CardManagePanel extends JPanel {
             snapshot.setQueQuan(userData.getQueQuan());
             snapshot.setMaBHYT(userData.getMaBHYT());
             snapshot.setPinUserDefault(pinUserDefault);
+            
+            // Derive và lưu PIN admin reset nếu có thể
+            try {
+                byte[] cardIdBytes = UserDemoSnapshotManager.hexToBytes(cardIdHex);
+                if (cardIdBytes != null && cardIdBytes.length == 16) {
+                    String pinAdminReset = AdminPinDerivation.deriveAdminResetPIN(cardIdBytes);
+                    snapshot.setPinAdminReset(pinAdminReset);
+                    System.out.println("[CardManagePanel] saveSnapshotOnly: Đã derive và lưu PIN admin reset: " + pinAdminReset);
+                }
+            } catch (Exception e) {
+                System.err.println("[CardManagePanel] saveSnapshotOnly: Không thể derive PIN admin reset: " + e.getMessage());
+                // Không báo lỗi, chỉ log vì có thể snapshot cũ không có PIN admin
+            }
 
             if (UserDemoSnapshotManager.saveSnapshot(snapshot)) {
                 JOptionPane.showMessageDialog(this, 

@@ -479,6 +479,7 @@ public class CardIssuePanel extends JPanel {
             snapshot.setQueQuan(userData.getQueQuan());
             snapshot.setMaBHYT(userData.getMaBHYT());
             snapshot.setPinUserDefault(pinUserDefault);
+            snapshot.setPinAdminReset(pinAdminReset); // Lưu PIN admin reset để demo
             
             if (UserDemoSnapshotManager.saveSnapshot(snapshot)) {
                 System.out.println("[CardIssuePanel] issueCard: Đã lưu snapshot demo cho cardId: " + cardIdHex);

@@ -6,6 +6,7 @@ ui\tool\AdminCardIssueTool$3.class
 ui\tool\DatabaseMigrationTool$7.class
 ui\tool\CreateAdminUserTool$3.class
 card\APDUCommands$CardStatus.class
+ui\tool\LoadSnapshotTool$4.class
 ui\user\ChangePinPanel$1.class
 ui\user\BHYTPanel.class
 ui\tool\DatabaseMigrationTool.class
@@ -18,6 +19,7 @@ db\DatabaseConnection$CardInfo.class
 ui\tool\CreateAdminUserTool.class
 ui\user\TransactionPanel$1.class
 ui\tool\DatabaseMigrationTool$1.class
+ui\tool\LoadSnapshotTool$3.class
 ui\user\UserLoginFrame$2.class
 ui\admin\ResetPinPanel$2.class
 ui\tool\CreateAdminUserTool$4.class
@@ -55,6 +57,7 @@ ui\admin\LoginFrame.class
 ui\tool\CreateAdminUserTool$1.class
 util\AdminPinDerivation.class
 ui\tool\AdminCardIssueTool$AdminCardConfig.class
+ui\tool\LoadSnapshotTool$2.class
 ui\tool\CreateAdminUserTool$2.class
 ui\tool\AdminCardIssueTool$2.class
 ui\user\TransactionPanel.class
@@ -66,8 +69,10 @@ ui\user\UserFrame.class
 ui\admin\CardIssuePanel$1.class
 db\DatabaseConnection$AdminUserInfo.class
 ui\MainFrame$2.class
+ui\tool\LoadSnapshotTool$1.class
 ui\admin\CardManagePanel.class
 card\UserAppletHelper.class
 card\CardManager.class
 ui\admin\AdminFrame.class
+ui\tool\LoadSnapshotTool.class
 db\BHYTInfo.class
