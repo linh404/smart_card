@@ -320,12 +320,11 @@ public class CardIssuePanel extends JPanel {
             if (hasCardId) {
                 String existingCardIdHex = bytesToHex(existingCardId);
                 System.out.println("[CardIssuePanel] issueCard: Thẻ đã có cardId_user = " + existingCardIdHex);
-                System.out.println("[CardIssuePanel] issueCard: Lưu ý - AdminApplet và UserApplet lưu data riêng, cardId_user có thể là data cũ");
+                System.out.println("[CardIssuePanel] issueCard: Lưu ý - cardId_user có thể là data cũ");
                 
                 int choice = JOptionPane.showConfirmDialog(this,
                     "Thẻ đã có cardId_user!\n\n" +
                     "Card ID hiện tại: " + existingCardIdHex + "\n\n" +
-                    "Lưu ý: AdminApplet và UserApplet lưu data riêng.\n" +
                     "CardId này có thể là:\n" +
                     "- Data cũ từ lần test trước\n" +
                     "- Thẻ đã được phát hành trước đó\n\n" +

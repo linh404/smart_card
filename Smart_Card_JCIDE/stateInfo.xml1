@@ -5,13 +5,9 @@
 </PkgNodes>
 </ExpandNodes>
 <FileNodes>
-<fnode>
-<fileName>src\HospitalCard\AdminApplet.java</fileName>
-<line>96</line>
-</fnode>
 <ActiveFile>
 <fileName>src\HospitalCard\UserApplet.java</fileName>
-<line>313</line>
+<line>14</line>
 </ActiveFile>
 </FileNodes>
 </StateInfo>

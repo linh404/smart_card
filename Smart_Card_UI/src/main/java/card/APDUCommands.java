@@ -6,19 +6,12 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * APDUCommands - Định nghĩa và xử lý các lệnh APDU
- * Tham khảo từ SmartCard_Old, mở rộng cho AdminApplet và UserApplet
+ * Tham khảo từ SmartCard_Old, mở rộng cho UserApplet
  */
 public class APDUCommands {
 
     private CardChannel channel;
     public static final byte CLA_APPLET = (byte)0x80;
-
-    // ================== BẢNG MÃ LỆNH (INS) CHO ADMIN APPLET ==================
-    public static final byte INS_VERIFY_PIN_ADMIN = (byte)0x10; // Nhận PIN plaintext, hash và verify trên thẻ
-    public static final byte INS_SIGN_CHALLENGE_ADMIN = (byte)0x11;
-    public static final byte INS_GEN_RESET_TOKEN = (byte)0x12; // Sinh token reset PIN User
-    public static final byte INS_INIT_ADMIN_CARD = (byte)0x14; // Khởi tạo thẻ Admin: set PIN hash và salt
-    public static final byte INS_GET_PUBLIC_KEY = (byte)0x15; // Lấy PK_admin từ thẻ
 
     // ================== BẢNG MÃ LỆNH (INS) CHO USER APPLET ==================
     // V3 - New instruction codes
@@ -61,11 +54,6 @@ public class APDUCommands {
     // ================== AID CỦA CÁC APPLET ==================
     // Package chung: HospitalCard
     // Package AID: 11 22 33 44 55 (5 bytes)
-    
-    // AdminApplet AID: 11 22 33 44 55 00 (6 bytes)
-    public static final byte[] AID_ADMIN = {
-        (byte)0x11, (byte)0x22, (byte)0x33, (byte)0x44, (byte)0x55, (byte)0x00
-    };
     
     // UserApplet AID: 11 22 33 44 55 01 (6 bytes)
     public static final byte[] AID_USER = {
@@ -116,202 +104,6 @@ public class APDUCommands {
         System.out.println("[APDU] Response SW: " + String.format("0x%04X", resp.getSW()));
         
         return resp;
-    }
-
-    // ================== CÁC HÀM CHO ADMIN APPLET ==================
-
-    /**
-     * Xác thực PIN Admin
-     * Gửi PIN plaintext xuống thẻ, thẻ sẽ hash và verify
-     */
-    public boolean verifyPinAdmin(byte[] pinPlaintext) {
-        try {
-            ResponseAPDU resp = send(INS_VERIFY_PIN_ADMIN, (byte)0, (byte)0, pinPlaintext, -1);
-            return resp.getSW() == 0x9000;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return false;
-        }
-    }
-
-    /**
-     * Ký challenge bằng SK_admin
-     */
-    public byte[] signChallengeAdmin(byte[] challenge) {
-        try {
-            System.out.println("[APDUCommands] signChallengeAdmin: Gửi challenge lên thẻ...");
-            System.out.println("[APDUCommands] Challenge length: " + (challenge != null ? challenge.length : 0));
-            if (challenge != null && challenge.length > 0) {
-                System.out.print("[APDUCommands] Challenge (first 16 bytes hex): ");
-                for (int i = 0; i < Math.min(16, challenge.length); i++) {
-                    System.out.printf("%02X ", challenge[i]);
-                }
-                System.out.println();
-            }
-            
-            ResponseAPDU resp = send(INS_SIGN_CHALLENGE_ADMIN, (byte)0, (byte)0, challenge, 128);
-            int sw = resp.getSW();
-            System.out.println("[APDUCommands] signChallengeAdmin response SW: " + String.format("0x%04X", sw));
-            
-            if (sw == 0x9000) {
-                byte[] signature = resp.getData();
-                System.out.println("[APDUCommands] signChallengeAdmin: Nhận được signature, length: " + (signature != null ? signature.length : 0));
-                if (signature != null && signature.length > 0) {
-                    System.out.print("[APDUCommands] Signature (first 16 bytes hex): ");
-                    for (int i = 0; i < Math.min(16, signature.length); i++) {
-                        System.out.printf("%02X ", signature[i]);
-                    }
-                    System.out.println();
-                }
-                return signature;
-            } else {
-                System.err.println("[APDUCommands] signChallengeAdmin THẤT BẠI! SW: " + String.format("0x%04X", sw));
-            }
-        } catch (Exception e) {
-            System.err.println("[APDUCommands] Exception trong signChallengeAdmin: " + e.getMessage());
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    /**
-     * Sinh token reset PIN User
-     * @param message Thông điệp M = "RESET_PIN" || cardId_user || timestamp || nonce
-     * @return signature_admin
-     */
-    public byte[] generateResetToken(byte[] message) {
-        try {
-            ResponseAPDU resp = send(INS_GEN_RESET_TOKEN, (byte)0, (byte)0, message, 128);
-            if (resp.getSW() == 0x9000) {
-                return resp.getData();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    /**
-     * Khởi tạo thẻ Admin
-     * Gửi PIN plaintext và salt, thẻ sẽ hash và lưu PIN hash
-     * @param pinPlaintext PIN admin plaintext
-     * @param salt Salt 16 bytes
-     * @return true nếu thành công
-     */
-    public boolean initAdminCard(byte[] pinPlaintext, byte[] salt) {
-        return initAdminCard(pinPlaintext, salt, null);
-    }
-    
-    /**
-     * Khởi tạo thẻ Admin (với callback để log)
-     * @param pinPlaintext PIN admin plaintext
-     * @param salt Salt 16 bytes
-     * @param logCallback Callback để log thông tin (có thể null)
-     * @return true nếu thành công
-     */
-    public boolean initAdminCard(byte[] pinPlaintext, byte[] salt, java.util.function.Consumer<String> logCallback) {
-        try {
-            // Format: PIN_len(1) + PIN + salt(16)
-            byte[] data = new byte[1 + pinPlaintext.length + 16];
-            data[0] = (byte)pinPlaintext.length;
-            System.arraycopy(pinPlaintext, 0, data, 1, pinPlaintext.length);
-            System.arraycopy(salt, 0, data, 1 + pinPlaintext.length, 16);
-            
-            String logMsg = "[APDUCommands] INIT_ADMIN_CARD:\n" +
-                "  - INS: 0x" + String.format("%02X", INS_INIT_ADMIN_CARD) + "\n" +
-                "  - PIN length: " + pinPlaintext.length + "\n" +
-                "  - Data length: " + data.length + "\n" +
-                "  - Data (hex): " + bytesToHex(data);
-            System.out.println(logMsg);
-            if (logCallback != null) {
-                logCallback.accept(logMsg);
-            }
-            
-            ResponseAPDU resp = send(INS_INIT_ADMIN_CARD, (byte)0, (byte)0, data, -1);
-            int sw = resp.getSW();
-            String swMsg = "[APDUCommands] INIT_ADMIN_CARD response SW: " + String.format("0x%04X", sw);
-            System.out.println(swMsg);
-            if (logCallback != null) {
-                logCallback.accept("Response SW: " + String.format("0x%04X", sw));
-            }
-            
-            if (sw != 0x9000) {
-                String errorMsg = "[APDUCommands] INIT_ADMIN_CARD THẤT BẠI! SW: " + String.format("0x%04X", sw);
-                System.err.println(errorMsg);
-                
-                String detailMsg = "";
-                if (sw == 0x6D00) {
-                    detailMsg = "Lệnh không được hỗ trợ (INS_NOT_SUPPORTED)\n" +
-                        "Có thể applet chưa được cập nhật hoặc chưa được select đúng!";
-                } else if (sw == 0x6700) {
-                    detailMsg = "Độ dài dữ liệu sai (WRONG_LENGTH)";
-                } else if (sw == 0x6A86) {
-                    detailMsg = "Tham số P1/P2 sai (INCORRECT_P1P2)";
-                } else if (sw == 0x6985) {
-                    detailMsg = "Điều kiện không thỏa mãn (CONDITIONS_NOT_SATISFIED)";
-                } else if (sw == 0x6A80) {
-                    detailMsg = "Dữ liệu không đúng (WRONG_DATA)";
-                } else {
-                    detailMsg = "Lỗi không xác định";
-                }
-                
-                System.err.println("  -> " + detailMsg);
-                if (logCallback != null) {
-                    logCallback.accept("LỖI: " + String.format("0x%04X", sw) + " - " + detailMsg);
-                }
-            }
-            
-            return sw == 0x9000;
-        } catch (Exception e) {
-            String errorMsg = "[APDUCommands] Exception trong initAdminCard: " + e.getMessage();
-            System.err.println(errorMsg);
-            e.printStackTrace();
-            if (logCallback != null) {
-                logCallback.accept("Exception: " + e.getMessage());
-            }
-            return false;
-        }
-    }
-
-    /**
-     * Lấy cardId_admin từ thẻ Admin
-     */
-    public byte[] getAdminCardId() {
-        try {
-            // AdminApplet dùng INS_GET_CARD_ID = 0x13
-            System.out.println("[APDUCommands] getAdminCardId: Sending INS = 0x13");
-            ResponseAPDU resp = send((byte)0x13, (byte)0, (byte)0, null, 16);
-            int sw = resp.getSW();
-            System.out.println("[APDUCommands] getAdminCardId response SW: " + String.format("0x%04X", sw));
-            
-            if (sw == 0x9000) {
-                byte[] cardId = resp.getData();
-                System.out.println("[APDUCommands] getAdminCardId: Card ID = " + bytesToHex(cardId));
-                return cardId;
-            } else {
-                System.err.println("[APDUCommands] getAdminCardId THẤT BẠI! SW: " + String.format("0x%04X", sw));
-            }
-        } catch (Exception e) {
-            System.err.println("[APDUCommands] Exception trong getAdminCardId: " + e.getMessage());
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    /**
-     * Lấy PK_admin từ thẻ
-     * @return PK_admin dạng raw (modLen(2) + modulus + expLen(2) + exponent) hoặc null nếu lỗi
-     */
-    public byte[] getAdminPublicKey() {
-        try {
-            ResponseAPDU resp = send(INS_GET_PUBLIC_KEY, (byte)0, (byte)0, null, 256);
-            if (resp.getSW() == 0x9000) {
-                return resp.getData();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
     }
 
     // ================== CÁC HÀM CHO USER APPLET ==================

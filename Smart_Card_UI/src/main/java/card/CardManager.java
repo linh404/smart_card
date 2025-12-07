@@ -42,7 +42,7 @@ public class CardManager {
             channel = card.getBasicChannel();
             
             // QUAN TRỌNG: KHÔNG SELECT APPLET Ở ĐÂY
-            // Để các Panel tự Select applet tương ứng (AdminApplet hoặc UserApplet)
+            // Để các Panel tự Select applet (UserApplet)
             
             return true;
 

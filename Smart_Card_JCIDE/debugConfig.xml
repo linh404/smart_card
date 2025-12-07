@@ -1,12 +1,11 @@
 <JavaCardProject name="Smart_Card_JCIDE">
 <USER>
 <PKG name="HospitalCard" aid="11 22 33 44 55" major="1" minor="0">
-<APPLET aid="11 22 33 44 55 00" instanceaid="" parameter="" authority="" privileges="" index="-31936" name="AdminApplet"/>
 <APPLET aid="11 22 33 44 55 01" instanceaid="" parameter="" authority="" privileges="" index="12552" name="UserApplet"/>
 </PKG>
 <Libs/>
 </USER>
 <DebugInfo>
-<Protocol name="T0"/>
+<Protocol name="T01"/>
 </DebugInfo>
 </JavaCardProject>
