@@ -2,7 +2,6 @@ ui\tool\ResetUserCardTool$3.class
 util\CryptoUtils.class
 ui\admin\ResetPinPanel$1.class
 ui\MainFrame$1.class
-ui\tool\AdminCardIssueTool$3.class
 ui\tool\DatabaseMigrationTool$7.class
 ui\tool\CreateAdminUserTool$3.class
 card\APDUCommands$CardStatus.class
@@ -17,7 +16,6 @@ ui\admin\LoginFrame$3.class
 ui\user\UserLoginFrame$1.class
 db\DatabaseConnection$CardInfo.class
 ui\tool\CreateAdminUserTool.class
-ui\user\TransactionPanel$1.class
 ui\tool\DatabaseMigrationTool$1.class
 ui\tool\LoadSnapshotTool$3.class
 ui\user\UserLoginFrame$2.class
@@ -33,16 +31,12 @@ util\UserDemoSnapshotManager$1.class
 ui\admin\LoginFrame$2.class
 ui\admin\CardManagePanel$2.class
 card\APDUCommands.class
-ui\MainFrame$4.class
-ui\tool\AdminCardIssueTool$4.class
 ui\tool\ResetUserCardTool.class
 ui\user\UserLoginFrame.class
 ui\tool\DatabaseMigrationTool$2.class
 ui\admin\CardManagePanel$3.class
 ui\user\UserInfoPanel.class
 model\UserCardSnapshot.class
-ui\tool\AdminCardIssueTool$1.class
-ui\tool\AdminCardIssueTool.class
 db\DatabaseConnection.class
 util\UserDemoSnapshotManager.class
 ui\admin\ResetPinPanel.class
@@ -56,10 +50,8 @@ util\JsonFileManager.class
 ui\admin\LoginFrame.class
 ui\tool\CreateAdminUserTool$1.class
 util\AdminPinDerivation.class
-ui\tool\AdminCardIssueTool$AdminCardConfig.class
 ui\tool\LoadSnapshotTool$2.class
 ui\tool\CreateAdminUserTool$2.class
-ui\tool\AdminCardIssueTool$2.class
 ui\user\TransactionPanel.class
 ui\tool\DatabaseMigrationTool$3.class
 model\UserData.class

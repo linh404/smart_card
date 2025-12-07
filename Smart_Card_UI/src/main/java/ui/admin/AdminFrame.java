@@ -90,7 +90,7 @@ public class AdminFrame extends JFrame {
         resetPinPanel = new ResetPinPanel(cardManager, apduCommands);
 
         tabs.addTab("Phát hành thẻ User", cardIssuePanel);
-        tabs.addTab("Quản lý thẻ User", cardManagePanel);
+        tabs.addTab("Quản lý thông tin thẻ", cardManagePanel);
         tabs.addTab("Reset PIN User", resetPinPanel);
 
         // Layout

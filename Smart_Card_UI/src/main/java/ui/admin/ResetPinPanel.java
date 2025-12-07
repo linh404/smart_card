@@ -36,7 +36,7 @@ public class ResetPinPanel extends JPanel {
 
     private void initUI() {
         setLayout(new BorderLayout());
-        setBorder(BorderFactory.createTitledBorder("Reset PIN User (đơn giản hóa)"));
+        setBorder(BorderFactory.createTitledBorder("Reset PIN User"));
 
         JPanel formPanel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
@@ -45,20 +45,6 @@ public class ResetPinPanel extends JPanel {
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
         int row = 0;
-
-        // Thông tin hướng dẫn
-        gbc.gridx = 0; gbc.gridy = row; gbc.gridwidth = 2;
-        JLabel lblInfo = new JLabel("<html><b>Hướng dẫn (V3):</b><br>" +
-            "1. Cắm thẻ User cần reset PIN vào đầu đọc<br>" +
-            "2. Nhấn 'Đọc thông tin thẻ' để load Card ID<br>" +
-            "3. Hệ thống sẽ tự động derive Admin PIN từ K_master và Card ID<br>" +
-            "4. Nhập PIN User mới (mặc định: <b>123456</b>)<br>" +
-            "5. Nhấn 'Reset PIN' để thực hiện</html>");
-        lblInfo.setForeground(new Color(0, 102, 153));
-        formPanel.add(lblInfo, gbc);
-        
-        row++;
-        gbc.gridwidth = 1;
 
         // Card ID User
         gbc.gridx = 0; gbc.gridy = row;

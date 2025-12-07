@@ -27,6 +27,9 @@ public class UserCardSnapshot {
     @SerializedName("maBHYT")
     private String maBHYT;
     
+    @SerializedName("balance")
+    private long balance; // Số dư tài khoản (VNĐ)
+    
     @SerializedName("pinUserDefault")
     private String pinUserDefault; // PIN mặc định (plaintext, chỉ để demo)
     
@@ -51,6 +54,7 @@ public class UserCardSnapshot {
             this.ngaySinh = userData.getNgaySinh();
             this.queQuan = userData.getQueQuan();
             this.maBHYT = userData.getMaBHYT();
+            this.balance = userData.getBalance();
         }
         this.pinUserDefault = pinUserDefault;
     }
@@ -104,6 +108,14 @@ public class UserCardSnapshot {
         this.maBHYT = maBHYT;
     }
 
+    public long getBalance() {
+        return balance;
+    }
+
+    public void setBalance(long balance) {
+        this.balance = balance;
+    }
+
     public String getPinUserDefault() {
         return pinUserDefault;
     }
@@ -146,6 +158,7 @@ public class UserCardSnapshot {
         userData.setNgaySinh(this.ngaySinh);
         userData.setQueQuan(this.queQuan);
         userData.setMaBHYT(this.maBHYT);
+        userData.setBalance(this.balance);
         return userData;
     }
 

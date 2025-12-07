@@ -1,7 +1,6 @@
 package ui;
 
 import ui.admin.LoginFrame;
-import ui.tool.CreateAdminUserTool;
 import ui.user.UserLoginFrame;
 
 import javax.swing.*;
@@ -70,22 +69,6 @@ public class MainFrame extends JFrame {
         gbc.gridy = 1;
         mainPanel.add(userButton, gbc);
         
-        // Nút tạo Admin User (nếu chưa có)
-        JButton createAdminButton = new JButton("Tạo Admin User");
-        createAdminButton.setPreferredSize(new Dimension(200, 40));
-        createAdminButton.setFont(new Font("Arial", Font.PLAIN, 12));
-        createAdminButton.setForeground(new Color(0, 102, 204));
-        createAdminButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                new CreateAdminUserTool().setVisible(true);
-            }
-        });
-        gbc.gridx = 0;
-        gbc.gridy = 2;
-        gbc.gridwidth = 2;
-        mainPanel.add(createAdminButton, gbc);
-        
         add(mainPanel, BorderLayout.CENTER);
     }
     
@@ -109,6 +92,26 @@ public class MainFrame extends JFrame {
             System.setErr(new java.io.PrintStream(System.err, true, "UTF-8"));
         } catch (Exception e) {
             System.err.println("Warning: Could not set UTF-8 encoding for console output");
+        }
+        
+        // Thiết lập font mặc định cho UI hỗ trợ tiếng Việt
+        try {
+            Font defaultFont = new Font("Arial Unicode MS", Font.PLAIN, 12);
+            // Fallback to Arial if Arial Unicode MS not available
+            if (!defaultFont.getFamily().equals("Arial Unicode MS")) {
+                defaultFont = new Font("Arial", Font.PLAIN, 12);
+            }
+            
+            java.util.Enumeration<Object> keys = UIManager.getDefaults().keys();
+            while (keys.hasMoreElements()) {
+                Object key = keys.nextElement();
+                Object value = UIManager.get(key);
+                if (value instanceof javax.swing.plaf.FontUIResource) {
+                    UIManager.put(key, defaultFont);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Warning: Could not set default UI font");
         }
         
         SwingUtilities.invokeLater(new Runnable() {

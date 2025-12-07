@@ -1,6 +1,7 @@
 package model;
 
 import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
 
 /**
  * UserData - Model cho dữ liệu bệnh nhân
@@ -11,6 +12,7 @@ public class UserData implements Serializable {
     private String ngaySinh;
     private String queQuan;
     private String maBHYT;
+    private long balance; // Số dư tài khoản (đơn vị: VNĐ)
 
     // Getters and Setters
     public String getHoTen() { return hoTen; }
@@ -28,20 +30,24 @@ public class UserData implements Serializable {
     public String getMaBHYT() { return maBHYT; }
     public void setMaBHYT(String maBHYT) { this.maBHYT = maBHYT; }
 
+    public long getBalance() { return balance; }
+    public void setBalance(long balance) { this.balance = balance; }
+
     /**
      * Chuyển UserData thành byte[] để gửi xuống thẻ
      */
     public byte[] toBytes() {
-        // Format: hoTen|idBenhNhan|ngaySinh|queQuan|maBHYT
+        // Format: hoTen|idBenhNhan|ngaySinh|queQuan|maBHYT|balance
         // Đơn giản hóa: dùng JSON hoặc format cố định
         StringBuilder sb = new StringBuilder();
         sb.append(hoTen).append("|");
         sb.append(idBenhNhan).append("|");
         sb.append(ngaySinh).append("|");
         sb.append(queQuan).append("|");
-        sb.append(maBHYT);
+        sb.append(maBHYT).append("|");
+        sb.append(balance);
         
-        byte[] textBytes = sb.toString().getBytes();
+        byte[] textBytes = sb.toString().getBytes(StandardCharsets.UTF_8);
         byte[] result = new byte[textBytes.length + 4];
         System.arraycopy(intToBytes(textBytes.length), 0, result, 0, 4);
         System.arraycopy(textBytes, 0, result, 4, textBytes.length);
@@ -55,7 +61,7 @@ public class UserData implements Serializable {
         if (data == null || data.length < 4) return null;
         
         int textLen = bytesToInt(data, 0);
-        String text = new String(data, 4, textLen);
+        String text = new String(data, 4, textLen, StandardCharsets.UTF_8);
         String[] parts = text.split("\\|");
         
         if (parts.length < 5) return null;
@@ -66,6 +72,17 @@ public class UserData implements Serializable {
         ud.setNgaySinh(parts[2]);
         ud.setQueQuan(parts[3]);
         ud.setMaBHYT(parts[4]);
+        
+        // Parse balance (backward compatible - default to 0 if not present)
+        if (parts.length >= 6) {
+            try {
+                ud.setBalance(Long.parseLong(parts[5]));
+            } catch (NumberFormatException e) {
+                ud.setBalance(0);
+            }
+        } else {
+            ud.setBalance(0);
+        }
         
         return ud;
     }

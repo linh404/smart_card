@@ -27,7 +27,7 @@ public class CardIssuePanel extends JPanel {
     private CardManager cardManager;
     private APDUCommands apduCommands;
     
-    private JTextField txtHoTen, txtIdBenhNhan, txtNgaySinh, txtQueQuan, txtMaBHYT;
+    private JTextField txtHoTen, txtIdBenhNhan, txtNgaySinh, txtQueQuan, txtMaBHYT, txtBalance;
     private JPasswordField txtPinUserDefault;
     private JButton btnPhatHanh;
 
@@ -91,6 +91,15 @@ public class CardIssuePanel extends JPanel {
         gbc.gridx = 1;
         formPanel.add(txtMaBHYT, gbc);
 
+        // Số dư ban đầu
+        row++;
+        gbc.gridx = 0; gbc.gridy = row;
+        formPanel.add(new JLabel("Số dư ban đầu (VNĐ):"), gbc);
+        txtBalance = new JTextField(20);
+        txtBalance.setText("0"); // Mặc định là 0
+        gbc.gridx = 1;
+        formPanel.add(txtBalance, gbc);
+
         // PIN User mặc định
         row++;
         gbc.gridx = 0; gbc.gridy = row;
@@ -98,15 +107,6 @@ public class CardIssuePanel extends JPanel {
         txtPinUserDefault = new JPasswordField(20);
         gbc.gridx = 1;
         formPanel.add(txtPinUserDefault, gbc);
-        
-        // Hướng dẫn (V3)
-        row++;
-        gbc.gridx = 0; gbc.gridy = row;
-        gbc.gridwidth = 2;
-        JLabel lblNote = new JLabel("<html><small><i>Lưu ý (V3): PIN_admin_reset sẽ được derive tự động từ K_master và cardID. Không cần nhập PIN admin.</i></small></html>");
-        lblNote.setForeground(new Color(100, 100, 100));
-        formPanel.add(lblNote, gbc);
-        gbc.gridwidth = 1;
 
         // Nút phát hành
         btnPhatHanh = new JButton("Phát hành thẻ");
@@ -240,6 +240,19 @@ public class CardIssuePanel extends JPanel {
             return "PIN User chỉ được chứa số!";
         }
         
+        String balanceStr = txtBalance.getText().trim();
+        if (balanceStr.isEmpty()) {
+            return "Vui lòng nhập số dư ban đầu (có thể nhập 0)!";
+        }
+        try {
+            long balance = Long.parseLong(balanceStr);
+            if (balance < 0) {
+                return "Số dư ban đầu không thể âm!";
+            }
+        } catch (NumberFormatException e) {
+            return "Số dư ban đầu phải là số nguyên hợp lệ!";
+        }
+        
         return null; // Validation thành công
     }
 
@@ -337,6 +350,9 @@ public class CardIssuePanel extends JPanel {
             userData.setQueQuan(txtQueQuan.getText().trim());
             userData.setMaBHYT(txtMaBHYT.getText().trim());
             
+            long initialBalance = Long.parseLong(txtBalance.getText().trim());
+            userData.setBalance(initialBalance);
+            
             String pinUserDefault = new String(txtPinUserDefault.getPassword());
             
             System.out.println("[CardIssuePanel] issueCard: Thông tin bệnh nhân:");
@@ -345,6 +361,7 @@ public class CardIssuePanel extends JPanel {
             System.out.println("  - Ngày sinh: " + userData.getNgaySinh());
             System.out.println("  - Quê quán: " + userData.getQueQuan());
             System.out.println("  - Mã BHYT: " + userData.getMaBHYT());
+            System.out.println("  - Số dư ban đầu: " + initialBalance + " VNĐ");
 
             byte[] userDataBytes = userData.toBytes();
             byte[] pinUserBytes = pinUserDefault.getBytes();
@@ -478,6 +495,7 @@ public class CardIssuePanel extends JPanel {
             snapshot.setNgaySinh(userData.getNgaySinh());
             snapshot.setQueQuan(userData.getQueQuan());
             snapshot.setMaBHYT(userData.getMaBHYT());
+            snapshot.setBalance(userData.getBalance());
             snapshot.setPinUserDefault(pinUserDefault);
             snapshot.setPinAdminReset(pinAdminReset); // Lưu PIN admin reset để demo
             
@@ -523,6 +541,7 @@ public class CardIssuePanel extends JPanel {
         txtNgaySinh.setText("");
         txtQueQuan.setText("");
         txtMaBHYT.setText("");
+        txtBalance.setText("0");
         txtPinUserDefault.setText("");
         // Tự động tạo ID bệnh nhân mới sau khi clear form
         autoGeneratePatientId();

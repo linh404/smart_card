@@ -29,61 +29,78 @@ public class UserLoginFrame extends JFrame {
     private void initUI() {
         setTitle("Đăng nhập User");
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        setSize(500, 250);
+        setSize(450, 280);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
 
+        // Header
+        JPanel header = new JPanel(new BorderLayout());
+        header.setBackground(new Color(0, 153, 102));
+        header.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
+        
+        JLabel titleLabel = new JLabel("ĐĂNG NHẬP USER");
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 18));
+        titleLabel.setForeground(Color.WHITE);
+        header.add(titleLabel, BorderLayout.WEST);
+        add(header, BorderLayout.NORTH);
+
+        // Main panel
         JPanel mainPanel = new JPanel(new GridBagLayout());
-        mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 30, 20, 30));
 
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(10, 10, 10, 10);
+        gbc.insets = new Insets(8, 5, 8, 5);
         gbc.anchor = GridBagConstraints.WEST;
-        gbc.fill = GridBagConstraints.NONE;
 
-        // Tiêu đề
-        JLabel titleLabel = new JLabel("ĐĂNG NHẬP USER");
-        titleLabel.setFont(new Font("Arial", Font.BOLD, 16));
+        // Hướng dẫn
+        JLabel instructionLabel = new JLabel("<html>Thẻ đã được kết nối.<br>Vui lòng nhập mã PIN để đăng nhập.</html>");
+        instructionLabel.setFont(new Font("Arial", Font.PLAIN, 12));
         gbc.gridx = 0;
         gbc.gridy = 0;
         gbc.gridwidth = 2;
-        mainPanel.add(titleLabel, gbc);
-
-        // Hướng dẫn
-        JLabel instructionLabel = new JLabel("<html>Thẻ đã được kết nối. Vui lòng nhập mã PIN để đăng nhập.</html>");
-        instructionLabel.setFont(new Font("Arial", Font.PLAIN, 12));
-        gbc.gridy = 1;
+        gbc.insets = new Insets(0, 0, 15, 0);
         mainPanel.add(instructionLabel, gbc);
 
-        // PIN
+        // PIN Label
         gbc.gridwidth = 1;
         gbc.gridx = 0;
-        gbc.gridy = 2;
-        mainPanel.add(new JLabel("Mã PIN:"), gbc);
+        gbc.gridy = 1;
+        gbc.insets = new Insets(8, 5, 8, 5);
+        JLabel pinLabel = new JLabel("Mã PIN:");
+        pinLabel.setFont(new Font("Arial", Font.PLAIN, 14));
+        mainPanel.add(pinLabel, gbc);
 
-        txtPin = new JPasswordField(40);
+        // PIN Field
+        txtPin = new JPasswordField(20);
         txtPin.setFont(new Font("Arial", Font.PLAIN, 14));
         txtPin.setPreferredSize(new Dimension(250, 30));
         gbc.gridx = 1;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.weightx = 1.0;
         mainPanel.add(txtPin, gbc);
-        
-        // Reset fill cho các phần tử khác
-        gbc.fill = GridBagConstraints.NONE;
-        gbc.weightx = 0.0;
 
         // Buttons
-        JPanel btnPanel = new JPanel(new FlowLayout());
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
+        
         btnLogin = new JButton("Đăng nhập");
-        btnCancel = new JButton("Hủy");
+        btnLogin.setPreferredSize(new Dimension(120, 35));
+        btnLogin.setFont(new Font("Arial", Font.BOLD, 13));
+        btnLogin.setBackground(new Color(0, 153, 102));
+        btnLogin.setForeground(Color.WHITE);
         btnPanel.add(btnLogin);
+        
+        btnCancel = new JButton("Hủy");
+        btnCancel.setPreferredSize(new Dimension(100, 35));
+        btnCancel.setFont(new Font("Arial", Font.PLAIN, 13));
         btnPanel.add(btnCancel);
 
         gbc.gridx = 0;
-        gbc.gridy = 3;
+        gbc.gridy = 2;
         gbc.gridwidth = 2;
+        gbc.weightx = 0;
+        gbc.fill = GridBagConstraints.NONE;
         gbc.anchor = GridBagConstraints.CENTER;
+        gbc.insets = new Insets(20, 0, 0, 0);
         mainPanel.add(btnPanel, gbc);
 
         add(mainPanel, BorderLayout.CENTER);

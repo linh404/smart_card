@@ -2,6 +2,7 @@ package card;
 
 import javax.smartcardio.*;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 /**
  * APDUCommands - Định nghĩa và xử lý các lệnh APDU
@@ -528,7 +529,7 @@ public class APDUCommands {
         try {
             ResponseAPDU resp = send(INS_GET_BHYT, (byte)0, (byte)0, null, 50);
             if (resp.getSW() == 0x9000) {
-                return new String(resp.getData()).trim();
+                return new String(resp.getData(), StandardCharsets.UTF_8).trim();
             }
         } catch (Exception e) {
             e.printStackTrace();

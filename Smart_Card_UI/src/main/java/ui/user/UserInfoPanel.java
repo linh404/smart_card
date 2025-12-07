@@ -6,6 +6,8 @@ import model.UserData;
 
 import javax.swing.*;
 import java.awt.*;
+import java.text.NumberFormat;
+import java.util.Locale;
 
 /**
  * UserInfoPanel - Panel hiển thị thông tin thẻ User
@@ -18,6 +20,7 @@ public class UserInfoPanel extends JPanel {
     
     private JLabel lblHoTen, lblIdBenhNhan, lblNgaySinh, lblQueQuan, lblMaBHYT, lblBalance;
     private JButton btnRefresh;
+    private NumberFormat currencyFormat;
 
     public UserInfoPanel(CardManager cardManager, APDUCommands apduCommands) {
         this(cardManager, apduCommands, null);
@@ -27,6 +30,7 @@ public class UserInfoPanel extends JPanel {
         this.cardManager = cardManager;
         this.apduCommands = apduCommands;
         this.userFrame = userFrame;
+        this.currencyFormat = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
         initUI();
         loadInfo();
     }
@@ -133,8 +137,8 @@ public class UserInfoPanel extends JPanel {
             lblQueQuan.setText(userData.getQueQuan() != null ? userData.getQueQuan() : "-");
             lblMaBHYT.setText(userData.getMaBHYT() != null ? userData.getMaBHYT() : "-");
             
-            // V3: Balance không còn trong V3 spec, hiển thị N/A
-            lblBalance.setText("N/A (V3 - không hỗ trợ balance)");
+            // Hiển thị số dư (balance được mã hóa và lưu trên thẻ)
+            lblBalance.setText(currencyFormat.format(userData.getBalance()));
 
         } catch (Exception e) {
             e.printStackTrace();

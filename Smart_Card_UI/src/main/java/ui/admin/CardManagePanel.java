@@ -24,7 +24,7 @@ public class CardManagePanel extends JPanel {
     private CardManager cardManager;
     private APDUCommands apduCommands;
     
-    private JTextField txtCardId, txtHoTen, txtIdBenhNhan, txtNgaySinh, txtQueQuan, txtMaBHYT;
+    private JTextField txtCardId, txtHoTen, txtIdBenhNhan, txtNgaySinh, txtQueQuan, txtMaBHYT, txtBalance;
     private JPasswordField txtPinUserDefault;
     private JPasswordField txtPinUserForLoad; // PIN User để load data từ thẻ
     private JButton btnLoadFromCard, btnUpdate, btnLoadToCard;
@@ -38,7 +38,7 @@ public class CardManagePanel extends JPanel {
 
     private void initUI() {
         setLayout(new BorderLayout());
-        setBorder(BorderFactory.createTitledBorder("Quản lý thông tin thẻ User"));
+        setBorder(BorderFactory.createTitledBorder("Quản lý thông tin thẻ"));
 
         JPanel formPanel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
@@ -103,6 +103,14 @@ public class CardManagePanel extends JPanel {
         txtMaBHYT = new JTextField(30);
         gbc.gridx = 1;
         formPanel.add(txtMaBHYT, gbc);
+
+        // Số dư
+        row++;
+        gbc.gridx = 0; gbc.gridy = row;
+        formPanel.add(new JLabel("Số dư (VNĐ):"), gbc);
+        txtBalance = new JTextField(30);
+        gbc.gridx = 1;
+        formPanel.add(txtBalance, gbc);
 
         // PIN User để load data từ thẻ
         row++;
@@ -319,6 +327,7 @@ public class CardManagePanel extends JPanel {
                 txtNgaySinh.setText(userData.getNgaySinh() != null ? userData.getNgaySinh() : "");
                 txtQueQuan.setText(userData.getQueQuan() != null ? userData.getQueQuan() : "");
                 txtMaBHYT.setText(userData.getMaBHYT() != null ? userData.getMaBHYT() : "");
+                txtBalance.setText(String.valueOf(userData.getBalance()));
                 
                 JOptionPane.showMessageDialog(this, 
                     "Đã load thông tin từ thẻ User thành công!", 
@@ -360,6 +369,7 @@ public class CardManagePanel extends JPanel {
         txtNgaySinh.setText("");
         txtQueQuan.setText("");
         txtMaBHYT.setText("");
+        txtBalance.setText("0");
         txtPinUserDefault.setText("");
         // Không xóa txtPinUserForLoad để giữ PIN cho lần load sau
         lblAdminPinStatus.setText("Chưa load thẻ");
@@ -434,6 +444,14 @@ public class CardManagePanel extends JPanel {
             userData.setNgaySinh(txtNgaySinh.getText());
             userData.setQueQuan(txtQueQuan.getText());
             userData.setMaBHYT(txtMaBHYT.getText());
+            
+            // Parse balance
+            try {
+                long balance = Long.parseLong(txtBalance.getText().trim());
+                userData.setBalance(balance);
+            } catch (NumberFormatException ex) {
+                userData.setBalance(0);
+            }
 
             // Kiểm tra thẻ đã được phát hành chưa (thử đọc cardId)
             byte[] existingCardId = apduCommands.getCardId();
@@ -557,6 +575,14 @@ public class CardManagePanel extends JPanel {
             userData.setNgaySinh(txtNgaySinh.getText());
             userData.setQueQuan(txtQueQuan.getText());
             userData.setMaBHYT(txtMaBHYT.getText());
+            
+            // Parse balance
+            try {
+                long balance = Long.parseLong(txtBalance.getText().trim());
+                userData.setBalance(balance);
+            } catch (NumberFormatException ex) {
+                userData.setBalance(0);
+            }
 
             // Lưu snapshot vào JSON
             UserCardSnapshot snapshot = new UserCardSnapshot();
@@ -566,6 +592,7 @@ public class CardManagePanel extends JPanel {
             snapshot.setNgaySinh(userData.getNgaySinh());
             snapshot.setQueQuan(userData.getQueQuan());
             snapshot.setMaBHYT(userData.getMaBHYT());
+            snapshot.setBalance(userData.getBalance());
             snapshot.setPinUserDefault(pinUserDefault);
             
             // Derive và lưu PIN admin reset nếu có thể
