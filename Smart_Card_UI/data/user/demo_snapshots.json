@@ -1,0 +1,59 @@
+{
+  "snapshots": {
+    "9B53ADE2221EFBC9E8C3D7740A17D2B9": {
+      "cardId": "9B53ADE2221EFBC9E8C3D7740A17D2B9",
+      "hoTen": "123",
+      "idBenhNhan": "1",
+      "ngaySinh": "12/03/1234",
+      "queQuan": "123123",
+      "maBHYT": "123123123",
+      "pinUserDefault": "123123",
+      "createdAt": "2025-12-07 13:50:37",
+      "updatedAt": "2025-12-07 13:50:37"
+    },
+    "C774BB40594AE58AAFCB33A97856EE4C": {
+      "cardId": "C774BB40594AE58AAFCB33A97856EE4C",
+      "hoTen": "123",
+      "idBenhNhan": "1",
+      "ngaySinh": "12/03/1234",
+      "queQuan": "123123",
+      "maBHYT": "123123",
+      "pinUserDefault": "123123",
+      "createdAt": "2025-12-07 13:53:57",
+      "updatedAt": "2025-12-07 13:53:57"
+    },
+    "FFF4121D319AE8B473703B5DB52AF5AC": {
+      "cardId": "FFF4121D319AE8B473703B5DB52AF5AC",
+      "hoTen": "123",
+      "idBenhNhan": "2",
+      "ngaySinh": "12/12/1212",
+      "queQuan": "123",
+      "maBHYT": "123123",
+      "pinUserDefault": "123123",
+      "createdAt": "2025-12-07 14:15:59",
+      "updatedAt": "2025-12-07 14:15:59"
+    },
+    "71C389C93B0B35F9A01D0FF7C89E02C8": {
+      "cardId": "71C389C93B0B35F9A01D0FF7C89E02C8",
+      "hoTen": "ok",
+      "idBenhNhan": "3",
+      "ngaySinh": "12/12/1234",
+      "queQuan": "123123",
+      "maBHYT": "123123",
+      "pinUserDefault": "123123",
+      "createdAt": "2025-12-07 14:21:47",
+      "updatedAt": "2025-12-07 14:21:47"
+    },
+    "E89413E1A900DF04886C733F3B7B57BB": {
+      "cardId": "E89413E1A900DF04886C733F3B7B57BB",
+      "hoTen": "test",
+      "idBenhNhan": "4",
+      "ngaySinh": "01/01/1111",
+      "queQuan": "123123",
+      "maBHYT": "123123",
+      "pinUserDefault": "123123",
+      "createdAt": "2025-12-07 14:24:58",
+      "updatedAt": "2025-12-07 14:24:58"
+    }
+  }
+}

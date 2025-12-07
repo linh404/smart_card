@@ -1,0 +1,13 @@
+<JavaCardProject name="Smart_Card_JCIDE">
+<USER>
+<PKG name="HospitalCard" aid="11 22 33 44 55" major="1" minor="0">
+<APPLET aid="11 22 33 44 55 00" instanceaid="" parameter="" authority="" privileges="" index="-20064" name="AdminApplet"/>
+<APPLET aid="11 22 33 44 55 01" instanceaid="" parameter="" authority="" privileges="" index="-22704" name="UserApplet"/>
+<CLASS name="CryptoHelper"/>
+<CLASS name="DataHelper"/>
+<CLASS name="PINHelper"/>
+<CLASS name="RSAHelper"/>
+</PKG>
+<Libs/>
+</USER>
+</JavaCardProject>
