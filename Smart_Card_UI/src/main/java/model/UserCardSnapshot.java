@@ -5,7 +5,10 @@ import com.google.gson.annotations.SerializedName;
 /**
  * UserCardSnapshot - Model cho snapshot demo của thẻ User
  * Lưu plaintext data để có thể nạp nhanh vào applet User khi demo với JCIDE
- * KHÔNG lưu các khóa bí mật (MK_user, MK_enc_user, MK_enc_user_admin, SK_user...)
+ * 
+ * V3 - RSA Support:
+ * - Lưu cả SK_user và PK_user (Base64) để demo/test
+ * - ⚠️ CHỈ DÙNG CHO DEMO - KHÔNG dùng production
  */
 public class UserCardSnapshot {
     
@@ -35,6 +38,13 @@ public class UserCardSnapshot {
     
     @SerializedName("pinAdminReset")
     private String pinAdminReset; // PIN admin reset (plaintext, chỉ để demo)
+    
+    // RSA Keys (V3 - DEMO ONLY)
+    @SerializedName("pkUserBase64")
+    private String pkUserBase64; // Public key (X.509 encoded, Base64)
+    
+    @SerializedName("skUserBase64")
+    private String skUserBase64; // Private key (PKCS#8 encoded, Base64) - DEMO ONLY
     
     @SerializedName("createdAt")
     private String createdAt; // Timestamp tạo snapshot
@@ -146,6 +156,22 @@ public class UserCardSnapshot {
 
     public void setPinAdminReset(String pinAdminReset) {
         this.pinAdminReset = pinAdminReset;
+    }
+
+    public String getPkUserBase64() {
+        return pkUserBase64;
+    }
+
+    public void setPkUserBase64(String pkUserBase64) {
+        this.pkUserBase64 = pkUserBase64;
+    }
+
+    public String getSkUserBase64() {
+        return skUserBase64;
+    }
+
+    public void setSkUserBase64(String skUserBase64) {
+        this.skUserBase64 = skUserBase64;
     }
 
     /**

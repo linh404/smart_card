@@ -54,6 +54,20 @@
             <version>0.4</version>
         </dependency>
 
+        <!-- HikariCP cho connection pooling (fix connection exhaustion) -->
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>5.1.0</version>
+        </dependency>
+
+        <!-- SLF4J Simple Logger cho HikariCP -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>2.0.9</version>
+        </dependency>
+
         <!-- javax.smartcardio: có sẵn trong JDK, không cần dependency -->
     </dependencies>
 

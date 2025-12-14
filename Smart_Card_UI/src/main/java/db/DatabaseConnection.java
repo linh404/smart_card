@@ -1,7 +1,8 @@
 package db;
 
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -13,8 +14,8 @@ import org.postgresql.util.PGobject;
 import com.google.gson.Gson;
 
 /**
- * DatabaseConnection - Quản lý kết nối Supabase
- * Tham khảo từ SmartCard_Old, giữ nguyên pattern connection pooler
+ * DatabaseConnection - Quản lý kết nối Supabase với HikariCP
+ * V3: Sử dụng connection pooling để tránh cạn kiệt kết nối
  */
 public class DatabaseConnection {
 
@@ -24,15 +25,96 @@ public class DatabaseConnection {
     // Port: 6543 (Pooler port)
     // User: postgres.rnvqcxqbripfkcckhgkl
     // Database: postgres
-    private static final String URL = "jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?user=postgres.rnvqcxqbripfkcckhgkl&password=a4fVpu2p0YGto65G&sslmode=require";
+    private static final String JDBC_URL = "jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres";
+    private static final String USERNAME = "postgres.rnvqcxqbripfkcckhgkl";
+    private static final String PASSWORD = "a4fVpu2p0YGto65G";
+    
+    // HikariCP DataSource (singleton)
+    private static HikariDataSource dataSource;
+    
+    /**
+     * Khởi tạo HikariCP connection pool (chỉ gọi một lần khi startup)
+     */
+    private static synchronized void initializePool() {
+        if (dataSource != null) {
+            return; // Đã được khởi tạo rồi
+        }
+        
+        try {
+            System.out.println("[DatabaseConnection] Đang khởi tạo HikariCP pool...");
+            System.out.println("[DatabaseConnection] JDBC URL: " + JDBC_URL);
+            System.out.println("[DatabaseConnection] Username: " + USERNAME);
+            
+            HikariConfig config = new HikariConfig();
+            
+            // Cấu hình kết nối
+            config.setJdbcUrl(JDBC_URL);
+            config.setUsername(USERNAME);
+            config.setPassword(PASSWORD);
+            
+            // Cấu hình SSL cho Supabase
+            config.addDataSourceProperty("sslmode", "require");
+            
+            // ⚡ QUAN TRỌNG: Kích thước pool cho Supabase free tier
+            config.setMaximumPoolSize(2);  // Tối đa 2 kết nối (an toàn cho free tier)
+            config.setMinimumIdle(0);      // Không giữ idle connection (tiết kiệm tài nguyên)
+            
+            // Cấu hình timeout - TĂNG TIMEOUT ĐỂ CHỜ SUPABASE WAKE UP
+            config.setConnectionTimeout(60000);      // 60 giây để lấy connection (tăng từ 30s)
+            config.setIdleTimeout(600000);           // 10 phút idle timeout
+            config.setMaxLifetime(1800000);          // 30 phút max lifetime
+            config.setKeepaliveTime(300000);         // 5 phút keepalive
+            
+            // Cấu hình retry (tránh storm)
+            config.setInitializationFailTimeout(-1); // Không fail fast khi startup
+            
+            // Test kết nối
+            config.setConnectionTestQuery("SELECT 1");
+            
+            // Tên pool
+            config.setPoolName("SupabaseHikariPool");
+            
+            // Phát hiện leak (debug)
+            config.setLeakDetectionThreshold(60000); // 60 giây
+            
+            System.out.println("[DatabaseConnection] Đang tạo HikariDataSource...");
+            dataSource = new HikariDataSource(config);
+            
+            // Test kết nối ngay
+            System.out.println("[DatabaseConnection] Đang test kết nối đến Supabase...");
+            try (Connection testConn = dataSource.getConnection()) {
+                System.out.println("[DatabaseConnection] ✓ Test kết nối thành công!");
+            }
+            
+            System.out.println("[DatabaseConnection] ✓ Đã khởi tạo HikariCP pool");
+            System.out.println("[DatabaseConnection]   Max pool size: 2");
+            System.out.println("[DatabaseConnection]   Min idle: 0");
+            
+        } catch (Exception e) {
+            System.err.println("[DatabaseConnection] ✗ Lỗi khởi tạo HikariCP pool: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Không thể khởi tạo database connection pool", e);
+        }
+    }
 
     /**
      * Lấy connection từ pool
      */
-    public static Connection getConnection() throws SQLException, ClassNotFoundException {
-        Class.forName("org.postgresql.Driver");
-        // User và password đã được đưa vào URL, không cần truyền riêng
-        return DriverManager.getConnection(URL);
+    public static Connection getConnection() throws SQLException {
+        if (dataSource == null) {
+            initializePool();
+        }
+        return dataSource.getConnection();
+    }
+    
+    /**
+     * Đóng connection pool (gọi khi thoát ứng dụng)
+     */
+    public static synchronized void shutdown() {
+        if (dataSource != null && !dataSource.isClosed()) {
+            dataSource.close();
+            System.out.println("[DatabaseConnection] Đã đóng HikariCP pool");
+        }
     }
 
     /**
@@ -69,16 +151,133 @@ public class DatabaseConnection {
         throw new UnsupportedOperationException("saveAdminCard: Bảng admin_cards đã bị xóa trong V3. Sử dụng admin thay thế.");
     }
 
-    // ================== DEPRECATED METHODS (V2 - Đã xóa cột pk_user) ==================
-    // Cột pk_user đã bị xóa trong V3, không còn lưu public key trong DB
+    // ================== RSA PUBLIC KEY METHODS (V3 - RESTORED) ==================
+    // Cột pk_user được restore lại để lưu RSA public key cho challenge-response
     
     /**
-     * @deprecated V2 method - Cột pk_user đã bị xóa trong V3
-     * Public key không còn lưu trong DB, chỉ có trong thẻ
+     * Lưu RSA public key của user vào database
+     * @param cardId Card ID (16 bytes)
+     * @param pkUserBytes Public key bytes (X.509 encoded)
+     * @return true nếu thành công
      */
-    @Deprecated
-    public static byte[] getUserPublicKey(byte[] cardIdUser) {
-        throw new UnsupportedOperationException("getUserPublicKey: Cột pk_user đã bị xóa trong V3. Public key chỉ có trong thẻ.");
+    public static boolean saveUserPublicKey(byte[] cardId, byte[] pkUserBytes) {
+        System.out.println("[DatabaseConnection] saveUserPublicKey: BẮT ĐẦU");
+        System.out.println("[DatabaseConnection]   cardId length: " + (cardId != null ? cardId.length : "null"));
+        System.out.println("[DatabaseConnection]   cardId hex: " + (cardId != null ? bytesToHex(cardId) : "null"));
+        System.out.println("[DatabaseConnection]   pkUserBytes length: " + (pkUserBytes != null ? pkUserBytes.length : "null"));
+        
+        // Kiểm tra cardId đã tồn tại trong bảng user_cards chưa
+        String checkSql = "SELECT card_id, patient_id, status FROM user_cards WHERE card_id = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement checkPst = conn.prepareStatement(checkSql)) {
+            checkPst.setBytes(1, cardId);
+            try (ResultSet rs = checkPst.executeQuery()) {
+                if (rs.next()) {
+                    System.out.println("[DatabaseConnection]   ✓ CardId TỒN TẠI trong user_cards");
+                    System.out.println("[DatabaseConnection]     - patient_id: " + rs.getString("patient_id"));
+                    System.out.println("[DatabaseConnection]     - status: " + rs.getString("status"));
+                } else {
+                    System.err.println("[DatabaseConnection]   ✗ CardId KHÔNG TỒN TẠI trong user_cards!");
+                    System.err.println("[DatabaseConnection]     → Nguyên nhân: Card chưa được insert vào bảng user_cards");
+                    System.err.println("[DatabaseConnection]     → Giải pháp: Phải insert record vào user_cards TRƯỚC KHI lưu PK_user");
+                    return false;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[DatabaseConnection] Lỗi kiểm tra cardId tồn tại: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        // Thực hiện UPDATE pk_user
+        String sql = "UPDATE user_cards SET pk_user = ? WHERE card_id = ?";
+        System.out.println("[DatabaseConnection] SQL: " + sql);
+        
+        try (Connection conn = getConnection();
+             PreparedStatement pst = conn.prepareStatement(sql)) {
+            
+            System.out.println("[DatabaseConnection] Chuẩn bị execute UPDATE...");
+            pst.setBytes(1, pkUserBytes);
+            pst.setBytes(2, cardId);
+            
+            int rows = pst.executeUpdate();
+            System.out.println("[DatabaseConnection] UPDATE affected rows: " + rows);
+            
+            if (rows > 0) {
+                System.out.println("[DatabaseConnection] ✓ ĐÃ LƯU PK_user thành công cho cardId: " + bytesToHex(cardId));
+                
+                // Verify: Đọc lại để xác nhận
+                String verifySql = "SELECT pk_user FROM user_cards WHERE card_id = ?";
+                try (PreparedStatement verifyPst = conn.prepareStatement(verifySql)) {
+                    verifyPst.setBytes(1, cardId);
+                    try (ResultSet rs = verifyPst.executeQuery()) {
+                        if (rs.next()) {
+                            byte[] savedPk = rs.getBytes("pk_user");
+                            if (savedPk != null) {
+                                System.out.println("[DatabaseConnection]   Verify: pk_user length = " + savedPk.length);
+                                System.out.println("[DatabaseConnection]   Verify: ✓ Dữ liệu đã được lưu vào database");
+                            } else {
+                                System.err.println("[DatabaseConnection]   Verify: ✗ pk_user = NULL (không lưu được)");
+                            }
+                        }
+                    }
+                }
+                
+                return true;
+            } else {
+                System.err.println("[DatabaseConnection] ✗ UPDATE KHÔNG TÁC ĐỘNG row nào (rows = 0)");
+                System.err.println("[DatabaseConnection]   → Nguyên nhân: WHERE card_id = ? không tìm thấy row nào");
+                System.err.println("[DatabaseConnection]   → Kiểm tra lại: CardId có đúng? Card đã được insert vào user_cards chưa?");
+                return false;
+            }
+        } catch (Exception e) {
+            System.err.println("[DatabaseConnection] ✗ EXCEPTION khi lưu PK_user:");
+            System.err.println("[DatabaseConnection]   Exception type: " + e.getClass().getName());
+            System.err.println("[DatabaseConnection]   Message: " + e.getMessage());
+            System.err.println("[DatabaseConnection]   Stack trace:");
+            e.printStackTrace();
+            
+            // Kiểm tra exception cụ thể
+            if (e.getMessage() != null) {
+                if (e.getMessage().contains("column") && e.getMessage().contains("does not exist")) {
+                    System.err.println("[DatabaseConnection]   → Lỗi: Cột pk_user KHÔNG TỒN TẠI trong bảng user_cards");
+                    System.err.println("[DatabaseConnection]   → Giải pháp: Chạy ALTER TABLE user_cards ADD COLUMN pk_user BYTEA;");
+                } else if (e.getMessage().contains("connection")) {
+                    System.err.println("[DatabaseConnection]   → Lỗi: Vấn đề kết nối database");
+                } else if (e.getMessage().contains("syntax")) {
+                    System.err.println("[DatabaseConnection]   → Lỗi: Lỗi cú pháp SQL");
+                }
+            }
+            
+            return false;
+        }
+    }
+    
+    /**
+     * Lấy RSA public key của user từ database
+     * @param cardId Card ID (16 bytes)
+     * @return Public key bytes (X.509 encoded) hoặc null nếu không có
+     */
+    public static byte[] getUserPublicKey(byte[] cardId) {
+        String sql = "SELECT pk_user FROM user_cards WHERE card_id = ?";
+        try (Connection conn = getConnection();
+             PreparedStatement pst = conn.prepareStatement(sql)) {
+            pst.setBytes(1, cardId);
+            try (ResultSet rs = pst.executeQuery()) {
+                if (rs.next()) {
+                    byte[] pkUser = rs.getBytes("pk_user");
+                    if (pkUser != null) {
+                        System.out.println("[DatabaseConnection] Đã lấy PK_user, length: " + pkUser.length);
+                    } else {
+                        System.out.println("[DatabaseConnection] PK_user = null cho cardId: " + bytesToHex(cardId));
+                    }
+                    return pkUser;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[DatabaseConnection] Lỗi lấy PK_user: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return null;
     }
 
     /**
@@ -137,6 +336,12 @@ public class DatabaseConnection {
      * @return true nếu thành công
      */
     public static boolean saveUserCard(byte[] cardId, String patientId, Integer adminId) {
+        System.out.println("[DatabaseConnection] saveUserCard: BẮT ĐẦU");
+        System.out.println("[DatabaseConnection]   cardId length: " + (cardId != null ? cardId.length : "null"));
+        System.out.println("[DatabaseConnection]   cardId hex: " + (cardId != null ? bytesToHex(cardId) : "null"));
+        System.out.println("[DatabaseConnection]   patientId: " + patientId);
+        System.out.println("[DatabaseConnection]   adminId: " + adminId);
+        
         // First, ensure patient exists (check if patient_id exists in patients table)
         String checkSql = "SELECT COUNT(*) FROM patients WHERE patient_id = ?";
         try (Connection conn = getConnection();
@@ -146,13 +351,16 @@ public class DatabaseConnection {
             try (ResultSet rs = checkPst.executeQuery()) {
                 if (rs.next() && rs.getInt(1) == 0) {
                     // Patient does not exist - this should not happen if savePatient was called first
-                    System.err.println("[DatabaseConnection] Warning: Patient " + patientId + " does not exist in patients table!");
-                    System.err.println("[DatabaseConnection] Please create patient record first using savePatient()");
+                    System.err.println("[DatabaseConnection] ✗ Patient " + patientId + " KHÔNG TỒN TẠI trong bảng patients!");
+                    System.err.println("[DatabaseConnection]   → Giải pháp: Phải gọi savePatient() TRƯỚC KHI gọi saveUserCard()");
                     return false;
+                } else {
+                    System.out.println("[DatabaseConnection]   ✓ Patient " + patientId + " tồn tại trong bảng patients");
                 }
             }
         } catch (Exception e) {
-            System.err.println("[DatabaseConnection] Error checking patient existence: " + e.getMessage());
+            System.err.println("[DatabaseConnection] ✗ Lỗi kiểm tra patient existence: " + e.getMessage());
+            e.printStackTrace();
             return false;
         }
         
@@ -162,16 +370,48 @@ public class DatabaseConnection {
                      "ON CONFLICT (card_id) DO UPDATE SET patient_id = EXCLUDED.patient_id, " +
                      "status = 'ACTIVE', issued_at = NOW(), issued_by_admin_id = EXCLUDED.issued_by_admin_id, " +
                      "last_updated_at = NOW()";
+        System.out.println("[DatabaseConnection] SQL: " + sql);
+        
         try (Connection conn = getConnection();
              PreparedStatement pst = conn.prepareStatement(sql)) {
             
+            System.out.println("[DatabaseConnection] Chuẩn bị execute INSERT/UPDATE...");
             pst.setBytes(1, cardId);
             pst.setString(2, patientId);
             pst.setObject(3, adminId);
             
-            return pst.executeUpdate() > 0;
+            int rows = pst.executeUpdate();
+            System.out.println("[DatabaseConnection] INSERT/UPDATE affected rows: " + rows);
+            
+            if (rows > 0) {
+                System.out.println("[DatabaseConnection] ✓ ĐÃ LƯU user_cards thành công");
+                
+                // Verify: Đọc lại để xác nhận
+                String verifySql = "SELECT card_id, patient_id, status, issued_at FROM user_cards WHERE card_id = ?";
+                try (PreparedStatement verifyPst = conn.prepareStatement(verifySql)) {
+                    verifyPst.setBytes(1, cardId);
+                    try (ResultSet rs = verifyPst.executeQuery()) {
+                        if (rs.next()) {
+                            System.out.println("[DatabaseConnection]   Verify:");
+                            System.out.println("[DatabaseConnection]     - card_id: " + bytesToHex(rs.getBytes("card_id")));
+                            System.out.println("[DatabaseConnection]     - patient_id: " + rs.getString("patient_id"));
+                            System.out.println("[DatabaseConnection]     - status: " + rs.getString("status"));
+                            System.out.println("[DatabaseConnection]     - issued_at: " + rs.getTimestamp("issued_at"));
+                        } else {
+                            System.err.println("[DatabaseConnection]   Verify: ✗ Không tìm thấy row vừa insert (lỗi bất thường)");
+                        }
+                    }
+                }
+                
+                return true;
+            } else {
+                System.err.println("[DatabaseConnection] ✗ INSERT/UPDATE KHÔNG TÁC ĐỘNG row nào (rows = 0)");
+                return false;
+            }
         } catch (Exception e) {
-            System.err.println("[DatabaseConnection] Error in saveUserCard: " + e.getMessage());
+            System.err.println("[DatabaseConnection] ✗ EXCEPTION khi saveUserCard:");
+            System.err.println("[DatabaseConnection]   Exception type: " + e.getClass().getName());
+            System.err.println("[DatabaseConnection]   Message: " + e.getMessage());
             e.printStackTrace();
             return false;
         }

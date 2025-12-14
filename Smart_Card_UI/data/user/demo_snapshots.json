@@ -1,17 +1,32 @@
 {
   "snapshots": {
-    "DED7E085C09A710B7EFE35CA8DB46461": {
-      "cardId": "DED7E085C09A710B7EFE35CA8DB46461",
-      "hoTen": "ĐM phương",
+    "57AB717379B6D516EE0D4F827FE65007": {
+      "cardId": "57AB717379B6D516EE0D4F827FE65007",
+      "hoTen": "phương",
       "idBenhNhan": "1",
-      "ngaySinh": "01/02/0003",
-      "queQuan": "Sóc Sơn",
-      "maBHYT": "83866789",
-      "balance": 500000,
-      "pinUserDefault": "123456",
-      "pinAdminReset": "463047",
-      "createdAt": "2025-12-07 15:15:52",
-      "updatedAt": "2025-12-07 15:15:52"
+      "ngaySinh": "12/03/1234",
+      "queQuan": "123123",
+      "maBHYT": "123123",
+      "balance": 0,
+      "pinUserDefault": "123123",
+      "pinAdminReset": "416968",
+      "pkUserBase64": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCqYgu1dyZE726q6X2bECZK19bcQ3DtE/XFL7cgKkZwaEsNgueNlRoFz6053qzuLAHmuKQC0ICOMyc0efsMlfOALpXAGtOLEbQE5JUqV+CEmp8F5BNfdhMkMEUjszGeyxj9lZElR5F43M1b5bgD9YBks4dh2jWbJHzTj1cA+eQoUwIDAQAB",
+      "createdAt": "2025-12-14 19:04:54",
+      "updatedAt": "2025-12-14 19:04:54"
+    },
+    "700DEABAE3EBF8FF9CE8582939872B3E": {
+      "cardId": "700DEABAE3EBF8FF9CE8582939872B3E",
+      "hoTen": "test02",
+      "idBenhNhan": "2",
+      "ngaySinh": "12/03/1234",
+      "queQuan": "123123",
+      "maBHYT": "123123",
+      "balance": 0,
+      "pinUserDefault": "123123",
+      "pinAdminReset": "240087",
+      "pkUserBase64": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCsCP+Qz4Iy25+oHk1pvTWfzoYuPQLLypJqndEA3pUmxt3OaGTVywPj1S2NSQtfZ4QQprHCsWQRZXm11Ezc91tFZmJnKS3kc9epA8BoEi9ZxIw+elSh9exWJ7gZTKx3JKN3iu7oFYXoaGF53gD/W0yl4p8ZSekRSAR8e646uSiLKQIDAQAB",
+      "createdAt": "2025-12-14 19:18:28",
+      "updatedAt": "2025-12-14 19:18:28"
     }
   }
 }

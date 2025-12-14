@@ -20,12 +20,13 @@ public class APDUCommands {
     public static final byte INS_VERIFY_PIN_AND_READ_DATA = (byte)0x03; // V3: Verify PIN and read patient data
     public static final byte INS_UPDATE_PATIENT_DATA = (byte)0x04; // V3: Update patient data
     public static final byte INS_ADMIN_RESET_PIN = (byte)0x05; // V3: Admin reset PIN
+    public static final byte INS_SIGN_CHALLENGE = (byte)0x10; // V3: Sign challenge with SK_user (0x10 to avoid confusion with SW 0x6XXX)
     
     // V2 - Deprecated (kept for backward compatibility)
     @Deprecated
     public static final byte INS_VERIFY_PIN_USER = (byte)0x20; // V2: Deprecated
     @Deprecated
-    public static final byte INS_SIGN_CHALLENGE_USER = (byte)0x21; // V2: Deprecated
+    public static final byte INS_SIGN_CHALLENGE_USER = (byte)0x21; // V2: Deprecated - Use INS_SIGN_CHALLENGE instead
     @Deprecated
     public static final byte INS_ISSUE_CARD_V2 = (byte)0x30; // V2: Deprecated
     @Deprecated
@@ -123,43 +124,68 @@ public class APDUCommands {
     }
 
     /**
-     * Ký challenge bằng SK_user
+     * V3: Sign challenge bằng SK_user
+     * @param challenge Challenge bytes (typically 32 bytes)
+     * @return Signature (128 bytes for RSA 1024) hoặc null nếu lỗi
+     * @throws CardException nếu có lỗi giao tiếp
      */
-    public byte[] signChallengeUser(byte[] challenge) {
+    public byte[] signChallenge(byte[] challenge) throws CardException {
         try {
-            System.out.println("[APDUCommands] signChallengeUser: Gửi challenge lên thẻ...");
+            System.out.println("[APDUCommands] signChallenge: Gửi challenge xuống thẻ...");
             System.out.println("[APDUCommands] Challenge length: " + (challenge != null ? challenge.length : 0));
             if (challenge != null && challenge.length > 0) {
-                System.out.print("[APDUCommands] Challenge (first 16 bytes hex): ");
+                System.out.print("[APDUCommands] Challenge (first 16 bytes): ");
                 for (int i = 0; i < Math.min(16, challenge.length); i++) {
                     System.out.printf("%02X ", challenge[i]);
                 }
                 System.out.println();
             }
             
-            ResponseAPDU resp = send(INS_SIGN_CHALLENGE_USER, (byte)0, (byte)0, challenge, 128);
+            ResponseAPDU resp = send(INS_SIGN_CHALLENGE, (byte)0, (byte)0, challenge, 128);
             int sw = resp.getSW();
-            System.out.println("[APDUCommands] signChallengeUser response SW: " + String.format("0x%04X", sw));
+            System.out.println("[APDUCommands] signChallenge response SW: " + String.format("0x%04X", sw));
             
             if (sw == 0x9000) {
                 byte[] signature = resp.getData();
-                System.out.println("[APDUCommands] signChallengeUser: Nhận được signature, length: " + (signature != null ? signature.length : 0));
+                System.out.println("[APDUCommands] ✓ Nhận được signature, length: " + 
+                                  (signature != null ? signature.length : 0));
                 if (signature != null && signature.length > 0) {
-                    System.out.print("[APDUCommands] Signature (first 16 bytes hex): ");
+                    System.out.print("[APDUCommands] Signature (first 16 bytes): ");
                     for (int i = 0; i < Math.min(16, signature.length); i++) {
                         System.out.printf("%02X ", signature[i]);
                     }
                     System.out.println();
                 }
                 return signature;
+            } else if (sw == 0x6982) {
+                System.err.println("[APDUCommands] ✗ Security status not satisfied - PIN chưa verify");
+                throw new CardException("Security status not satisfied (0x6982) - PIN User chưa được verify");
+            } else if (sw == 0x6985) {
+                System.err.println("[APDUCommands] ✗ Thẻ chưa được phát hành");
+                throw new CardException("Card not issued (0x6985)");
             } else {
-                System.err.println("[APDUCommands] signChallengeUser THẤT BẠI! SW: " + String.format("0x%04X", sw));
+                System.err.println("[APDUCommands] ✗ signChallenge THẤT BẠI! SW: " + String.format("0x%04X", sw));
+                throw new CardException("Sign challenge failed with SW: " + String.format("0x%04X", sw));
             }
+        } catch (CardException e) {
+            throw e; // Re-throw CardException
         } catch (Exception e) {
-            System.err.println("[APDUCommands] Exception trong signChallengeUser: " + e.getMessage());
+            System.err.println("[APDUCommands] Exception: " + e.getMessage());
             e.printStackTrace();
+            throw new CardException("Exception in signChallenge: " + e.getMessage());
         }
-        return null;
+    }
+    
+    /**
+     * V2: Ký challenge bằng SK_user (Deprecated - Use signChallenge() instead)
+     */
+    @Deprecated
+    public byte[] signChallengeUser(byte[] challenge) {
+        try {
+            return signChallenge(challenge);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**
@@ -415,6 +441,12 @@ public class APDUCommands {
             int sw = resp.getSW();
             System.out.println("[APDUCommands] issueCard: Response SW = " + String.format("0x%04X", sw));
             
+            // Decode error codes
+            if (sw != 0x9000) {
+                String errorMsg = decodeIssueCardError(sw);
+                System.err.println("[APDUCommands] issueCard: " + errorMsg);
+            }
+            
             if (sw == 0x9000) {
                 byte[] result = resp.getData();
                 System.out.println("[APDUCommands] issueCard: Thành công! Status = " + (result != null && result.length > 0 ? String.format("0x%02X", result[0]) : "null"));
@@ -638,6 +670,128 @@ public class APDUCommands {
             sb.append(String.format("%02X", b));
         }
         return sb.toString();
+    }
+    
+    /**
+     * Decode error codes từ ISSUE_CARD command
+     */
+    private static String decodeIssueCardError(int sw) {
+        switch (sw) {
+            case 0x6F01:
+                return "✗ RSA KEY GENERATION FAILED (0x6F01)\n" +
+                       "   → RSA key pair không thể generate\n" +
+                       "   → Kiểm tra: Card có hỗ trợ RSA 1024-bit không?";
+            
+            case 0x6F02:
+                return "✗ RSA PUBLIC KEY EXPORT FAILED (0x6F02)\n" +
+                       "   → Không thể export public key\n" +
+                       "   → Lỗi bất thường (PK nên export được)";
+            
+            case 0x6F03:
+                return "✗ HASH OPERATION FAILED (0x6F03)\n" +
+                       "   → SHA-1 hash thất bại\n" +
+                       "   → Kiểm tra: Card có hỗ trợ SHA-1 không?";
+            
+            case 0x6F04:
+                return "✗ AES ENCRYPTION FAILED (0x6F04)\n" +
+                       "   → AES-128 encryption thất bại\n" +
+                       "   → Kiểm tra: Card có hỗ trợ AES-128 không?";
+            
+            case 0x6F10:
+            case 0x6F11:
+            case 0x6F12:
+            case 0x6F13:
+            case 0x6F14:
+            case 0x6F15:
+            case 0x6F16:
+            case 0x6F17:
+            case 0x6F18:
+            case 0x6F19:
+            case 0x6F1A:
+            case 0x6F1B:
+            case 0x6F1C:
+            case 0x6F1D:
+            case 0x6F1E:
+            case 0x6F1F:
+                int reason = sw & 0x0F;
+                return String.format("✗ RSA KEY GENERATION CRYPTO ERROR (0x%04X)\n", sw) +
+                       "   → CryptoException reason code: " + reason + "\n" +
+                       "   → Lỗi crypto trong quá trình generate RSA key";
+            
+            case 0x6F20:
+            case 0x6F21:
+            case 0x6F22:
+            case 0x6F23:
+            case 0x6F24:
+            case 0x6F25:
+            case 0x6F26:
+            case 0x6F27:
+            case 0x6F28:
+            case 0x6F29:
+            case 0x6F2A:
+            case 0x6F2B:
+            case 0x6F2C:
+            case 0x6F2D:
+            case 0x6F2E:
+            case 0x6F2F:
+                int cryptoReason = sw & 0x0F;
+                return String.format("✗ UNCAUGHT CRYPTO EXCEPTION (0x%04X)\n", sw) +
+                       "   → CryptoException reason: " + cryptoReason + "\n" +
+                       "   → Exception xảy ra ngoài các try-catch block";
+            
+            case 0x6F30:
+                return "✗ BUFFER OVERFLOW (0x6F30)\n" +
+                       "   → ArrayIndexOutOfBoundsException\n" +
+                       "   → Response quá lớn (PK + SK vượt quá buffer APDU)\n" +
+                       "   → GIẢI PHÁP: Bỏ qua SK export (chỉ gửi PK)";
+            
+            case 0x6F31:
+                return "✗ RESPONSE SEND FAILED (0x6F31)\n" +
+                       "   → Exception trong apdu.setOutgoingAndSend()\n" +
+                       "   → Response length: Có thể quá lớn hoặc không hợp lệ";
+            
+            case 0x6F40:
+                return "✗ INVALID PATIENT INFO LENGTH (0x6F40)\n" +
+                       "   → Patient info length <= 0 hoặc > MAX\n" +
+                       "   → Kiểm tra data format";
+            
+            case 0x6985:
+                return "✗ CONDITIONS NOT SATISFIED (0x6985)\n" +
+                       "   → Thẻ đã được phát hành rồi\n" +
+                       "   → Không thể issue lại";
+            
+            case 0x6F00:
+                return "✗ UNKNOWN ERROR (0x6F00)\n" +
+                       "   → Lỗi không xác định từ applet\n" +
+                       "   → Có thể: Buffer overflow, exception không catch được";
+            
+            default:
+                return String.format("✗ ERROR (0x%04X)\n   → Mã lỗi: %s", 
+                                   sw, getStatusWordDescription(sw));
+        }
+    }
+    
+    /**
+     * Get human-readable description of status word
+     */
+    private static String getStatusWordDescription(int sw) {
+        switch (sw) {
+            case 0x9000: return "Success";
+            case 0x6300: return "Authentication failed";
+            case 0x6700: return "Wrong length";
+            case 0x6982: return "Security status not satisfied";
+            case 0x6983: return "Authentication method blocked";
+            case 0x6984: return "Referenced data invalidated";
+            case 0x6985: return "Conditions not satisfied";
+            case 0x6986: return "Command not allowed";
+            case 0x6A80: return "Incorrect parameters";
+            case 0x6A82: return "File not found";
+            case 0x6A86: return "Incorrect P1 P2";
+            case 0x6D00: return "Instruction not supported";
+            case 0x6E00: return "Class not supported";
+            case 0x6F00: return "Unknown error";
+            default: return String.format("0x%04X", sw);
+        }
     }
     
     // Helper method để set short (tương tự javacard.framework.Util)

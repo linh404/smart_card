@@ -1,5 +1,6 @@
 package ui;
 
+import db.DatabaseConnection;
 import ui.admin.LoginFrame;
 import ui.user.UserLoginFrame;
 
@@ -113,6 +114,12 @@ public class MainFrame extends JFrame {
         } catch (Exception e) {
             System.err.println("Warning: Could not set default UI font");
         }
+        
+        // Thêm shutdown hook để đóng HikariCP pool khi thoát ứng dụng
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("[MainFrame] Đang đóng database connection pool...");
+            DatabaseConnection.shutdown();
+        }));
         
         SwingUtilities.invokeLater(new Runnable() {
             @Override

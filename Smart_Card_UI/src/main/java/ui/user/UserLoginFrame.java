@@ -3,8 +3,11 @@ package ui.user;
 import card.CardManager;
 import card.APDUCommands;
 import model.UserData;
+import util.CryptoUtils;
+import db.DatabaseConnection;
 
 import javax.swing.*;
+import javax.smartcardio.CardException;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -185,22 +188,134 @@ public class UserLoginFrame extends JFrame {
             }
 
             // 2. V3: Xác thực PIN_user và đọc data cùng lúc
-            // Gửi PIN plaintext xuống thẻ, thẻ sẽ verify và trả về patient data nếu đúng
             byte[] pinBytes = pin.getBytes();
             byte[] userDataBytes = apduCommands.verifyPinAndReadData(pinBytes);
             
             if (userDataBytes == null || userDataBytes.length == 0) {
-                // PIN sai hoặc thẻ bị khóa
+                // ❌ SAI: PIN sai hoặc thẻ bị khóa
                 JOptionPane.showMessageDialog(this, 
-                    "Mã PIN không đúng hoặc thẻ bị khóa!\n\n" +
+                    "Mã PIN KHÔNG ĐÚNG hoặc thẻ bị khóa!\n\n" +
                     "Vui lòng kiểm tra lại PIN và thử lại.", 
-                    "Lỗi", JOptionPane.ERROR_MESSAGE);
+                    "Từ chối", JOptionPane.ERROR_MESSAGE);
                 txtPin.setText("");
                 txtPin.requestFocus();
                 return;
             }
 
-            // 3. Parse userData từ response
+            // 3. PIN đúng → Bắt đầu RSA challenge-response (V3)
+            System.out.println("[User Login] ✓ PIN đúng, bắt đầu xác thực RSA...");
+            
+            // 3.1. Lấy PK_user từ database
+            byte[] pkUserBytes = DatabaseConnection.getUserPublicKey(cardIdUser);
+            
+            if (pkUserBytes == null) {
+                // ❌ SAI: Thẻ chưa có RSA key (chưa phát hành đúng)
+                System.err.println("[User Login] ✗ Thẻ chưa có PK_user trong database");
+                
+                JOptionPane.showMessageDialog(this, 
+                    "THẺ CHƯA CÓ RSA KEY!\n\n" +
+                    "Thẻ này chưa được phát hành với RSA.\n" +
+                    "Vui lòng liên hệ admin để phát hành lại thẻ.\n\n" +
+                    "Lý do bảo mật: Không thể xác thực tính hợp lệ của thẻ.", 
+                    "Thẻ không hợp lệ", JOptionPane.ERROR_MESSAGE);
+                return; // TỪ CHỐI đăng nhập
+            }
+            
+            System.out.println("[User Login] ✓ Đã lấy PK_user từ database, length: " + pkUserBytes.length);
+            
+            // 3.2. Sinh challenge (32 bytes)
+            byte[] challenge = CryptoUtils.generateChallenge();
+            System.out.println("[User Login] Challenge (32 bytes): " + bytesToHex(challenge));
+            
+            // 3.3. Gửi challenge xuống thẻ, nhận signature
+            byte[] signature = null;
+            try {
+                signature = apduCommands.signChallenge(challenge);
+            } catch (CardException e) {
+                // ⚠️ LỖI: Exception khi giao tiếp với thẻ
+                System.err.println("[User Login] CardException: " + e.getMessage());
+                e.printStackTrace();
+                
+                int retry = JOptionPane.showConfirmDialog(this, 
+                    "LỖI GIAO TIẾP VỚI THẺ!\n\n" +
+                    "Lỗi: " + e.getMessage() + "\n\n" +
+                    "Nguyên nhân có thể:\n" +
+                    "- Thẻ bị disconnect\n" +
+                    "- Đầu đọc bị lỗi\n" +
+                    "- Timeout\n\n" +
+                    "Bạn có muốn thử lại không?", 
+                    "Lỗi giao tiếp", 
+                    JOptionPane.YES_NO_OPTION, 
+                    JOptionPane.WARNING_MESSAGE);
+                
+                if (retry == JOptionPane.YES_OPTION) {
+                    handleLogin(); // CHO PHÉP retry
+                }
+                return;
+            }
+            
+            if (signature == null || signature.length == 0) {
+                // ⚠️ LỖI: Thẻ không trả về signature
+                System.err.println("[User Login] ✗ Thẻ không trả về signature");
+                
+                int retry = JOptionPane.showConfirmDialog(this, 
+                    "LỖI XÁC THỰC!\n\n" +
+                    "Không nhận được chữ ký từ thẻ.\n\n" +
+                    "Nguyên nhân có thể:\n" +
+                    "- Lỗi tạm thời\n" +
+                    "- Lỗi giao tiếp\n" +
+                    "- Thẻ bị lỗi\n\n" +
+                    "Bạn có muốn thử lại không?", 
+                    "Lỗi", 
+                    JOptionPane.YES_NO_OPTION, 
+                    JOptionPane.WARNING_MESSAGE);
+                
+                if (retry == JOptionPane.YES_OPTION) {
+                    handleLogin(); // CHO PHÉP retry
+                }
+                return;
+            }
+            
+            System.out.println("[User Login] ✓ Nhận được signature, length: " + signature.length);
+            
+            // 3.4. Convert PK_user từ byte[] sang PublicKey
+            java.security.PublicKey pkUser = CryptoUtils.bytesToPublicKey(pkUserBytes);
+            
+            if (pkUser == null) {
+                // ⚠️ LỖI: Parse public key thất bại
+                System.err.println("[User Login] ✗ Không thể parse PK_user");
+                
+                JOptionPane.showMessageDialog(this, 
+                    "LỖI HỆ THỐNG!\n\n" +
+                    "Không thể parse public key từ database.\n" +
+                    "Vui lòng liên hệ admin để kiểm tra.", 
+                    "Lỗi hệ thống", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            // 3.5. Verify signature
+            boolean isValid = CryptoUtils.verifyRSASignature(challenge, signature, pkUser);
+            
+            if (!isValid) {
+                // ❌ SAI: Signature không hợp lệ → Thẻ giả!
+                System.err.println("[User Login] ✗✗✗ SIGNATURE KHÔNG HỢP LỆ! ✗✗✗");
+                
+                JOptionPane.showMessageDialog(this, 
+                    "XÁC THỰC THẺ THẤT BẠI!\n\n" +
+                    "CHỮ KÝ SỐ KHÔNG HỢP LỆ.\n" +
+                    "THẺ NÀY CÓ THỂ LÀ GIẢ!\n\n" +
+                    "⚠️ CẢNH BÁO BẢO MẬT ⚠️\n\n" +
+                    "Vui lòng liên hệ admin để kiểm tra ngay.", 
+                    "CẢNH BÁO BẢO MẬT", 
+                    JOptionPane.ERROR_MESSAGE);
+                return; // TỪ CHỐI đăng nhập
+            }
+            
+            // ✅ Xác thực thành công!
+            System.out.println("[User Login] ✓✓✓ XÁC THỰC RSA THÀNH CÔNG! ✓✓✓");
+            System.out.println("[User Login] PIN đúng + RSA verify OK → Cho phép đăng nhập");
+
+            // 4. Parse userData từ response
             UserData userData = UserData.fromBytes(userDataBytes);
             if (userData == null) {
                 JOptionPane.showMessageDialog(this, 
@@ -209,8 +324,7 @@ public class UserLoginFrame extends JFrame {
                 return;
             }
 
-            // 4. Đăng nhập thành công - Lưu PIN và userData để dùng trong session
-            System.out.println("[User Login] Xác thực PIN thành công!");
+            // 5. Đăng nhập thành công
             System.out.println("[User Login] UserData loaded: " + userData.getHoTen());
             
             dispose();
@@ -218,9 +332,26 @@ public class UserLoginFrame extends JFrame {
             new UserFrame(cardManager, apduCommands, pin, userData).setVisible(true);
 
         } catch (Exception e) {
+            // ⚠️ LỖI: Unexpected exception
             e.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Lỗi: " + e.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, 
+                "LỖI KHÔNG XÁC ĐỊNH!\n\n" +
+                "Lỗi: " + e.getMessage() + "\n\n" +
+                "Vui lòng thử lại hoặc liên hệ admin.", 
+                "Lỗi", JOptionPane.ERROR_MESSAGE);
         }
+    }
+    
+    /**
+     * Helper: Convert byte array sang hex string
+     */
+    private String bytesToHex(byte[] bytes) {
+        if (bytes == null) return "null";
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02X", b));
+        }
+        return sb.toString();
     }
 }
 

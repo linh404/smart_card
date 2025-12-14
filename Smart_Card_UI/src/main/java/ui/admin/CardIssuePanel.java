@@ -17,6 +17,11 @@ import java.security.SecureRandom;
 import java.text.SimpleDateFormat;
 import java.text.ParseException;
 import java.util.Date;
+import java.util.Base64;
+import java.math.BigInteger;
+import java.security.KeyFactory;
+import java.security.spec.RSAPublicKeySpec;
+import java.security.spec.RSAPrivateKeySpec;
 
 /**
  * CardIssuePanel - Panel phát hành thẻ User mới
@@ -415,6 +420,120 @@ public class CardIssuePanel extends JPanel {
             }
             System.out.println("[CardIssuePanel] issueCard: ISSUE_CARD thành công! Status = 0x00");
             
+            // 5.5. Parse RSA keys từ response (V3)
+            System.out.println("[CardIssuePanel] issueCard: Parse RSA keys từ response...");
+            
+            // Biến tạm để lưu RSA keys (Base64) cho snapshot
+            String pkUserBase64 = null;
+            String skUserBase64 = null;
+            byte[] pkUserEncoded = null;  // Di chuyển ra ngoài để truy cập sau khi saveUserCard()
+            byte[] skUserEncoded = null;
+            
+            try {
+                
+                if (result != null && result.length > 3) {
+                    // Format: [status (1)] [pk_mod_len (2)] [pk_modulus] [pk_exp_len (2)] [pk_exponent]
+                    //                      [sk_mod_len (2)] [sk_modulus] [sk_exp_len (2)] [sk_exponent] (optional)
+                    // NOTE: SK may not be present if JavaCard doesn't allow private key export
+                    
+                    short offset = 1; // Skip status byte
+                    
+                    // Parse PUBLIC KEY
+                    short pkModLen = getShort(result, offset);
+                    offset += 2;
+                    byte[] pkModulus = new byte[pkModLen];
+                    System.arraycopy(result, offset, pkModulus, 0, pkModLen);
+                    offset += pkModLen;
+                    
+                    short pkExpLen = getShort(result, offset);
+                    offset += 2;
+                    byte[] pkExponent = new byte[pkExpLen];
+                    System.arraycopy(result, offset, pkExponent, 0, pkExpLen);
+                    offset += pkExpLen;
+                    
+                    System.out.println("[CardIssuePanel] PK_user parsed: modLen=" + pkModLen + ", expLen=" + pkExpLen);
+                    
+                    // Parse PRIVATE KEY (if available - may not exist due to JavaCard security)
+                    byte[] skModulus = null;
+                    byte[] skExponent = null;
+                    
+                    if (result.length > offset + 4) {
+                        System.out.println("[CardIssuePanel] Attempting to parse SK_user from response...");
+                        short skModLen = getShort(result, offset);
+                        offset += 2;
+                        skModulus = new byte[skModLen];
+                        System.arraycopy(result, offset, skModulus, 0, skModLen);
+                        offset += skModLen;
+                        
+                        short skExpLen = getShort(result, offset);
+                        offset += 2;
+                        skExponent = new byte[skExpLen];
+                        System.arraycopy(result, offset, skExponent, 0, skExpLen);
+                        
+                        System.out.println("[CardIssuePanel] ✓ SK_user parsed: modLen=" + skModLen + ", expLen=" + skExpLen);
+                    } else {
+                        System.out.println("[CardIssuePanel] ⚠️ SK_user KHÔNG CÓ trong response");
+                        System.out.println("[CardIssuePanel]    → JavaCard không cho phép export private key (bảo mật)");
+                        System.out.println("[CardIssuePanel]    → Snapshot sẽ không có SK_user (OK cho production)");
+                    }
+                    
+                    // Convert RAW bytes → Java standard format
+                    BigInteger n = new BigInteger(1, pkModulus);
+                    BigInteger e = new BigInteger(1, pkExponent);
+                    
+                    RSAPublicKeySpec pubSpec = new RSAPublicKeySpec(n, e);
+                    KeyFactory kf = KeyFactory.getInstance("RSA");
+                    java.security.PublicKey javaPublicKey = kf.generatePublic(pubSpec);
+                    
+                    // Encode sang X.509 format (standard)
+                    pkUserEncoded = javaPublicKey.getEncoded();
+                    System.out.println("[CardIssuePanel] PK_user encoded (X.509): " + pkUserEncoded.length + " bytes");
+                    System.out.println("[CardIssuePanel] Lưu ý: PK_user sẽ được lưu vào database SAU KHI saveUserCard() thành công");
+                    
+                    // Convert PRIVATE KEY (if available - usually NOT on real JavaCards)
+                    if (skModulus != null && skExponent != null) {
+                        try {
+                            BigInteger d = new BigInteger(1, skExponent);
+                            RSAPrivateKeySpec privSpec = new RSAPrivateKeySpec(n, d);
+                            java.security.PrivateKey javaPrivateKey = kf.generatePrivate(privSpec);
+                            
+                            // Encode sang PKCS#8 format
+                            skUserEncoded = javaPrivateKey.getEncoded();
+                            System.out.println("[CardIssuePanel] ✓ SK_user encoded (PKCS#8): " + skUserEncoded.length + " bytes");
+                            System.out.println("[CardIssuePanel]   ⚠️ SK_user chỉ lưu vào SNAPSHOT (demo), KHÔNG lưu database");
+                        } catch (Exception skEx) {
+                            System.err.println("[CardIssuePanel] ✗ Lỗi convert SK_user: " + skEx.getMessage());
+                            // Continue without SK
+                        }
+                    } else {
+                        System.out.println("[CardIssuePanel] ℹ️ SK_user không có → Snapshot không có private key (OK)");
+                    }
+                    
+                } else {
+                    System.err.println("[CardIssuePanel] ✗ Response quá ngắn, không parse được RSA keys");
+                }
+                
+                // Lưu Base64 vào biến tạm (sẽ set vào snapshot sau)
+                if (pkUserEncoded != null) {
+                    pkUserBase64 = Base64.getEncoder().encodeToString(pkUserEncoded);
+                    System.out.println("[CardIssuePanel] ✓ PK_user ready for snapshot (Base64)");
+                }
+                
+                if (skUserEncoded != null) {
+                    skUserBase64 = Base64.getEncoder().encodeToString(skUserEncoded);
+                    System.out.println("[CardIssuePanel] ⚠️ SK_user ready for snapshot (Base64, DEMO only)");
+                }
+                
+            } catch (Exception e) {
+                System.err.println("[CardIssuePanel] Lỗi parse RSA keys: " + e.getMessage());
+                e.printStackTrace();
+                JOptionPane.showMessageDialog(this,
+                    "Cảnh báo: Không thể parse RSA keys!\n\n" +
+                    "Lỗi: " + e.getMessage() + "\n\n" +
+                    "Thẻ vẫn được phát hành nhưng không có RSA.",
+                    "Cảnh báo", JOptionPane.WARNING_MESSAGE);
+            }
+            
             // 6. Verify cardID trên thẻ khớp với cardID đã gửi
             System.out.println("[CardIssuePanel] issueCard: Verify cardID trên thẻ...");
             byte[] cardIdOnCard = apduCommands.getStatus();
@@ -480,6 +599,30 @@ public class CardIssuePanel extends JPanel {
                     "Cảnh báo", JOptionPane.WARNING_MESSAGE);
             } else {
                 System.out.println("[CardIssuePanel] issueCard: Đã lưu vào database thành công");
+                
+                // 7.3. SAU KHI insert user_cards thành công, MỚI lưu PK_user (V3)
+                if (pkUserEncoded != null) {
+                    System.out.println("[CardIssuePanel] ========================================");
+                    System.out.println("[CardIssuePanel] LƯU PK_user VÀO DATABASE (SAU KHI INSERT user_cards)");
+                    System.out.println("[CardIssuePanel] cardIdUser hex: " + bytesToHex(cardIdUser));
+                    System.out.println("[CardIssuePanel] pkUserEncoded length: " + pkUserEncoded.length);
+                    System.out.println("[CardIssuePanel] ========================================");
+                    
+                    if (DatabaseConnection.saveUserPublicKey(cardIdUser, pkUserEncoded)) {
+                        System.out.println("[CardIssuePanel] ✓ Đã lưu PK_user vào database thành công");
+                    } else {
+                        System.err.println("[CardIssuePanel] ✗ Lưu PK_user vào database thất bại");
+                        JOptionPane.showMessageDialog(this,
+                            "Cảnh báo: Không thể lưu RSA public key vào database!\n\n" +
+                            "Thẻ đã được phát hành nhưng sẽ không thể xác thực RSA.\n\n" +
+                            "Vui lòng kiểm tra:\n" +
+                            "1. Cột pk_user đã tồn tại trong bảng user_cards chưa?\n" +
+                            "2. Database connection có hoạt động không?",
+                            "Cảnh báo", JOptionPane.WARNING_MESSAGE);
+                    }
+                } else {
+                    System.out.println("[CardIssuePanel] pkUserEncoded = null, không lưu vào database");
+                }
             }
             
             // V3: Không lưu PIN_admin_reset vào DB nữa, chỉ derive khi cần
@@ -498,6 +641,16 @@ public class CardIssuePanel extends JPanel {
             snapshot.setPinUserDefault(pinUserDefault);
             snapshot.setPinAdminReset(pinAdminReset); // Lưu PIN admin reset để demo
             
+            // Set RSA keys vào snapshot (V3)
+            if (pkUserBase64 != null) {
+                snapshot.setPkUserBase64(pkUserBase64);
+                System.out.println("[CardIssuePanel] ✓ PK_user lưu vào snapshot");
+            }
+            if (skUserBase64 != null) {
+                snapshot.setSkUserBase64(skUserBase64);
+                System.out.println("[CardIssuePanel] ⚠️ SK_user lưu vào snapshot (DEMO only)");
+            }
+            
             if (UserDemoSnapshotManager.saveSnapshot(snapshot)) {
                 System.out.println("[CardIssuePanel] issueCard: Đã lưu snapshot demo cho cardId: " + cardIdHex);
             } else {
@@ -512,10 +665,23 @@ public class CardIssuePanel extends JPanel {
             }
 
             System.out.println("[CardIssuePanel] ========== PHÁT HÀNH THẺ THÀNH CÔNG ==========");
+            
+            String rsaKeysMsg = "RSA Keys:\n" +
+                "  ✓ Public Key: Đã lưu vào database\n";
+            
+            if (skUserBase64 != null) {
+                rsaKeysMsg += "  ⚠️ Private Key: Đã lưu vào snapshot (DEMO only)\n";
+            } else {
+                rsaKeysMsg += "  ℹ️ Private Key: KHÔNG export được (bảo mật JavaCard)\n" +
+                              "     → Thẻ vẫn hoạt động bình thường\n" +
+                              "     → Challenge-response vẫn OK (SK trong thẻ)\n";
+            }
+            
             String successMsg = "Phát hành thẻ thành công!\n\n" +
                 "Card ID: " + cardIdHex + "\n" +
                 "ID bệnh nhân: " + userData.getIdBenhNhan() + "\n" +
                 "Họ tên: " + userData.getHoTen() + "\n\n" +
+                rsaKeysMsg + "\n" +
                 "PIN_admin_reset (V3 - derive từ K_master): " + pinAdminReset + "\n" +
                 "LƯU Ý: PIN này được derive tự động, không lưu trong DB.";
             
@@ -552,6 +718,13 @@ public class CardIssuePanel extends JPanel {
             sb.append(String.format("%02X", b));
         }
         return sb.toString();
+    }
+    
+    /**
+     * Helper: Parse short từ byte array (Big-Endian)
+     */
+    private short getShort(byte[] data, int offset) {
+        return (short)(((data[offset] & 0xFF) << 8) | (data[offset + 1] & 0xFF));
     }
 }
 
