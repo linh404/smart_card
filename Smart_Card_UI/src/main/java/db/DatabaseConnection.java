@@ -129,27 +129,6 @@ public class DatabaseConnection {
         return sb.toString();
     }
 
-    // ================== DEPRECATED METHODS (V2 - Đã xóa bảng admin_cards) ==================
-    // Các methods sau đây đã không còn dùng vì bảng admin_cards đã bị xóa trong V3
-    // Giữ lại để tránh lỗi compile, nhưng sẽ throw exception nếu được gọi
-    
-    /**
-     * @deprecated V2 method - Bảng admin_cards đã bị xóa trong V3
-     * Admin không cần thẻ nữa, sử dụng admin với username/password
-     */
-    @Deprecated
-    public static byte[] getAdminPublicKey(byte[] cardIdAdmin) {
-        throw new UnsupportedOperationException("getAdminPublicKey: Bảng admin_cards đã bị xóa trong V3. Sử dụng admin thay thế.");
-    }
-
-    /**
-     * @deprecated V2 method - Bảng admin_cards đã bị xóa trong V3
-     * Admin không cần thẻ nữa, sử dụng admin với username/password
-     */
-    @Deprecated
-    public static boolean saveAdminCard(byte[] cardId, byte[] pkAdmin) {
-        throw new UnsupportedOperationException("saveAdminCard: Bảng admin_cards đã bị xóa trong V3. Sử dụng admin thay thế.");
-    }
 
     // ================== RSA PUBLIC KEY METHODS (V3 - RESTORED) ==================
     // Cột pk_user được restore lại để lưu RSA public key cho challenge-response
@@ -417,17 +396,6 @@ public class DatabaseConnection {
         }
     }
 
-    // ================== DEPRECATED METHODS (V2 - Đã xóa bảng bhyt_info) ==================
-    // Bảng bhyt_info đã bị xóa trong V3, thông tin BHYT giờ lưu trong bảng patients
-    
-    /**
-     * @deprecated V2 method - Bảng bhyt_info đã bị xóa trong V3
-     * Thông tin BHYT giờ lưu trong bảng patients (insurance_number)
-     */
-    @Deprecated
-    public static BHYTInfo getBHYTInfo(String maBHYT) {
-        throw new UnsupportedOperationException("getBHYTInfo: Bảng bhyt_info đã bị xóa trong V3. Sử dụng bảng patients (insurance_number) thay thế.");
-    }
 
     /**
      * Lưu log hệ thống
@@ -742,40 +710,6 @@ public class DatabaseConnection {
         public String email;
     }
 
-    // ================== ADMIN PIN ENCRYPTION METHODS (V2 - DEPRECATED) ==================
-    // V3: PIN_admin_reset được derive động từ K_master và cardID, không lưu trong DB
-
-    /**
-     * @deprecated V2 method - V3 không lưu admin PIN trong DB nữa
-     * PIN_admin_reset được derive động từ K_master và cardID bằng AdminPinDerivation.deriveAdminResetPIN()
-     * 
-     * @param cardId Card ID (byte[])
-     * @param adminPinEncrypted Admin PIN đã được encrypt (Base64 string)
-     * @param keyVersion Version của encryption key
-     * @return false (always fails in V3)
-     */
-    @Deprecated
-    public static boolean saveAdminPinEncrypted(byte[] cardId, String adminPinEncrypted, int keyVersion) {
-        System.err.println("[DatabaseConnection] WARNING: saveAdminPinEncrypted() is deprecated in V3!");
-        System.err.println("[DatabaseConnection] PIN_admin_reset is now derived dynamically from K_master and cardID.");
-        System.err.println("[DatabaseConnection] Use AdminPinDerivation.deriveAdminResetPIN(cardId) instead.");
-        return false;
-    }
-    
-    /**
-     * @deprecated V2 method - V3 không lưu admin PIN trong DB nữa
-     * PIN_admin_reset được derive động từ K_master và cardID bằng AdminPinDerivation.deriveAdminResetPIN()
-     * 
-     * @param cardId Card ID (byte[])
-     * @return null (always returns null in V3)
-     */
-    @Deprecated
-    public static String getAdminPinEncrypted(byte[] cardId) {
-        System.err.println("[DatabaseConnection] WARNING: getAdminPinEncrypted() is deprecated in V3!");
-        System.err.println("[DatabaseConnection] PIN_admin_reset is now derived dynamically from K_master and cardID.");
-        System.err.println("[DatabaseConnection] Use AdminPinDerivation.deriveAdminResetPIN(cardId) instead.");
-        return null;
-    }
 
     // ================== AUDIT LOG METHODS ==================
 

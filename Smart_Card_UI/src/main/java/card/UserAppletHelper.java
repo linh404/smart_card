@@ -61,96 +61,42 @@ public class UserAppletHelper {
     }
     
     /**
-     * Đọc thông tin User từ thẻ (UserData)
-     * @return UserData dạng byte[] hoặc null nếu lỗi
+     * V3: Không còn method riêng để đọc UserData
+     * Dùng verifyPinAndReadData() thay thế
      */
+    @Deprecated
     public byte[] readUserData() {
-        try {
-            System.out.println("[UserAppletHelper] readUserData: Đang đọc UserData...");
-            byte[] userData = apduCommands.getUserData();
-            if (userData != null) {
-                System.out.println("[UserAppletHelper] readUserData: Đã đọc được UserData, length = " + userData.length);
-                return userData;
-            } else {
-                System.out.println("[UserAppletHelper] readUserData: Không đọc được UserData");
-                return null;
-            }
-        } catch (javax.smartcardio.CardException e) {
-            System.err.println("[UserAppletHelper] readUserData: CardException - " + e.getMessage());
-            System.err.println("[UserAppletHelper] Cần xác thực PIN User trước khi đọc UserData");
-            e.printStackTrace();
-            return null;
-        } catch (Exception e) {
-            System.err.println("[UserAppletHelper] readUserData: Lỗi - " + e.getMessage());
-            e.printStackTrace();
-            return null;
-        }
+        System.err.println("[UserAppletHelper] readUserData() is deprecated in V3. Use verifyPinAndReadData() instead.");
+        return null;
     }
-    
+
     /**
-     * Đọc số dư từ thẻ
-     * @return Số dư hoặc -1 nếu lỗi
+     * V3: Không còn method riêng để đọc balance
+     * Balance được lưu trong UserData, dùng verifyPinAndReadData() để lấy
      */
+    @Deprecated
     public int getBalance() {
-        try {
-            System.out.println("[UserAppletHelper] getBalance: Đang đọc số dư...");
-            int balance = apduCommands.getBalance();
-            if (balance >= 0) {
-                System.out.println("[UserAppletHelper] getBalance: Số dư = " + balance);
-                return balance;
-            } else {
-                System.out.println("[UserAppletHelper] getBalance: Không đọc được số dư");
-                return -1;
-            }
-        } catch (Exception e) {
-            System.err.println("[UserAppletHelper] getBalance: Lỗi - " + e.getMessage());
-            e.printStackTrace();
-            return -1;
-        }
+        System.err.println("[UserAppletHelper] getBalance() is deprecated in V3. Balance is in UserData.");
+        return -1;
     }
-    
+
     /**
-     * Kiểm tra PIN User có đúng không
-     * @param pinPlaintext PIN dạng plaintext
-     * @return true nếu PIN đúng
+     * V3: Không còn method riêng để verify PIN
+     * Dùng verifyPinAndReadData() thay thế
      */
+    @Deprecated
     public boolean verifyPin(byte[] pinPlaintext) {
-        try {
-            System.out.println("[UserAppletHelper] verifyPin: Đang xác thực PIN User...");
-            boolean result = apduCommands.verifyPinUser(pinPlaintext);
-            if (result) {
-                System.out.println("[UserAppletHelper] verifyPin: PIN đúng");
-            } else {
-                System.out.println("[UserAppletHelper] verifyPin: PIN sai");
-            }
-            return result;
-        } catch (Exception e) {
-            System.err.println("[UserAppletHelper] verifyPin: Lỗi - " + e.getMessage());
-            e.printStackTrace();
-            return false;
-        }
+        System.err.println("[UserAppletHelper] verifyPin() is deprecated in V3. Use verifyPinAndReadData() instead.");
+        return false;
     }
-    
+
     /**
-     * Reset toàn bộ thẻ User (xóa tất cả dữ liệu)
-     * @param pinAdmin PIN Admin để xác thực
-     * @return true nếu reset thành công
+     * V3: Reset card không còn được hỗ trợ
      */
+    @Deprecated
     public boolean resetCard(byte[] pinAdmin) {
-        try {
-            System.out.println("[UserAppletHelper] resetCard: Bắt đầu reset thẻ User...");
-            boolean result = apduCommands.resetUserCard(pinAdmin);
-            if (result) {
-                System.out.println("[UserAppletHelper] resetCard: Reset thẻ thành công");
-            } else {
-                System.err.println("[UserAppletHelper] resetCard: Reset thẻ thất bại");
-            }
-            return result;
-        } catch (Exception e) {
-            System.err.println("[UserAppletHelper] resetCard: Lỗi - " + e.getMessage());
-            e.printStackTrace();
-            return false;
-        }
+        System.err.println("[UserAppletHelper] resetCard() is deprecated in V3. Not supported.");
+        return false;
     }
     
     /**
@@ -163,20 +109,7 @@ public class UserAppletHelper {
         byte[] cardId = getCardId();
         if (cardId != null && cardId.length > 0) {
             info.append("Card ID: ").append(bytesToHex(cardId)).append("\n");
-            
-            int balance = getBalance();
-            if (balance >= 0) {
-                info.append("Số dư: ").append(balance).append("\n");
-            } else {
-                info.append("Số dư: Không đọc được\n");
-            }
-            
-            byte[] userData = readUserData();
-            if (userData != null && userData.length > 0) {
-                info.append("UserData: Có dữ liệu (").append(userData.length).append(" bytes)\n");
-            } else {
-                info.append("UserData: Không có hoặc không đọc được\n");
-            }
+            info.append("V3: Dùng verifyPinAndReadData() để lấy UserData và balance\n");
         } else {
             info.append("Thẻ chưa được phát hành (chưa có cardId_user)\n");
         }

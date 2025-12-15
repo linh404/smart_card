@@ -2,8 +2,6 @@ package ui.user;
 
 import card.CardManager;
 import card.APDUCommands;
-import db.BHYTInfo;
-import db.DatabaseConnection;
 import model.UserData;
 
 import javax.swing.*;
@@ -119,23 +117,15 @@ public class BHYTPanel extends JPanel {
 
             lblMaBHYT.setText(maBHYT);
 
-            // 2. Truy vấn Supabase để lấy thông tin BHYT đầy đủ
-            BHYTInfo info = DatabaseConnection.getBHYTInfo(maBHYT);
-            if (info != null) {
-                lblHoTen.setText(info.getHoTen() != null ? info.getHoTen() : "-");
-                lblNgaySinh.setText(info.getNgaySinh() != null ? info.getNgaySinh().toString() : "-");
-                lblSoThe.setText(info.getSoThe() != null ? info.getSoThe() : "-");
-                lblNgayHetHan.setText(info.getNgayHetHan() != null ? info.getNgayHetHan().toString() : "-");
-                lblMucHuong.setText(info.getMucHuong() != null ? info.getMucHuong() : "-");
-            } else {
-                // Hiển thị thông tin từ userData nếu không có trong database
-                lblHoTen.setText(userData.getHoTen() != null ? userData.getHoTen() : "-");
-                lblNgaySinh.setText(userData.getNgaySinh() != null ? userData.getNgaySinh() : "-");
-                lblSoThe.setText("-");
-                lblNgayHetHan.setText("-");
-                lblMucHuong.setText("-");
-                JOptionPane.showMessageDialog(this, "Không tìm thấy thông tin BHYT đầy đủ trong database!", "Cảnh báo", JOptionPane.WARNING_MESSAGE);
-            }
+            // V3: Thông tin BHYT giờ lưu trong bảng patients (insurance_number)
+            // Hiển thị thông tin từ userData
+            lblHoTen.setText(userData.getHoTen() != null ? userData.getHoTen() : "-");
+            lblNgaySinh.setText(userData.getNgaySinh() != null ? userData.getNgaySinh() : "-");
+            lblSoThe.setText(maBHYT); // Dùng mã BHYT làm số thẻ
+            lblNgayHetHan.setText("-"); // V3: Cần thêm field này vào patients table nếu cần
+            lblMucHuong.setText("-"); // V3: Cần thêm field này vào patients table nếu cần
+            
+            // TODO V3: Query từ patients table nếu cần thông tin đầy đủ hơn
 
         } catch (Exception e) {
             e.printStackTrace();

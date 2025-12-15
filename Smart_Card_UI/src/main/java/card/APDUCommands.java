@@ -21,36 +21,6 @@ public class APDUCommands {
     public static final byte INS_UPDATE_PATIENT_DATA = (byte)0x04; // V3: Update patient data
     public static final byte INS_ADMIN_RESET_PIN = (byte)0x05; // V3: Admin reset PIN
     public static final byte INS_SIGN_CHALLENGE = (byte)0x10; // V3: Sign challenge with SK_user (0x10 to avoid confusion with SW 0x6XXX)
-    
-    // V2 - Deprecated (kept for backward compatibility)
-    @Deprecated
-    public static final byte INS_VERIFY_PIN_USER = (byte)0x20; // V2: Deprecated
-    @Deprecated
-    public static final byte INS_SIGN_CHALLENGE_USER = (byte)0x21; // V2: Deprecated - Use INS_SIGN_CHALLENGE instead
-    @Deprecated
-    public static final byte INS_ISSUE_CARD_V2 = (byte)0x30; // V2: Deprecated
-    @Deprecated
-    public static final byte INS_GET_CARD_ID = (byte)0x40; // V2: Deprecated - Use GET_STATUS instead
-    @Deprecated
-    public static final byte INS_GET_USER_DATA = (byte)0x41; // V2: Deprecated - Use VERIFY_PIN_AND_READ_DATA instead
-    @Deprecated
-    public static final byte INS_GET_BALANCE = (byte)0x42; // V2: Deprecated
-    @Deprecated
-    public static final byte INS_GET_LOGS = (byte)0x43; // V2: Deprecated
-    @Deprecated
-    public static final byte INS_GET_BHYT = (byte)0x44; // V2: Deprecated
-    @Deprecated
-    public static final byte INS_CREDIT = (byte)0x50; // V2: Deprecated
-    @Deprecated
-    public static final byte INS_DEBIT = (byte)0x51; // V2: Deprecated
-    @Deprecated
-    public static final byte INS_CHANGE_PIN = (byte)0xA0; // V2: Deprecated
-    @Deprecated
-    public static final byte INS_RESET_PIN_BY_ADMIN = (byte)0xA2; // V2: Deprecated - Use INS_ADMIN_RESET_PIN instead
-    @Deprecated
-    public static final byte INS_UPDATE_USER_DATA = (byte)0xB0; // V2: Deprecated - Use INS_UPDATE_PATIENT_DATA instead
-    @Deprecated
-    public static final byte INS_RESET_USER_CARD = (byte)0x80; // V2: Deprecated
  
     // ================== AID CỦA CÁC APPLET ==================
     // Package chung: HospitalCard
@@ -110,20 +80,6 @@ public class APDUCommands {
     // ================== CÁC HÀM CHO USER APPLET ==================
 
     /**
-     * Xác thực PIN User
-     * Gửi PIN plaintext xuống thẻ, thẻ sẽ hash và verify
-     */
-    public boolean verifyPinUser(byte[] pinPlaintext) {
-        try {
-            ResponseAPDU resp = send(INS_VERIFY_PIN_USER, (byte)0, (byte)0, pinPlaintext, -1);
-            return resp.getSW() == 0x9000;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return false;
-        }
-    }
-
-    /**
      * V3: Sign challenge bằng SK_user
      * @param challenge Challenge bytes (typically 32 bytes)
      * @return Signature (128 bytes for RSA 1024) hoặc null nếu lỗi
@@ -176,17 +132,6 @@ public class APDUCommands {
         }
     }
     
-    /**
-     * V2: Ký challenge bằng SK_user (Deprecated - Use signChallenge() instead)
-     */
-    @Deprecated
-    public byte[] signChallengeUser(byte[] challenge) {
-        try {
-            return signChallenge(challenge);
-        } catch (Exception e) {
-            return null;
-        }
-    }
 
     /**
      * V3: Get card status
@@ -236,25 +181,11 @@ public class APDUCommands {
     }
     
     /**
-     * V2: Đọc cardId_user (Deprecated - Use getStatus() instead)
+     * Đọc cardId_user từ thẻ (V3: wrapper của getStatus())
+     * @return cardId (16 bytes) hoặc null nếu lỗi
      */
-    @Deprecated
     public byte[] getCardId() {
-        // Try V3 first
-        byte[] cardId = getStatus();
-        if (cardId != null) {
-            return cardId;
-        }
-        // Fallback to V2 (if card still has old applet)
-        try {
-            ResponseAPDU resp = send(INS_GET_CARD_ID, (byte)0, (byte)0, null, 16);
-            if (resp.getSW() == 0x9000) {
-                return resp.getData();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
+        return getStatus();
     }
     
     /**
@@ -268,125 +199,14 @@ public class APDUCommands {
     }
 
     /**
-     * Đọc UserData đã giải mã
+     * Đọc UserData đã giải mã (V3: wrapper - cần verify PIN trước)
      * @return UserData bytes nếu thành công, null nếu thất bại
-     * @throws CardException nếu gặp lỗi security (SW 0x6982)
+     * @throws CardException nếu gặp lỗi security
+     * @deprecated V3: Không còn method riêng, dùng verifyPinAndReadData() thay thế
      */
+    @Deprecated
     public byte[] getUserData() throws CardException {
-        try {
-            ResponseAPDU resp = send(INS_GET_USER_DATA, (byte)0, (byte)0, null, 255);
-            int sw = resp.getSW();
-            if (sw == 0x9000) {
-                return resp.getData();
-            } else {
-                // Log SW code chi tiết
-                System.err.println("[APDUCommands] getUserData failed with SW: 0x" + String.format("%04X", sw));
-                if (sw == 0x6982) {
-                    System.err.println("[APDUCommands] Security status not satisfied - PIN User authentication required");
-                    throw new CardException("Security status not satisfied (SW: 0x6982). PIN User authentication required.");
-                }
-                return null;
-            }
-        } catch (CardException e) {
-            throw e; // Re-throw CardException
-        } catch (Exception e) {
-            System.err.println("[APDUCommands] getUserData exception: " + e.getMessage());
-            e.printStackTrace();
-            return null;
-        }
-    }
-
-    /**
-     * Đọc số dư
-     */
-    public int getBalance() {
-        try {
-            ResponseAPDU resp = send(INS_GET_BALANCE, (byte)0, (byte)0, null, 4);
-            if (resp.getSW() == 0x9000) {
-                byte[] data = resp.getData();
-                return ByteBuffer.wrap(data).getInt();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return -1;
-    }
-
-    /**
-     * Nạp tiền
-     */
-    public boolean credit(int amount) {
-        try {
-            byte[] amt = ByteBuffer.allocate(4).putInt(amount).array();
-            ResponseAPDU resp = send(INS_CREDIT, (byte)0, (byte)0, amt, -1);
-            return resp.getSW() == 0x9000;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return false;
-        }
-    }
-
-    /**
-     * Thanh toán
-     */
-    public boolean debit(int amount) {
-        try {
-            byte[] amt = ByteBuffer.allocate(4).putInt(amount).array();
-            ResponseAPDU resp = send(INS_DEBIT, (byte)0, (byte)0, amt, -1);
-            return resp.getSW() == 0x9000;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return false;
-        }
-    }
-
-    /**
-     * Đọc mã BHYT
-     */
-    public String getBHYT() {
-        try {
-            ResponseAPDU resp = send(INS_GET_BHYT, (byte)0, (byte)0, null, 50);
-            if (resp.getSW() == 0x9000) {
-                return new String(resp.getData(), StandardCharsets.UTF_8).trim();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    /**
-     * Đọc lịch sử giao dịch
-     */
-    public byte[] getLogs() {
-        try {
-            ResponseAPDU resp = send(INS_GET_LOGS, (byte)0, (byte)0, null, 255);
-            if (resp.getSW() == 0x9000) {
-                return resp.getData();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    /**
-     * User tự đổi PIN
-     * Gửi PIN cũ và PIN mới dạng plaintext, thẻ sẽ hash và cập nhật
-     */
-    public boolean changePin(byte[] oldPinPlaintext, byte[] newPinPlaintext) {
-        try {
-            byte[] data = new byte[oldPinPlaintext.length + newPinPlaintext.length + 4];
-            setShort(data, 0, (short)oldPinPlaintext.length);
-            System.arraycopy(oldPinPlaintext, 0, data, 2, oldPinPlaintext.length);
-            setShort(data, 2 + oldPinPlaintext.length, (short)newPinPlaintext.length);
-            System.arraycopy(newPinPlaintext, 0, data, 4 + oldPinPlaintext.length, newPinPlaintext.length);
-            ResponseAPDU resp = send(INS_CHANGE_PIN, (byte)0, (byte)0, data, -1);
-            return resp.getSW() == 0x9000;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return false;
-        }
+        throw new CardException("getUserData() is deprecated in V3. Use verifyPinAndReadData() instead.");
     }
 
     /**
@@ -617,49 +437,21 @@ public class APDUCommands {
     }
     
     /**
-     * V2: Cập nhật UserData (Deprecated - Use updatePatientData() instead)
+     * Cập nhật UserData (V3: wrapper của updatePatientData)
+     * @param newUserData UserData bytes
+     * @return true nếu thành công
      */
-    @Deprecated
     public boolean updateUserData(byte[] newUserData) {
         return updatePatientData(newUserData);
     }
 
     /**
-     * Reset toàn bộ thẻ User (xóa tất cả dữ liệu trong EEPROM)
-     * @param pinAdmin PIN Admin để xác thực quyền reset
-     * @return true nếu reset thành công
+     * V3: Change PIN không còn được hỗ trợ trong V3
+     * @deprecated V3 không hỗ trợ user tự đổi PIN, chỉ có admin reset PIN
      */
-    public boolean resetUserCard(byte[] pinAdmin) {
-        try {
-            System.out.println("[APDUCommands] resetUserCard: Bắt đầu reset thẻ User");
-            System.out.println("[APDUCommands] resetUserCard: PIN Admin length = " + (pinAdmin != null ? pinAdmin.length : 0));
-            
-            ResponseAPDU resp = send(INS_RESET_USER_CARD, (byte)0, (byte)0, pinAdmin, -1);
-            int sw = resp.getSW();
-            System.out.println("[APDUCommands] resetUserCard: Response SW = " + String.format("0x%04X", sw));
-            
-            if (sw == 0x9000) {
-                System.out.println("[APDUCommands] resetUserCard: Reset thẻ thành công");
-                return true;
-            } else {
-                String errorMsg = "[APDUCommands] resetUserCard: THẤT BẠI! SW = " + String.format("0x%04X", sw);
-                System.err.println(errorMsg);
-                
-                // Giải thích các mã lỗi
-                if (sw == 0x6D00) {
-                    System.err.println("  -> Lệnh không được hỗ trợ (INS_NOT_SUPPORTED) - Applet chưa hỗ trợ reset");
-                } else if (sw == 0x6300) {
-                    System.err.println("  -> PIN Admin không đúng");
-                } else if (sw == 0x6985) {
-                    System.err.println("  -> Điều kiện không thỏa mãn - Cần xác thực PIN Admin trước");
-                } else if (sw == 0x6A80) {
-                    System.err.println("  -> Dữ liệu không đúng (WRONG_DATA)");
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("[APDUCommands] resetUserCard: Exception - " + e.getMessage());
-            e.printStackTrace();
-        }
+    @Deprecated
+    public boolean changePin(byte[] oldPinPlaintext, byte[] newPinPlaintext) {
+        System.err.println("[APDUCommands] changePin() is not supported in V3. Use resetPinByAdmin() instead.");
         return false;
     }
 
