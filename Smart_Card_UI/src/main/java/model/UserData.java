@@ -35,17 +35,17 @@ public class UserData implements Serializable {
 
     /**
      * Chuyển UserData thành byte[] để gửi xuống thẻ
+     * Note: Balance KHÔNG được bao gồm vì balance được lưu riêng biệt trên thẻ
      */
     public byte[] toBytes() {
-        // Format: hoTen|idBenhNhan|ngaySinh|queQuan|maBHYT|balance
-        // Đơn giản hóa: dùng JSON hoặc format cố định
+        // Format: hoTen|idBenhNhan|ngaySinh|queQuan|maBHYT
+        // Balance KHÔNG được bao gồm - balance được lưu riêng và mã hóa bằng MK_user trên thẻ
         StringBuilder sb = new StringBuilder();
         sb.append(hoTen).append("|");
         sb.append(idBenhNhan).append("|");
         sb.append(ngaySinh).append("|");
         sb.append(queQuan).append("|");
-        sb.append(maBHYT).append("|");
-        sb.append(balance);
+        sb.append(maBHYT);
         
         byte[] textBytes = sb.toString().getBytes(StandardCharsets.UTF_8);
         byte[] result = new byte[textBytes.length + 4];
@@ -56,11 +56,15 @@ public class UserData implements Serializable {
 
     /**
      * Parse byte[] thành UserData
+     * Format: [patient_data_length (4 bytes)] [patient_data (text)] [balance (4 bytes, optional)]
+     * Patient data format: hoTen|idBenhNhan|ngaySinh|queQuan|maBHYT
      */
     public static UserData fromBytes(byte[] data) {
         if (data == null || data.length < 4) return null;
         
         int textLen = bytesToInt(data, 0);
+        if (textLen <= 0 || data.length < 4 + textLen) return null;
+        
         String text = new String(data, 4, textLen, StandardCharsets.UTF_8);
         String[] parts = text.split("\\|");
         
@@ -73,14 +77,22 @@ public class UserData implements Serializable {
         ud.setQueQuan(parts[3]);
         ud.setMaBHYT(parts[4]);
         
-        // Parse balance (backward compatible - default to 0 if not present)
-        if (parts.length >= 6) {
-            try {
-                ud.setBalance(Long.parseLong(parts[5]));
-            } catch (NumberFormatException e) {
-                ud.setBalance(0);
+        // Parse balance from end of data (4 bytes after patient_data)
+        // Balance is stored separately on card and appended to response
+        if (data.length >= 4 + textLen + 4) {
+            // Balance is at the end (4 bytes)
+            int balanceOffset = 4 + textLen;
+            long balance = ((long)(data[balanceOffset] & 0xFF) << 24) |
+                          ((long)(data[balanceOffset + 1] & 0xFF) << 16) |
+                          ((long)(data[balanceOffset + 2] & 0xFF) << 8) |
+                          ((long)(data[balanceOffset + 3] & 0xFF));
+            // Handle negative (shouldn't happen but just in case)
+            if (balance > 0x7FFFFFFF) {
+                balance = balance - 0x100000000L;
             }
+            ud.setBalance(balance);
         } else {
+            // No balance in response, default to 0
             ud.setBalance(0);
         }
         

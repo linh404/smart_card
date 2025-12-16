@@ -3,6 +3,8 @@ package ui.user;
 import card.CardManager;
 import card.APDUCommands;
 import model.UserData;
+import model.Transaction;
+import db.DatabaseConnection;
 
 import javax.swing.*;
 import java.awt.*;
@@ -10,6 +12,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.text.NumberFormat;
 import java.util.Locale;
+import java.util.Date;
 
 /**
  * TransactionPanel - Panel nạp tiền và thanh toán
@@ -220,23 +223,48 @@ public class TransactionPanel extends JPanel {
             }
         }
         
-        // Update balance on card
+        // Execute transaction on card
         try {
-            userData.setBalance(newBalance);
-            byte[] newDataBytes = userData.toBytes();
+            APDUCommands.TransactionResult result;
             
-            boolean success = apduCommands.updatePatientData(newDataBytes);
+            if (rbCredit.isSelected()) {
+                // CREDIT transaction
+                result = apduCommands.creditTransaction((int)amount);
+            } else {
+                // DEBIT transaction
+                result = apduCommands.debitTransaction((int)amount);
+            }
             
-            if (success) {
-                // Refresh local data
-                userFrame.refreshUserData();
+            if (result != null) {
+                // Save transaction to database
+                Transaction txn = new Transaction();
+                txn.setThoiGian(new Date());
+                txn.setLoai(rbCredit.isSelected() ? "CREDIT" : "DEBIT");
+                txn.setSoTien((int)amount);
+                txn.setSoDuSau(result.balanceAfter);
+                txn.setSeq(result.seq);
+                txn.setTxnHash(result.currHash);
+                
+                // Get card ID from card
+                byte[] cardId = apduCommands.getCardId();
+                if (cardId != null && cardId.length == 16) {
+                    DatabaseConnection.saveTransaction(cardId, txn);
+                }
+                
+                // Update local balance with the result from card
+                // Balance is already updated on card, we just update local copy
+                if (userData != null) {
+                    userData.setBalance(result.balanceAfter);
+                }
+                
+                // Refresh UI to show new balance
                 updateBalance();
                 
                 String message = rbCredit.isSelected() ? "Nạp tiền thành công!" : "Thanh toán thành công!";
                 JOptionPane.showMessageDialog(this,
                     String.format("%s\n\nSố dư mới: %s",
                         message,
-                        currencyFormat.format(newBalance)),
+                        currencyFormat.format(result.balanceAfter)),
                     "Thành công",
                     JOptionPane.INFORMATION_MESSAGE);
                 
@@ -246,6 +274,22 @@ public class TransactionPanel extends JPanel {
                     "Giao dịch thất bại! Vui lòng thử lại.", 
                     "Lỗi", JOptionPane.ERROR_MESSAGE);
             }
+        } catch (javax.smartcardio.CardException e) {
+            String errorMsg = e.getMessage();
+            if (errorMsg != null && errorMsg.contains("0x6982")) {
+                JOptionPane.showMessageDialog(this, 
+                    "Lỗi: PIN chưa được xác thực. Vui lòng đăng nhập lại.", 
+                    "Lỗi xác thực", JOptionPane.ERROR_MESSAGE);
+            } else if (errorMsg != null && errorMsg.contains("0x6A80")) {
+                JOptionPane.showMessageDialog(this, 
+                    "Lỗi: " + errorMsg, 
+                    "Lỗi giao dịch", JOptionPane.ERROR_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(this, 
+                    "Lỗi khi thực hiện giao dịch: " + errorMsg, 
+                    "Lỗi", JOptionPane.ERROR_MESSAGE);
+            }
+            e.printStackTrace();
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this, 
                 "Lỗi khi thực hiện giao dịch: " + e.getMessage(), 

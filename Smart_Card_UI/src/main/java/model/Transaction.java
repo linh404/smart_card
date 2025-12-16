@@ -10,6 +10,8 @@ public class Transaction {
     private String loai; // "CREDIT" hoặc "DEBIT"
     private int soTien;
     private int soDuSau;
+    private short seq; // Transaction sequence number
+    private byte[] txnHash; // Transaction hash (SHA-1, 20 bytes)
 
     // Getters and Setters
     public Date getThoiGian() { return thoiGian; }
@@ -23,5 +25,11 @@ public class Transaction {
 
     public int getSoDuSau() { return soDuSau; }
     public void setSoDuSau(int soDuSau) { this.soDuSau = soDuSau; }
+
+    public short getSeq() { return seq; }
+    public void setSeq(short seq) { this.seq = seq; }
+
+    public byte[] getTxnHash() { return txnHash; }
+    public void setTxnHash(byte[] txnHash) { this.txnHash = txnHash; }
 }
 

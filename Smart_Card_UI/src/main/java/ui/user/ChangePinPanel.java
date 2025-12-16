@@ -89,18 +89,64 @@ public class ChangePinPanel extends JPanel {
             String newPin = new String(txtNewPin.getPassword());
             String confirmPin = new String(txtConfirmPin.getPassword());
 
+            // Validate: Không được rỗng
             if (oldPin.isEmpty() || newPin.isEmpty() || confirmPin.isEmpty()) {
                 JOptionPane.showMessageDialog(this, "Vui lòng điền đầy đủ thông tin!", "Lỗi", JOptionPane.WARNING_MESSAGE);
                 return;
             }
 
-            if (!newPin.equals(confirmPin)) {
-                JOptionPane.showMessageDialog(this, "PIN mới và xác nhận không khớp!", "Lỗi", JOptionPane.WARNING_MESSAGE);
+            // Validate: PIN phải là 6 chữ số
+            if (oldPin.length() != 6 || !oldPin.matches("^[0-9]+$")) {
+                JOptionPane.showMessageDialog(this, 
+                    "PIN cũ phải là 6 chữ số!", 
+                    "Lỗi", JOptionPane.ERROR_MESSAGE);
+                txtOldPin.setText("");
+                txtOldPin.requestFocus();
                 return;
             }
 
+            if (newPin.length() != 6 || !newPin.matches("^[0-9]+$")) {
+                JOptionPane.showMessageDialog(this, 
+                    "PIN mới phải là 6 chữ số!", 
+                    "Lỗi", JOptionPane.ERROR_MESSAGE);
+                txtNewPin.setText("");
+                txtNewPin.requestFocus();
+                return;
+            }
+
+            if (confirmPin.length() != 6 || !confirmPin.matches("^[0-9]+$")) {
+                JOptionPane.showMessageDialog(this, 
+                    "Xác nhận PIN phải là 6 chữ số!", 
+                    "Lỗi", JOptionPane.ERROR_MESSAGE);
+                txtConfirmPin.setText("");
+                txtConfirmPin.requestFocus();
+                return;
+            }
+
+            // Validate: PIN mới và xác nhận phải khớp
+            if (!newPin.equals(confirmPin)) {
+                JOptionPane.showMessageDialog(this, "PIN mới và xác nhận không khớp!", "Lỗi", JOptionPane.WARNING_MESSAGE);
+                txtNewPin.setText("");
+                txtConfirmPin.setText("");
+                txtNewPin.requestFocus();
+                return;
+            }
+
+            // Validate: PIN mới phải khác PIN cũ
             if (oldPin.equals(newPin)) {
                 JOptionPane.showMessageDialog(this, "PIN mới phải khác PIN cũ!", "Lỗi", JOptionPane.WARNING_MESSAGE);
+                txtNewPin.setText("");
+                txtConfirmPin.setText("");
+                txtNewPin.requestFocus();
+                return;
+            }
+
+            // Kiểm tra card có sẵn không
+            if (apduCommands == null || !apduCommands.isChannelReady()) {
+                JOptionPane.showMessageDialog(this, 
+                    "Không thể kết nối với thẻ!\n\n" +
+                    "Vui lòng đảm bảo thẻ đã được cắm vào đầu đọc.", 
+                    "Lỗi", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
@@ -111,17 +157,39 @@ public class ChangePinPanel extends JPanel {
 
             // Gửi lệnh CHANGE_PIN
             if (apduCommands.changePin(oldPinBytes, newPinBytes)) {
-                JOptionPane.showMessageDialog(this, "Đổi PIN thành công!", "Thành công", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this, 
+                    "Đổi PIN thành công!\n\n" +
+                    "Vui lòng sử dụng PIN mới cho lần đăng nhập tiếp theo.", 
+                    "Thành công", JOptionPane.INFORMATION_MESSAGE);
                 txtOldPin.setText("");
                 txtNewPin.setText("");
                 txtConfirmPin.setText("");
+                
+                // Cập nhật PIN trong UserFrame nếu có
+                if (userFrame != null) {
+                    // Note: UserFrame lưu PIN cũ, cần cập nhật sau khi đổi PIN thành công
+                    // Tuy nhiên, để đảm bảo bảo mật, không tự động cập nhật
+                    // User sẽ cần đăng nhập lại với PIN mới
+                }
             } else {
-                JOptionPane.showMessageDialog(this, "Đổi PIN thất bại! Kiểm tra lại PIN cũ.", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, 
+                    "Đổi PIN thất bại!\n\n" +
+                    "Có thể:\n" +
+                    "- PIN cũ không đúng\n" +
+                    "- Thẻ đã bị khóa\n" +
+                    "- Thẻ chưa được phát hành\n\n" +
+                    "Vui lòng kiểm tra lại và thử lại.", 
+                    "Lỗi", JOptionPane.ERROR_MESSAGE);
+                txtOldPin.setText("");
+                txtOldPin.requestFocus();
             }
 
         } catch (Exception e) {
             e.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Lỗi: " + e.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, 
+                "Lỗi: " + e.getMessage() + "\n\n" +
+                "Vui lòng thử lại hoặc liên hệ quản trị viên.", 
+                "Lỗi", JOptionPane.ERROR_MESSAGE);
         }
     }
 }

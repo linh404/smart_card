@@ -20,6 +20,10 @@ public class APDUCommands {
     public static final byte INS_VERIFY_PIN_AND_READ_DATA = (byte)0x03; // V3: Verify PIN and read patient data
     public static final byte INS_UPDATE_PATIENT_DATA = (byte)0x04; // V3: Update patient data
     public static final byte INS_ADMIN_RESET_PIN = (byte)0x05; // V3: Admin reset PIN
+    public static final byte INS_CHANGE_PIN = (byte)0x06; // User tự đổi PIN (cần PIN cũ)
+    public static final byte INS_DEBIT = (byte)0x07; // Thanh toán
+    public static final byte INS_GET_TXN_STATUS = (byte)0x08; // Lấy trạng thái giao dịch
+    public static final byte INS_CREDIT = (byte)0x09; // Nạp tiền (0x09 để tránh nhầm lẫn với SW 0x6XXX)
     public static final byte INS_SIGN_CHALLENGE = (byte)0x10; // V3: Sign challenge with SK_user (0x10 to avoid confusion with SW 0x6XXX)
  
     // ================== AID CỦA CÁC APPLET ==================
@@ -218,6 +222,19 @@ public class APDUCommands {
      * @return status byte (0x00 = success) hoặc null nếu lỗi
      */
     public byte[] issueCard(byte[] cardId, byte[] userData, byte[] pinUser, byte[] pinAdminReset) {
+        return issueCard(cardId, userData, pinUser, pinAdminReset, 0);
+    }
+    
+    /**
+     * Issue card with initial balance
+     * @param cardId Card ID (16 bytes)
+     * @param userData User data bytes (patient info, without balance)
+     * @param pinUser PIN user (6 bytes)
+     * @param pinAdminReset PIN admin reset (6 bytes)
+     * @param initialBalance Initial balance (default 0)
+     * @return Response data or null if error
+     */
+    public byte[] issueCard(byte[] cardId, byte[] userData, byte[] pinUser, byte[] pinAdminReset, int initialBalance) {
         try {
             System.out.println("[APDUCommands] issueCard: Bắt đầu phát hành thẻ User (V3)");
             System.out.println("[APDUCommands] issueCard: cardId length = " + (cardId != null ? cardId.length : 0));
@@ -225,8 +242,8 @@ public class APDUCommands {
             System.out.println("[APDUCommands] issueCard: pinUser length = " + (pinUser != null ? pinUser.length : 0));
             System.out.println("[APDUCommands] issueCard: pinAdminReset length = " + (pinAdminReset != null ? pinAdminReset.length : 0));
             
-            // V3 Format: [cardID (16 bytes)] [patient_info_length (2)] [patient_info] [PIN_user (6)] [PIN_admin_reset (6)]
-            int totalLen = (cardId != null ? cardId.length : 0) + userData.length + pinUser.length + pinAdminReset.length;
+            // V3 Format: [cardID (16 bytes)] [patient_info_length (2)] [patient_info] [PIN_user (6)] [PIN_admin_reset (6)] [initial_balance (4 bytes)]
+            int totalLen = (cardId != null ? cardId.length : 0) + userData.length + pinUser.length + pinAdminReset.length + 4;
             byte[] data = new byte[totalLen + 2]; // +2 cho patient_info_length
             int offset = 0;
             
@@ -253,8 +270,16 @@ public class APDUCommands {
             
             // Ghi PIN_admin_reset (6 bytes, no length prefix in V3)
             System.arraycopy(pinAdminReset, 0, data, offset, pinAdminReset.length);
+            offset += pinAdminReset.length;
+            
+            // Ghi initial_balance (4 bytes, int)
+            data[offset++] = (byte)(initialBalance >> 24);
+            data[offset++] = (byte)(initialBalance >> 16);
+            data[offset++] = (byte)(initialBalance >> 8);
+            data[offset++] = (byte)(initialBalance & 0xFF);
             
             System.out.println("[APDUCommands] issueCard: Gửi lệnh INS_ISSUE_CARD (0x" + String.format("%02X", INS_ISSUE_CARD) + ")");
+            System.out.println("[APDUCommands] issueCard: Initial balance = " + initialBalance);
             System.out.println("[APDUCommands] issueCard: Total data length = " + data.length);
             
             ResponseAPDU resp = send(INS_ISSUE_CARD, (byte)0, (byte)0, data, 1);
@@ -370,6 +395,173 @@ public class APDUCommands {
     }
 
     /**
+     * Transaction result class
+     */
+    public static class TransactionResult {
+        public short seq;
+        public int balanceAfter;
+        public byte[] currHash;
+        
+        public TransactionResult(short seq, int balanceAfter, byte[] currHash) {
+            this.seq = seq;
+            this.balanceAfter = balanceAfter;
+            this.currHash = currHash;
+        }
+    }
+
+    /**
+     * CREDIT (0x09) - Nạp tiền
+     * @param amount Số tiền (int, 4 bytes)
+     * @return TransactionResult hoặc null nếu lỗi
+     * @throws CardException nếu có lỗi giao tiếp
+     * 
+     * Note: INS = 0x09 (không dùng 0x06 để tránh nhầm lẫn với Status Word 0x6XXX)
+     */
+    public TransactionResult creditTransaction(int amount) throws CardException {
+        try {
+            // Format: [amount (4 bytes, int)]
+            byte[] data = new byte[4];
+            data[0] = (byte)(amount >> 24);
+            data[1] = (byte)(amount >> 16);
+            data[2] = (byte)(amount >> 8);
+            data[3] = (byte)amount;
+            
+            ResponseAPDU resp = send(INS_CREDIT, (byte)0, (byte)0, data, 27); // 1 + 2 + 4 + 20 = 27 bytes response
+            int sw = resp.getSW();
+            
+            if (sw == 0x9000) {
+                byte[] result = resp.getData();
+                if (result != null && result.length >= 27) {
+                    // Parse: [status (1)] [seq (2)] [balance_after (4)] [curr_hash (20)]
+                    byte status = result[0];
+                    if (status == 0x00) {
+                        short seq = (short)(((result[1] & 0xFF) << 8) | (result[2] & 0xFF));
+                        int balanceAfter = ((result[3] & 0xFF) << 24) |
+                                          ((result[4] & 0xFF) << 16) |
+                                          ((result[5] & 0xFF) << 8) |
+                                          (result[6] & 0xFF);
+                        byte[] currHash = new byte[20];
+                        System.arraycopy(result, 7, currHash, 0, 20);
+                        
+                        return new TransactionResult(seq, balanceAfter, currHash);
+                    }
+                }
+            } else if (sw == 0x6982) {
+                throw new CardException("Security status not satisfied (0x6982) - PIN User chưa được verify");
+            } else if (sw == 0x6983) {
+                throw new CardException("Card blocked (0x6983)");
+            } else if (sw == 0x6A80) {
+                throw new CardException("Invalid transaction (0x6A80) - Có thể là số tiền không hợp lệ hoặc số dư không đủ");
+            } else {
+                throw new CardException("Credit transaction failed with SW: " + String.format("0x%04X", sw));
+            }
+        } catch (CardException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new CardException("Exception in creditTransaction: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * DEBIT (0x07) - Thanh toán
+     * @param amount Số tiền (int, 4 bytes)
+     * @return TransactionResult hoặc null nếu lỗi
+     * @throws CardException nếu có lỗi giao tiếp
+     */
+    public TransactionResult debitTransaction(int amount) throws CardException {
+        try {
+            // Format: [amount (4 bytes, int)]
+            byte[] data = new byte[4];
+            data[0] = (byte)(amount >> 24);
+            data[1] = (byte)(amount >> 16);
+            data[2] = (byte)(amount >> 8);
+            data[3] = (byte)amount;
+            
+            ResponseAPDU resp = send(INS_DEBIT, (byte)0, (byte)0, data, 27); // 1 + 2 + 4 + 20 = 27 bytes response
+            int sw = resp.getSW();
+            
+            if (sw == 0x9000) {
+                byte[] result = resp.getData();
+                if (result != null && result.length >= 27) {
+                    // Parse: [status (1)] [seq (2)] [balance_after (4)] [curr_hash (20)]
+                    byte status = result[0];
+                    if (status == 0x00) {
+                        short seq = (short)(((result[1] & 0xFF) << 8) | (result[2] & 0xFF));
+                        int balanceAfter = ((result[3] & 0xFF) << 24) |
+                                          ((result[4] & 0xFF) << 16) |
+                                          ((result[5] & 0xFF) << 8) |
+                                          (result[6] & 0xFF);
+                        byte[] currHash = new byte[20];
+                        System.arraycopy(result, 7, currHash, 0, 20);
+                        
+                        return new TransactionResult(seq, balanceAfter, currHash);
+                    }
+                }
+            } else if (sw == 0x6982) {
+                throw new CardException("Security status not satisfied (0x6982) - PIN User chưa được verify");
+            } else if (sw == 0x6983) {
+                throw new CardException("Card blocked (0x6983)");
+            } else if (sw == 0x6A80) {
+                throw new CardException("Invalid transaction (0x6A80) - Có thể là số tiền không hợp lệ hoặc số dư không đủ");
+            } else {
+                throw new CardException("Debit transaction failed with SW: " + String.format("0x%04X", sw));
+            }
+        } catch (CardException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new CardException("Exception in debitTransaction: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * GET_TXN_STATUS (0x08) - Lấy trạng thái giao dịch
+     * @return Object với txnCounter và lastTxnHash, hoặc null nếu lỗi
+     * @throws CardException nếu có lỗi giao tiếp
+     */
+    public TransactionStatus getTxnStatus() throws CardException {
+        try {
+            ResponseAPDU resp = send(INS_GET_TXN_STATUS, (byte)0, (byte)0, null, 22); // 2 + 20 = 22 bytes response
+            int sw = resp.getSW();
+            
+            if (sw == 0x9000) {
+                byte[] result = resp.getData();
+                if (result != null && result.length >= 22) {
+                    // Parse: [txn_counter (2)] [last_txn_hash (20)]
+                    short txnCounter = (short)(((result[0] & 0xFF) << 8) | (result[1] & 0xFF));
+                    byte[] lastTxnHash = new byte[20];
+                    System.arraycopy(result, 2, lastTxnHash, 0, 20);
+                    
+                    return new TransactionStatus(txnCounter, lastTxnHash);
+                }
+            } else if (sw == 0x6985) {
+                throw new CardException("Card not issued (0x6985)");
+            } else {
+                throw new CardException("Get transaction status failed with SW: " + String.format("0x%04X", sw));
+            }
+        } catch (CardException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new CardException("Exception in getTxnStatus: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Transaction status class
+     */
+    public static class TransactionStatus {
+        public short txnCounter;
+        public byte[] lastTxnHash;
+        
+        public TransactionStatus(short txnCounter, byte[] lastTxnHash) {
+            this.txnCounter = txnCounter;
+            this.lastTxnHash = lastTxnHash;
+        }
+    }
+
+    /**
      * V3: Verify PIN and read patient data
      * @param pinUser PIN user (6 bytes)
      * @return Patient data (plaintext) hoặc null nếu lỗi
@@ -382,14 +574,35 @@ public class APDUCommands {
             
             if (sw == 0x9000) {
                 byte[] data = resp.getData();
-                if (data != null && data.length >= 3) {
-                    // Parse: [status (1)] [length (2)] [data]
+                if (data != null && data.length >= 7) {
+                    // Parse: [status (1)] [length (2)] [patient_data] [balance (4)]
                     byte status = data[0];
                     if (status == 0x00) {
                         short length = (short)(((data[1] & 0xFF) << 8) | (data[2] & 0xFF));
-                        if (length > 0 && data.length >= 3 + length) {
-                            byte[] patientData = new byte[length];
-                            System.arraycopy(data, 3, patientData, 0, length);
+                        // Check if we have patient_data + balance (4 bytes)
+                        if (length > 0 && data.length >= 3 + length + 4) {
+                            // Format: [patient_data_length (4 bytes)] [patient_data] [balance (4 bytes)]
+                            // This matches UserData.fromBytes() format
+                            byte[] patientData = new byte[4 + length + 4]; // 4 (length) + length (data) + 4 (balance)
+                            // Prepend length (4 bytes, big-endian int)
+                            patientData[0] = (byte)(length >> 24);
+                            patientData[1] = (byte)(length >> 16);
+                            patientData[2] = (byte)(length >> 8);
+                            patientData[3] = (byte)(length & 0xFF);
+                            // Copy patient_data
+                            System.arraycopy(data, 3, patientData, 4, length);
+                            // Append balance (4 bytes) at the end
+                            System.arraycopy(data, 3 + length, patientData, 4 + length, 4);
+                            return patientData;
+                        } else if (length > 0 && data.length >= 3 + length) {
+                            // Backward compatibility: no balance in response
+                            // Format: [patient_data_length (4 bytes)] [patient_data]
+                            byte[] patientData = new byte[4 + length];
+                            patientData[0] = (byte)(length >> 24);
+                            patientData[1] = (byte)(length >> 16);
+                            patientData[2] = (byte)(length >> 8);
+                            patientData[3] = (byte)(length & 0xFF);
+                            System.arraycopy(data, 3, patientData, 4, length);
                             return patientData;
                         }
                     }
@@ -446,12 +659,89 @@ public class APDUCommands {
     }
 
     /**
-     * V3: Change PIN không còn được hỗ trợ trong V3
-     * @deprecated V3 không hỗ trợ user tự đổi PIN, chỉ có admin reset PIN
+     * CHANGE_PIN (0x06) - User tự đổi PIN khi biết PIN cũ
+     * @param oldPinPlaintext PIN cũ (6 bytes)
+     * @param newPinPlaintext PIN mới (6 bytes)
+     * @return true nếu thành công
      */
-    @Deprecated
     public boolean changePin(byte[] oldPinPlaintext, byte[] newPinPlaintext) {
-        System.err.println("[APDUCommands] changePin() is not supported in V3. Use resetPinByAdmin() instead.");
+        try {
+            System.out.println("[APDUCommands] changePin: Bắt đầu đổi PIN user");
+            System.out.println("[APDUCommands] changePin: PIN cũ length = " + (oldPinPlaintext != null ? oldPinPlaintext.length : 0));
+            System.out.println("[APDUCommands] changePin: PIN mới length = " + (newPinPlaintext != null ? newPinPlaintext.length : 0));
+            
+            // Validate input
+            if (oldPinPlaintext == null || newPinPlaintext == null) {
+                System.err.println("[APDUCommands] changePin: PIN không được null");
+                return false;
+            }
+            
+            if (oldPinPlaintext.length != 6 || newPinPlaintext.length != 6) {
+                System.err.println("[APDUCommands] changePin: PIN phải là 6 bytes");
+                return false;
+            }
+            
+            // V3 Format: [PIN_user_old (6)] [PIN_user_new (6)]
+            byte[] data = new byte[oldPinPlaintext.length + newPinPlaintext.length];
+            int offset = 0;
+            
+            // Ghi PIN_user_old (6 bytes)
+            System.arraycopy(oldPinPlaintext, 0, data, offset, oldPinPlaintext.length);
+            offset += oldPinPlaintext.length;
+            
+            // Ghi PIN_user_new (6 bytes)
+            System.arraycopy(newPinPlaintext, 0, data, offset, newPinPlaintext.length);
+            
+            String logMsg = "[APDUCommands] CHANGE_PIN (V3):\n" +
+                "  - INS: 0x" + String.format("%02X", INS_CHANGE_PIN) + "\n" +
+                "  - Total data length: " + data.length + "\n" +
+                "  - Data (hex): " + bytesToHex(data);
+            System.out.println(logMsg);
+            
+            ResponseAPDU resp = send(INS_CHANGE_PIN, (byte)0, (byte)0, data, 1);
+            int sw = resp.getSW();
+            System.out.println("[APDUCommands] CHANGE_PIN response SW: " + String.format("0x%04X", sw));
+            
+            if (sw == 0x9000) {
+                byte[] result = resp.getData();
+                if (result != null && result.length > 0 && result[0] == 0x00) {
+                    System.out.println("[APDUCommands] Đổi PIN user thành công!");
+                    return true;
+                }
+            } else if ((sw & 0xFF00) == 0x63C0) {
+                // PIN retry counter in SW2
+                int retries = sw & 0x000F;
+                System.err.println("[APDUCommands] PIN cũ sai! Còn lại " + retries + " lần thử");
+                if (retries == 0) {
+                    System.err.println("[APDUCommands] Thẻ đã bị khóa do nhập sai PIN quá nhiều lần!");
+                }
+            } else {
+                String errorMsg = "[APDUCommands] CHANGE_PIN THẤT BẠI! SW: " + String.format("0x%04X", sw);
+                System.err.println(errorMsg);
+                
+                // Giải thích các mã lỗi chi tiết
+                if (sw == 0x6D00) {
+                    System.err.println("  -> Lệnh không được hỗ trợ (INS_NOT_SUPPORTED)");
+                    System.err.println("     Có thể applet chưa được build lại hoặc INS code bị sai");
+                } else if (sw == 0x6700) {
+                    System.err.println("  -> Độ dài dữ liệu sai (WRONG_LENGTH)");
+                } else if (sw == 0x6A80) {
+                    System.err.println("  -> PIN mới trùng PIN cũ (WRONG_DATA)");
+                    System.err.println("     PIN mới phải khác PIN cũ");
+                } else if (sw == 0x6983) {
+                    System.err.println("  -> Thẻ bị khóa (Card blocked)");
+                } else if (sw == 0x6985) {
+                    System.err.println("  -> Điều kiện không thỏa mãn - Thẻ chưa được phát hành?");
+                } else if (sw == 0x6F00) {
+                    System.err.println("  -> Lỗi không xác định từ applet");
+                }
+                return false;
+            }
+        } catch (Exception e) {
+            System.err.println("[APDUCommands] Exception trong changePin: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
         return false;
     }
 

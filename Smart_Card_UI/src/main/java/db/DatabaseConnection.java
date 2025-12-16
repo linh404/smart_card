@@ -836,6 +836,69 @@ public class DatabaseConnection {
     }
 
     /**
+     * Lấy danh sách giao dịch từ database
+     * @param cardId Card ID (byte[])
+     * @return List of Transaction objects
+     */
+    public static java.util.List<model.Transaction> getTransactions(byte[] cardId) {
+        java.util.List<model.Transaction> transactions = new java.util.ArrayList<>();
+        String sql = "SELECT seq, type, amount, balance_after, txn_hash, created_at " +
+                     "FROM transactions WHERE card_id = ? ORDER BY seq ASC";
+        try (Connection conn = getConnection();
+             PreparedStatement pst = conn.prepareStatement(sql)) {
+            
+            pst.setBytes(1, cardId);
+            try (ResultSet rs = pst.executeQuery()) {
+                while (rs.next()) {
+                    model.Transaction txn = new model.Transaction();
+                    txn.setSeq(rs.getShort("seq"));
+                    txn.setLoai(rs.getString("type"));
+                    txn.setSoTien(rs.getInt("amount"));
+                    txn.setSoDuSau(rs.getInt("balance_after"));
+                    txn.setTxnHash(rs.getBytes("txn_hash"));
+                    txn.setThoiGian(new java.util.Date(rs.getTimestamp("created_at").getTime()));
+                    transactions.add(txn);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[DatabaseConnection] Error getting transactions: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return transactions;
+    }
+
+    /**
+     * Lưu giao dịch vào database
+     * @param cardId Card ID (byte[])
+     * @param txn Transaction object
+     * @return true nếu thành công
+     */
+    public static boolean saveTransaction(byte[] cardId, model.Transaction txn) {
+        String sql = "INSERT INTO transactions (card_id, seq, type, amount, balance_after, txn_hash, created_at) " +
+                     "VALUES (?, ?, ?, ?, ?, ?, ?)";
+        try (Connection conn = getConnection();
+             PreparedStatement pst = conn.prepareStatement(sql)) {
+            
+            pst.setBytes(1, cardId);
+            pst.setShort(2, txn.getSeq());
+            pst.setString(3, txn.getLoai());
+            pst.setInt(4, txn.getSoTien());
+            pst.setInt(5, txn.getSoDuSau());
+            pst.setBytes(6, txn.getTxnHash());
+            pst.setTimestamp(7, new java.sql.Timestamp(txn.getThoiGian().getTime()));
+            
+            int rows = pst.executeUpdate();
+            System.out.println("[DatabaseConnection] Saved transaction: seq=" + txn.getSeq() + 
+                             ", type=" + txn.getLoai() + ", amount=" + txn.getSoTien());
+            return rows > 0;
+        } catch (Exception e) {
+            System.err.println("[DatabaseConnection] Error saving transaction: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
      * Lấy thông tin thẻ từ cardID (V3)
      * Join với bảng patients để lấy thông tin bệnh nhân
      * 

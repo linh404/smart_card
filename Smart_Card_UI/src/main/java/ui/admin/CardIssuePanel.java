@@ -367,7 +367,13 @@ public class CardIssuePanel extends JPanel {
             System.out.println("  - Mã BHYT: " + userData.getMaBHYT());
             System.out.println("  - Số dư ban đầu: " + initialBalance + " VNĐ");
 
+            // Remove balance from userData before sending to card (balance is stored separately)
+            // But we keep balance in userData object for display/snapshot
             byte[] userDataBytes = userData.toBytes();
+            // Note: toBytes() might include balance, but we'll send patient data only
+            // Actually, UserData.toBytes() should not include balance since it's stored separately now
+            // But for backward compatibility, let's check if we need to remove balance from bytes
+            
             byte[] pinUserBytes = pinUserDefault.getBytes();
             
             // V3: Backend sinh cardID trước, derive PIN admin, rồi gửi xuống thẻ
@@ -399,9 +405,9 @@ public class CardIssuePanel extends JPanel {
             
             byte[] pinAdminBytes = pinAdminReset.getBytes();
 
-            // 5.3. Gửi lệnh ISSUE_CARD xuống thẻ với cardID và PIN admin đã derive
-            System.out.println("[CardIssuePanel] issueCard: Gửi lệnh ISSUE_CARD xuống thẻ với cardID và PIN admin...");
-            byte[] result = apduCommands.issueCard(cardIdUser, userDataBytes, pinUserBytes, pinAdminBytes);
+            // 5.3. Gửi lệnh ISSUE_CARD xuống thẻ với cardID, PIN admin, và initial balance
+            System.out.println("[CardIssuePanel] issueCard: Gửi lệnh ISSUE_CARD xuống thẻ với cardID, PIN admin, và balance ban đầu = " + initialBalance);
+            byte[] result = apduCommands.issueCard(cardIdUser, userDataBytes, pinUserBytes, pinAdminBytes, (int)initialBalance);
             
             // V3: Response chỉ là status byte (0x00 = success)
             if (result == null || result.length < 1 || result[0] != 0x00) {

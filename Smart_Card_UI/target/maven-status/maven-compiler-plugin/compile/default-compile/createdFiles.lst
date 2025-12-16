@@ -14,6 +14,7 @@ model\Transaction.class
 ui\tool\DatabaseMigrationTool$4.class
 ui\admin\LoginFrame$3.class
 ui\user\UserLoginFrame$1.class
+ui\user\HistoryPanel$2.class
 db\DatabaseConnection$CardInfo.class
 ui\tool\CreateAdminUserTool.class
 ui\tool\DatabaseMigrationTool$1.class
@@ -22,6 +23,7 @@ ui\user\UserLoginFrame$2.class
 ui\admin\ResetPinPanel$2.class
 ui\tool\CreateAdminUserTool$4.class
 ui\admin\CardIssuePanel.class
+card\APDUCommands$TransactionStatus.class
 util\AdminPinEncryption.class
 util\EnvFileLoader.class
 ui\MainFrame.class
@@ -35,6 +37,7 @@ ui\tool\ResetUserCardTool.class
 ui\user\UserLoginFrame.class
 ui\tool\DatabaseMigrationTool$2.class
 ui\admin\CardManagePanel$3.class
+card\APDUCommands$TransactionResult.class
 ui\user\UserInfoPanel.class
 model\UserCardSnapshot.class
 db\DatabaseConnection.class
@@ -50,6 +53,7 @@ util\JsonFileManager.class
 ui\admin\LoginFrame.class
 ui\tool\CreateAdminUserTool$1.class
 util\AdminPinDerivation.class
+ui\user\HistoryPanel$1.class
 ui\tool\LoadSnapshotTool$2.class
 ui\tool\CreateAdminUserTool$2.class
 ui\user\TransactionPanel.class
