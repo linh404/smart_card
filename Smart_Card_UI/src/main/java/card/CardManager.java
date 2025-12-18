@@ -95,6 +95,16 @@ public class CardManager {
      * @return true nếu select thành công
      */
     public boolean selectApplet(byte[] aid) {
+        return selectApplet(aid, true); // Mặc định cho phép retry
+    }
+    
+    /**
+     * Select applet bằng AID với tùy chọn retry khi thẻ bị reset
+     * @param aid Application Identifier của applet
+     * @param retryOnReset Nếu true, tự động reconnect và retry khi gặp lỗi SCARD_W_RESET_CARD
+     * @return true nếu select thành công
+     */
+    public boolean selectApplet(byte[] aid, boolean retryOnReset) {
         try {
             String aidHex = bytesToHex(aid);
             System.out.println("[CardManager] Đang select applet với AID: " + aidHex);
@@ -118,6 +128,37 @@ public class CardManager {
             }
             
             return success;
+        } catch (CardException e) {
+            String errorMsg = e.getMessage();
+            System.err.println("[CardManager] Lỗi khi select applet: " + errorMsg);
+            
+            // Kiểm tra nếu là lỗi SCARD_W_RESET_CARD (thẻ bị reset)
+            if (retryOnReset && errorMsg != null && 
+                (errorMsg.contains("SCARD_W_RESET_CARD") || errorMsg.contains("reset"))) {
+                System.out.println("[CardManager] ⚠️ Phát hiện thẻ bị reset, đang reconnect và retry...");
+                
+                try {
+                    // Disconnect và reconnect
+                    disconnect();
+                    Thread.sleep(100); // Đợi một chút để thẻ ổn định
+                    
+                    if (connect()) {
+                        System.out.println("[CardManager] ✓ Đã reconnect thành công, đang retry select applet...");
+                        // Retry select applet (không retry lại nữa để tránh loop vô hạn)
+                        return selectApplet(aid, false);
+                    } else {
+                        System.err.println("[CardManager] ✗ Không thể reconnect sau khi thẻ reset");
+                        return false;
+                    }
+                } catch (Exception retryEx) {
+                    System.err.println("[CardManager] ✗ Lỗi khi reconnect: " + retryEx.getMessage());
+                    retryEx.printStackTrace();
+                    return false;
+                }
+            }
+            
+            e.printStackTrace();
+            return false;
         } catch (Exception e) {
             System.err.println("[CardManager] Lỗi khi select applet: " + e.getMessage());
             e.printStackTrace();

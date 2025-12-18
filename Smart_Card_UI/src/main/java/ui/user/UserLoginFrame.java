@@ -11,6 +11,7 @@ import javax.smartcardio.CardException;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.nio.charset.StandardCharsets;
 
 /**
  * UserLoginFrame - Màn hình đăng nhập User bằng thẻ User
@@ -125,14 +126,29 @@ public class UserLoginFrame extends JFrame {
 
         // Kết nối thẻ
         cardManager = CardManager.getInstance();
+        
+        // QUAN TRỌNG: Reconnect để đảm bảo channel hợp lệ sau khi admin thao tác
+        // Disconnect trước nếu đã kết nối (để refresh connection)
+        if (cardManager.isConnected()) {
+            cardManager.disconnect();
+            try {
+                Thread.sleep(100); // Đợi một chút để thẻ ổn định
+            } catch (InterruptedException e) {
+                // Ignore
+            }
+        }
+        
         if (!cardManager.connect()) {
             JOptionPane.showMessageDialog(this, "Không thể kết nối với đầu đọc thẻ!", "Lỗi", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
-        // Select UserApplet
-        if (!cardManager.selectApplet(APDUCommands.AID_USER)) {
-            JOptionPane.showMessageDialog(this, "Không tìm thấy UserApplet trên thẻ!", "Lỗi", JOptionPane.ERROR_MESSAGE);
+        // Select UserApplet (với retry tự động nếu thẻ bị reset)
+        if (!cardManager.selectApplet(APDUCommands.AID_USER, true)) {
+            JOptionPane.showMessageDialog(this, 
+                "Không tìm thấy UserApplet trên thẻ!\n\n" +
+                "Có thể thẻ đã bị reset hoặc applet chưa được cài đặt.", 
+                "Lỗi", JOptionPane.ERROR_MESSAGE);
             cardManager.disconnect();
             return;
         }
@@ -188,7 +204,19 @@ public class UserLoginFrame extends JFrame {
             }
 
             // 2. V3: Xác thực PIN_user và đọc data cùng lúc
-            byte[] pinBytes = pin.getBytes();
+            // Sử dụng UTF-8 để đảm bảo encoding nhất quán với changePin
+            byte[] pinBytes = pin.getBytes(StandardCharsets.UTF_8);
+            
+            // Đảm bảo PIN bytes đúng 6 bytes
+            if (pinBytes.length != 6) {
+                JOptionPane.showMessageDialog(this, 
+                    "Lỗi: PIN không đúng định dạng (phải là 6 bytes)!", 
+                    "Lỗi", JOptionPane.ERROR_MESSAGE);
+                txtPin.setText("");
+                txtPin.requestFocus();
+                return;
+            }
+            
             byte[] userDataBytes = apduCommands.verifyPinAndReadData(pinBytes);
             
             if (userDataBytes == null || userDataBytes.length == 0) {

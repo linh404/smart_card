@@ -20,7 +20,7 @@ public class APDUCommands {
     public static final byte INS_VERIFY_PIN_AND_READ_DATA = (byte)0x03; // V3: Verify PIN and read patient data
     public static final byte INS_UPDATE_PATIENT_DATA = (byte)0x04; // V3: Update patient data
     public static final byte INS_ADMIN_RESET_PIN = (byte)0x05; // V3: Admin reset PIN
-    public static final byte INS_CHANGE_PIN = (byte)0x06; // User tự đổi PIN (cần PIN cũ)
+    public static final byte INS_CHANGE_PIN = (byte)0x0A; // User tự đổi PIN (cần PIN cũ) - Đổi từ 0x06 để tránh conflict
     public static final byte INS_DEBIT = (byte)0x07; // Thanh toán
     public static final byte INS_GET_TXN_STATUS = (byte)0x08; // Lấy trạng thái giao dịch
     public static final byte INS_CREDIT = (byte)0x09; // Nạp tiền (0x09 để tránh nhầm lẫn với SW 0x6XXX)
@@ -568,17 +568,58 @@ public class APDUCommands {
      */
     public byte[] verifyPinAndReadData(byte[] pinUser) {
         try {
+            // DEBUG: In ra PIN bytes để kiểm tra
+            if (pinUser != null) {
+                System.out.println("[APDUCommands] verifyPinAndReadData: PIN bytes (hex): " + bytesToHex(pinUser));
+                System.out.println("[APDUCommands] verifyPinAndReadData: PIN bytes (ascii): " + new String(pinUser, StandardCharsets.UTF_8));
+                System.out.println("[APDUCommands] verifyPinAndReadData: PIN length: " + pinUser.length);
+            }
+            
+            // [LOG] Gửi APDU command
+            System.out.println("[APDUCommands] verifyPinAndReadData: Sending APDU command...");
+            System.out.println("[APDUCommands] verifyPinAndReadData: INS = 0x" + String.format("%02X", INS_VERIFY_PIN_AND_READ_DATA));
+            
             // V3 Format: [PIN_user (6)]
             ResponseAPDU resp = send(INS_VERIFY_PIN_AND_READ_DATA, (byte)0, (byte)0, pinUser, 255);
             int sw = resp.getSW();
             
+            System.out.println("[APDUCommands] verifyPinAndReadData: Response SW: " + String.format("0x%04X", sw));
+            
+            // [LOG] Debug: Log chi tiết các mã lỗi từ applet
+            // Kiểm tra các mã lỗi cụ thể trước, sau đó mới xử lý trường hợp chung
+            if (sw == 0x6F01) {
+                System.err.println("[APDUCommands] verifyPinAndReadData: [LOG] Step 1 failed: Hash calculation error");
+            } else if (sw == 0x6F03) {
+                System.err.println("[APDUCommands] verifyPinAndReadData: [LOG] Step 3 failed: KDF calculation error");
+            } else if (sw == 0x6F04) {
+                System.err.println("[APDUCommands] verifyPinAndReadData: [LOG] Step 4 failed: AES decrypt MK_user error");
+            } else if (sw == 0x6F05) {
+                System.err.println("[APDUCommands] verifyPinAndReadData: [LOG] Step 5 failed: AES decrypt patient data error");
+            } else if (sw == 0x6F06) {
+                System.err.println("[APDUCommands] verifyPinAndReadData: [LOG] Step 6 failed: AES decrypt balance error");
+            } else if (sw == 0x6F30) {
+                System.err.println("[APDUCommands] verifyPinAndReadData: [LOG] Buffer overflow error");
+            } else if ((sw & 0xFFF0) == 0x6F00) {
+                // Crypto error với reason code (general case)
+                int reason = sw & 0x000F;
+                System.err.println("[APDUCommands] verifyPinAndReadData: Crypto error, reason code: " + reason);
+                System.err.println("[APDUCommands] verifyPinAndReadData: [LOG] Lỗi crypto có thể do:");
+                System.err.println("[APDUCommands] verifyPinAndReadData: [LOG] - Applet state bị reset sau khi select lại");
+                System.err.println("[APDUCommands] verifyPinAndReadData: [LOG] - Thẻ bị reset hoặc kết nối không ổn định");
+                System.err.println("[APDUCommands] verifyPinAndReadData: [LOG] - Lỗi trong quá trình decrypt dữ liệu");
+            }
+            
             if (sw == 0x9000) {
+                System.out.println("[APDUCommands] verifyPinAndReadData: [LOG] Success! SW = 0x9000");
                 byte[] data = resp.getData();
+                System.out.println("[APDUCommands] verifyPinAndReadData: [LOG] Response data length: " + (data != null ? data.length : 0));
                 if (data != null && data.length >= 7) {
                     // Parse: [status (1)] [length (2)] [patient_data] [balance (4)]
                     byte status = data[0];
+                    System.out.println("[APDUCommands] verifyPinAndReadData: [LOG] Status byte: 0x" + String.format("%02X", status));
                     if (status == 0x00) {
                         short length = (short)(((data[1] & 0xFF) << 8) | (data[2] & 0xFF));
+                        System.out.println("[APDUCommands] verifyPinAndReadData: [LOG] Patient data length: " + length);
                         // Check if we have patient_data + balance (4 bytes)
                         if (length > 0 && data.length >= 3 + length + 4) {
                             // Format: [patient_data_length (4 bytes)] [patient_data] [balance (4 bytes)]
@@ -593,6 +634,7 @@ public class APDUCommands {
                             System.arraycopy(data, 3, patientData, 4, length);
                             // Append balance (4 bytes) at the end
                             System.arraycopy(data, 3 + length, patientData, 4 + length, 4);
+                            System.out.println("[APDUCommands] verifyPinAndReadData: [LOG] Successfully parsed patient data with balance");
                             return patientData;
                         } else if (length > 0 && data.length >= 3 + length) {
                             // Backward compatibility: no balance in response
@@ -610,13 +652,26 @@ public class APDUCommands {
             } else if ((sw & 0xFF00) == 0x63C0) {
                 // PIN retry counter in SW2
                 int retries = sw & 0x000F;
-                System.err.println("[APDUCommands] PIN sai! Còn lại " + retries + " lần thử");
+                System.err.println("[APDUCommands] verifyPinAndReadData: [LOG] Step 2 failed: PIN mismatch!");
+                System.err.println("[APDUCommands] verifyPinAndReadData: PIN sai! Còn lại " + retries + " lần thử");
             } else if (sw == 0x6983) {
-                System.err.println("[APDUCommands] Thẻ bị khóa!");
+                System.err.println("[APDUCommands] verifyPinAndReadData: [LOG] Card is blocked!");
+                System.err.println("[APDUCommands] verifyPinAndReadData: Thẻ bị khóa!");
             } else if (sw == 0x6985) {
-                System.err.println("[APDUCommands] Thẻ chưa được phát hành!");
+                System.err.println("[APDUCommands] verifyPinAndReadData: [LOG] Card not initialized!");
+                System.err.println("[APDUCommands] verifyPinAndReadData: Thẻ chưa được phát hành!");
+            } else {
+                // Unknown error
+                System.err.println("[APDUCommands] verifyPinAndReadData: [LOG] Unknown error with SW: " + String.format("0x%04X", sw));
             }
+        } catch (CardException e) {
+            System.err.println("[APDUCommands] verifyPinAndReadData: [LOG] CardException caught!");
+            System.err.println("[APDUCommands] verifyPinAndReadData: Error message: " + e.getMessage());
+            e.printStackTrace();
         } catch (Exception e) {
+            System.err.println("[APDUCommands] verifyPinAndReadData: [LOG] Unexpected exception caught!");
+            System.err.println("[APDUCommands] verifyPinAndReadData: Error type: " + e.getClass().getName());
+            System.err.println("[APDUCommands] verifyPinAndReadData: Error message: " + e.getMessage());
             e.printStackTrace();
         }
         return null;
@@ -659,7 +714,7 @@ public class APDUCommands {
     }
 
     /**
-     * CHANGE_PIN (0x06) - User tự đổi PIN khi biết PIN cũ
+     * CHANGE_PIN (0x0A) - User tự đổi PIN khi biết PIN cũ
      * @param oldPinPlaintext PIN cũ (6 bytes)
      * @param newPinPlaintext PIN mới (6 bytes)
      * @return true nếu thành công
@@ -669,6 +724,16 @@ public class APDUCommands {
             System.out.println("[APDUCommands] changePin: Bắt đầu đổi PIN user");
             System.out.println("[APDUCommands] changePin: PIN cũ length = " + (oldPinPlaintext != null ? oldPinPlaintext.length : 0));
             System.out.println("[APDUCommands] changePin: PIN mới length = " + (newPinPlaintext != null ? newPinPlaintext.length : 0));
+            
+            // DEBUG: In ra PIN bytes để kiểm tra
+            if (oldPinPlaintext != null) {
+                System.out.println("[APDUCommands] changePin: PIN cũ bytes (hex): " + bytesToHex(oldPinPlaintext));
+                System.out.println("[APDUCommands] changePin: PIN cũ bytes (ascii): " + new String(oldPinPlaintext, StandardCharsets.UTF_8));
+            }
+            if (newPinPlaintext != null) {
+                System.out.println("[APDUCommands] changePin: PIN mới bytes (hex): " + bytesToHex(newPinPlaintext));
+                System.out.println("[APDUCommands] changePin: PIN mới bytes (ascii): " + new String(newPinPlaintext, StandardCharsets.UTF_8));
+            }
             
             // Validate input
             if (oldPinPlaintext == null || newPinPlaintext == null) {
@@ -695,7 +760,9 @@ public class APDUCommands {
             String logMsg = "[APDUCommands] CHANGE_PIN (V3):\n" +
                 "  - INS: 0x" + String.format("%02X", INS_CHANGE_PIN) + "\n" +
                 "  - Total data length: " + data.length + "\n" +
-                "  - Data (hex): " + bytesToHex(data);
+                "  - Data (hex): " + bytesToHex(data) + "\n" +
+                "  - PIN cũ (hex): " + bytesToHex(oldPinPlaintext) + "\n" +
+                "  - PIN mới (hex): " + bytesToHex(newPinPlaintext);
             System.out.println(logMsg);
             
             ResponseAPDU resp = send(INS_CHANGE_PIN, (byte)0, (byte)0, data, 1);

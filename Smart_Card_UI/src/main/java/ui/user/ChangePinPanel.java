@@ -8,6 +8,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.nio.charset.StandardCharsets;
 
 /**
  * ChangePinPanel - Panel đổi PIN User (User tự đổi khi biết PIN cũ)
@@ -152,8 +153,23 @@ public class ChangePinPanel extends JPanel {
 
             // Gửi PIN cũ và PIN mới dạng plaintext xuống thẻ
             // Thẻ sẽ hash và cập nhật trên thẻ
-            byte[] oldPinBytes = oldPin.getBytes();
-            byte[] newPinBytes = newPin.getBytes();
+            // Sử dụng UTF-8 để đảm bảo encoding nhất quán
+            byte[] oldPinBytes = oldPin.getBytes(StandardCharsets.UTF_8);
+            byte[] newPinBytes = newPin.getBytes(StandardCharsets.UTF_8);
+            
+            // Đảm bảo PIN bytes đúng 6 bytes (cho numeric PIN, UTF-8 = ASCII = 1 byte per char)
+            if (oldPinBytes.length != 6) {
+                JOptionPane.showMessageDialog(this, 
+                    "Lỗi: PIN cũ không đúng định dạng (phải là 6 bytes)!", 
+                    "Lỗi", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            if (newPinBytes.length != 6) {
+                JOptionPane.showMessageDialog(this, 
+                    "Lỗi: PIN mới không đúng định dạng (phải là 6 bytes)!", 
+                    "Lỗi", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
 
             // Gửi lệnh CHANGE_PIN
             if (apduCommands.changePin(oldPinBytes, newPinBytes)) {

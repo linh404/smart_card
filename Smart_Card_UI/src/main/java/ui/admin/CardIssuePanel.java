@@ -13,6 +13,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.text.SimpleDateFormat;
 import java.text.ParseException;
@@ -274,37 +275,17 @@ public class CardIssuePanel extends JPanel {
             }
             System.out.println("[CardIssuePanel] issueCard: Validation thành công");
 
-            // 2. Kiểm tra kết nối thẻ
-            if (!cardManager.isConnected()) {
-                System.err.println("[CardIssuePanel] issueCard: Chưa kết nối thẻ");
-                if (!cardManager.connect()) {
-                    JOptionPane.showMessageDialog(this, 
-                        "Không thể kết nối với đầu đọc thẻ!\nVui lòng kiểm tra:\n" +
-                        "1. Đầu đọc thẻ đã được cắm\n" +
-                        "2. Thẻ đã được đặt vào đầu đọc\n" +
-                        "3. Driver đầu đọc đã được cài đặt", 
-                        "Lỗi kết nối", JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-                System.out.println("[CardIssuePanel] issueCard: Đã kết nối thẻ thành công");
-            }
-
-            // 3. Select UserApplet
-            System.out.println("[CardIssuePanel] issueCard: Đang select UserApplet...");
-            if (!cardManager.selectApplet(APDUCommands.AID_USER)) {
-                System.err.println("[CardIssuePanel] issueCard: Không thể select UserApplet");
-                JOptionPane.showMessageDialog(this, 
-                    "Không tìm thấy UserApplet trên thẻ!\n\n" +
-                    "Vui lòng kiểm tra:\n" +
-                    "1. Thẻ User đã được cắm đúng cách\n" +
-                    "2. UserApplet đã được cài đặt trên thẻ\n" +
-                    "3. AID của applet đúng: " + bytesToHex(APDUCommands.AID_USER), 
-                    "Lỗi UserApplet", JOptionPane.ERROR_MESSAGE);
+            // 2. Đảm bảo kết nối thẻ, channel sẵn sàng, và applet đã được select
+            // Sử dụng CardConnectionHelper để đảm bảo tất cả đã sẵn sàng
+            System.out.println("[CardIssuePanel] issueCard: Đang kiểm tra kết nối thẻ và applet...");
+            if (!CardConnectionHelper.ensureCardAndAppletReady(
+                    cardManager, apduCommands, this, true, APDUCommands.AID_USER)) {
+                System.err.println("[CardIssuePanel] issueCard: Không thể đảm bảo kết nối thẻ và applet");
                 return;
             }
-            System.out.println("[CardIssuePanel] issueCard: Select UserApplet thành công");
+            System.out.println("[CardIssuePanel] issueCard: ✓ Kết nối thẻ và applet đã sẵn sàng");
             
-            // 3.1. Kiểm tra thẻ đã có cardId_user chưa (có thể là data cũ hoặc thẻ đã được issue)
+            // 3.2. Kiểm tra thẻ đã có cardId_user chưa (có thể là data cũ hoặc thẻ đã được issue)
             System.out.println("[CardIssuePanel] issueCard: Kiểm tra thẻ đã có cardId_user chưa...");
             byte[] existingCardId = apduCommands.getStatus(); // V3: Use getStatus() instead of getCardId()
             
@@ -374,7 +355,8 @@ public class CardIssuePanel extends JPanel {
             // Actually, UserData.toBytes() should not include balance since it's stored separately now
             // But for backward compatibility, let's check if we need to remove balance from bytes
             
-            byte[] pinUserBytes = pinUserDefault.getBytes();
+            // Sử dụng UTF-8 để đảm bảo encoding nhất quán với changePin
+            byte[] pinUserBytes = pinUserDefault.getBytes(StandardCharsets.UTF_8);
             
             // V3: Backend sinh cardID trước, derive PIN admin, rồi gửi xuống thẻ
             System.out.println("[CardIssuePanel] issueCard: Sinh cardID và derive PIN_admin_reset...");
@@ -403,7 +385,8 @@ public class CardIssuePanel extends JPanel {
                 return;
             }
             
-            byte[] pinAdminBytes = pinAdminReset.getBytes();
+            // Sử dụng UTF-8 để đảm bảo encoding nhất quán
+            byte[] pinAdminBytes = pinAdminReset.getBytes(StandardCharsets.UTF_8);
 
             // 5.3. Gửi lệnh ISSUE_CARD xuống thẻ với cardID, PIN admin, và initial balance
             System.out.println("[CardIssuePanel] issueCard: Gửi lệnh ISSUE_CARD xuống thẻ với cardID, PIN admin, và balance ban đầu = " + initialBalance);

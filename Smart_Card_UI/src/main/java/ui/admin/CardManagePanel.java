@@ -14,6 +14,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 
 /**
@@ -179,30 +180,9 @@ public class CardManagePanel extends JPanel {
      */
     private void loadCardInfo() {
         try {
-            // Kiểm tra kết nối thẻ
-            if (!cardManager.isConnected()) {
-                if (!cardManager.connect()) {
-                    JOptionPane.showMessageDialog(this, 
-                        "Không thể kết nối với đầu đọc thẻ!\nVui lòng kiểm tra:\n" +
-                        "1. Đầu đọc thẻ đã được cắm\n" +
-                        "2. Thẻ đã được đặt vào đầu đọc\n" +
-                        "3. Driver đầu đọc đã được cài đặt", 
-                        "Lỗi kết nối", JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-            }
-            
-            // Cập nhật channel cho APDUCommands
-            apduCommands.setChannel(cardManager.getChannel());
-
-            // Select UserApplet
-            if (!cardManager.selectApplet(APDUCommands.AID_USER)) {
-                JOptionPane.showMessageDialog(this, 
-                    "Không tìm thấy UserApplet trên thẻ!\n\n" +
-                    "Vui lòng kiểm tra:\n" +
-                    "1. Thẻ User đã được cắm đúng cách\n" +
-                    "2. UserApplet đã được cài đặt trên thẻ", 
-                    "Lỗi", JOptionPane.ERROR_MESSAGE);
+            // Đảm bảo kết nối thẻ, channel sẵn sàng, và applet đã được select
+            if (!CardConnectionHelper.ensureCardAndAppletReady(
+                    cardManager, apduCommands, this, true, APDUCommands.AID_USER)) {
                 clearAllFields();
                 return;
             }
@@ -278,7 +258,8 @@ public class CardManagePanel extends JPanel {
             // V3: Gọi verifyPinAndReadData() - verify PIN và đọc data cùng lúc
             try {
                 System.out.println("[CardManagePanel] V3: Đang verify PIN và đọc data từ thẻ...");
-                byte[] pinBytes = pinUser.getBytes();
+                // Sử dụng UTF-8 để đảm bảo encoding nhất quán với changePin
+                byte[] pinBytes = pinUser.getBytes(StandardCharsets.UTF_8);
                 userDataBytes = apduCommands.verifyPinAndReadData(pinBytes);
                 
                 if (userDataBytes != null && userDataBytes.length > 0) {
@@ -416,24 +397,9 @@ public class CardManagePanel extends JPanel {
                 return;
             }
 
-            // Kiểm tra kết nối thẻ
-            if (!cardManager.isConnected()) {
-                if (!cardManager.connect()) {
-                    JOptionPane.showMessageDialog(this, 
-                        "Không thể kết nối với đầu đọc thẻ!", 
-                        "Lỗi", JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-            }
-            
-            // Cập nhật channel cho APDUCommands
-            apduCommands.setChannel(cardManager.getChannel());
-
-            // Kiểm tra thẻ có được cắm chưa
-            if (!cardManager.selectApplet(APDUCommands.AID_USER)) {
-                JOptionPane.showMessageDialog(this, 
-                    "Vui lòng cắm thẻ User vào đầu đọc!", 
-                    "Lỗi", JOptionPane.ERROR_MESSAGE);
+            // Đảm bảo kết nối thẻ, channel sẵn sàng, và applet đã được select
+            if (!CardConnectionHelper.ensureCardAndAppletReady(
+                    cardManager, apduCommands, this, true, APDUCommands.AID_USER)) {
                 return;
             }
 
@@ -488,8 +454,8 @@ public class CardManagePanel extends JPanel {
                 byte[] result = apduCommands.issueCard(
                     cardIdToIssue,  // V3: Gửi cardID xuống thẻ
                     userData.toBytes(), 
-                    pinUserDefault.getBytes(), 
-                    pinAdminReset.getBytes()  // V3: PIN admin đã derive
+                    pinUserDefault.getBytes(StandardCharsets.UTF_8), 
+                    pinAdminReset.getBytes(StandardCharsets.UTF_8)  // V3: PIN admin đã derive
                 );
                 
                 if (result != null && result.length >= 1 && result[0] == 0x00) {

@@ -10,6 +10,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.nio.charset.StandardCharsets;
 
 /**
  * ResetPinPanel - Panel reset PIN User
@@ -113,28 +114,14 @@ public class ResetPinPanel extends JPanel {
             txtLog.setText("");
             log("=== ĐỌC THÔNG TIN THẺ ===\n");
             
-            // Kiểm tra kết nối thẻ
-            if (!cardManager.isConnected()) {
-                if (!cardManager.connect()) {
-                    JOptionPane.showMessageDialog(this,
-                        "Không thể kết nối với đầu đọc thẻ!",
-                        "Lỗi", JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-            }
-            
-            // Cập nhật channel cho APDUCommands
-            apduCommands.setChannel(cardManager.getChannel());
-            
-            log("Bước 1: Select UserApplet...");
-            if (!cardManager.selectApplet(APDUCommands.AID_USER)) {
-                JOptionPane.showMessageDialog(this,
-                    "Vui lòng cắm thẻ User vào đầu đọc!",
-                    "Lỗi", JOptionPane.ERROR_MESSAGE);
-                log("LỖI: Không thể select UserApplet");
+            // Đảm bảo kết nối thẻ, channel sẵn sàng, và applet đã được select
+            log("Bước 1: Kiểm tra kết nối thẻ và select UserApplet...");
+            if (!CardConnectionHelper.ensureCardAndAppletReady(
+                    cardManager, apduCommands, this, true, APDUCommands.AID_USER)) {
+                log("LỖI: Không thể đảm bảo kết nối thẻ và applet");
                 return;
             }
-            log("✓ Select UserApplet thành công");
+            log("✓ Kết nối thẻ và select UserApplet thành công");
             
             log("\nBước 2: Đọc Card ID từ thẻ...");
             byte[] cardIdOnCard = apduCommands.getCardId();
@@ -224,28 +211,14 @@ public class ResetPinPanel extends JPanel {
                 return;
             }
             
-            // 1. Select UserApplet
-            log("Bước 1: Select UserApplet...");
-            if (!cardManager.isConnected()) {
-                if (!cardManager.connect()) {
-                    JOptionPane.showMessageDialog(this,
-                        "Không thể kết nối với đầu đọc thẻ!",
-                        "Lỗi", JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-            }
-            
-            // Cập nhật channel cho APDUCommands
-            apduCommands.setChannel(cardManager.getChannel());
-            
-            if (!cardManager.selectApplet(APDUCommands.AID_USER)) {
-                JOptionPane.showMessageDialog(this,
-                    "Vui lòng cắm thẻ User vào đầu đọc!",
-                    "Lỗi", JOptionPane.ERROR_MESSAGE);
-                log("LỖI: Không thể select UserApplet");
+            // 1. Đảm bảo kết nối thẻ, channel sẵn sàng, và applet đã được select
+            log("Bước 1: Kiểm tra kết nối thẻ và select UserApplet...");
+            if (!CardConnectionHelper.ensureCardAndAppletReady(
+                    cardManager, apduCommands, this, true, APDUCommands.AID_USER)) {
+                log("LỖI: Không thể đảm bảo kết nối thẻ và applet");
                 return;
             }
-            log("✓ Select UserApplet thành công");
+            log("✓ Kết nối thẻ và select UserApplet thành công");
             
             // 2. Đọc Card ID từ thẻ (V3: dùng getStatus())
             log("\nBước 2: Đọc Card ID từ thẻ...");
@@ -301,9 +274,41 @@ public class ResetPinPanel extends JPanel {
             log("  - PIN Admin length: " + adminPin.length());
             log("  - PIN User New length: " + pinUserNew.length());
             
-            if (apduCommands.resetPinByAdmin(adminPin.getBytes(), pinUserNew.getBytes())) {
+            // Sử dụng UTF-8 để đảm bảo encoding nhất quán
+            byte[] adminPinBytes = adminPin.getBytes(StandardCharsets.UTF_8);
+            byte[] pinUserNewBytes = pinUserNew.getBytes(StandardCharsets.UTF_8);
+            
+            // Đảm bảo PIN bytes đúng 6 bytes
+            if (adminPinBytes.length != 6) {
+                log("LỖI: Admin PIN không đúng định dạng (phải là 6 bytes)!");
+                JOptionPane.showMessageDialog(this,
+                    "Lỗi: Admin PIN không đúng định dạng!",
+                    "Lỗi", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            if (pinUserNewBytes.length != 6) {
+                log("LỖI: PIN User mới không đúng định dạng (phải là 6 bytes)!");
+                JOptionPane.showMessageDialog(this,
+                    "Lỗi: PIN User mới không đúng định dạng!",
+                    "Lỗi", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            if (apduCommands.resetPinByAdmin(adminPinBytes, pinUserNewBytes)) {
                 log("\n✓✓✓ RESET PIN THÀNH CÔNG! ✓✓✓");
                 log("PIN User mới đã được đặt: " + pinUserNew);
+                
+                // QUAN TRỌNG: Refresh channel sau khi reset PIN thành công
+                // Đảm bảo channel vẫn hợp lệ cho các thao tác tiếp theo
+                log("\nBước 5: Refresh channel sau khi reset PIN...");
+                try {
+                    // Cập nhật lại channel cho APDUCommands
+                    apduCommands.setChannel(cardManager.getChannel());
+                    log("✓ Channel đã được refresh");
+                } catch (Exception e) {
+                    log("⚠️ Cảnh báo: Không thể refresh channel - " + e.getMessage());
+                    // Không fail vì reset PIN đã thành công
+                }
                 
                 // Lưu audit log
                 DatabaseConnection.AdminUserInfo adminUser = LoginFrame.getCurrentAdminUser();
@@ -313,7 +318,8 @@ public class ResetPinPanel extends JPanel {
                 }
                 
                 JOptionPane.showMessageDialog(this,
-                    "Reset PIN thành công!\n\nPIN User mới: " + pinUserNew,
+                    "Reset PIN thành công!\n\nPIN User mới: " + pinUserNew + "\n\n" +
+                    "⚠️ Lưu ý: Nếu user đang đăng nhập, họ cần đăng nhập lại với PIN mới.",
                     "Thành công", JOptionPane.INFORMATION_MESSAGE);
             } else {
                 log("\n✗✗✗ RESET PIN THẤT BẠI! ✗✗✗");

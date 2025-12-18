@@ -13,6 +13,7 @@ import javacardx.crypto.Cipher;
  * Applet AID:  11 22 33 44 55 01
  * 
  * C�c APDU commands V3:
+ * Kh�ng c ph�p s dng 0x06 cho bt k� INS n�o
  * - GET_STATUS (0x01): Ly trng th�i th
  * - ISSUE_CARD (0x02): Ph�t h�nh th
  * - VERIFY_PIN_AND_READ_DATA (0x03): X�c thc PIN v� c d liu
@@ -30,7 +31,7 @@ public class UserApplet extends Applet {
     private static final byte INS_VERIFY_PIN_AND_READ_DATA = (byte)0x03;
     private static final byte INS_UPDATE_PATIENT_DATA = (byte)0x04;
     private static final byte INS_ADMIN_RESET_PIN = (byte)0x05;
-    private static final byte INS_CHANGE_PIN = (byte)0x06; // User tự đổi PIN (cần PIN cũ)
+    private static final byte INS_CHANGE_PIN = (byte)0x0A; // User tự đổi PIN (cần PIN cũ) - Đổi từ 0x06 để tránh conflict
     private static final byte INS_DEBIT = (byte)0x07; // Thanh toán
     private static final byte INS_GET_TXN_STATUS = (byte)0x08; // Lấy trạng thái giao dịch (txn_counter, last_txn_hash)
     private static final byte INS_CREDIT = (byte)0x09; // Nạp tiền (0x09 để tránh nhầm lẫn với SW 0x6XXX)
@@ -504,9 +505,15 @@ public class UserApplet extends Applet {
         
         try {
             // 1. T�nh Hash(PIN_user_input)
+            // [LOG] Step 1: Calculate Hash(PIN_user_input)
             byte[] tempHash = JCSystem.makeTransientByteArray(HASH_LENGTH, JCSystem.CLEAR_ON_DESELECT);
-            sha256.reset();
-            sha256.doFinal(buf, pinUserOffset, pinUserLength, tempHash, (short)0);
+            try {
+                sha256.reset();
+                sha256.doFinal(buf, pinUserOffset, pinUserLength, tempHash, (short)0);
+            } catch (CryptoException e) {
+                // [LOG] Step 1 failed: Hash calculation error
+                ISOException.throwIt((short)0x6F01); // Error at step 1
+            }
             
             // 2. So s�nh vi hash_PIN_user
             if (Util.arrayCompare(tempHash, (short)0, hashPinUser, (short)0, HASH_LENGTH) != 0) {
@@ -524,33 +531,70 @@ public class UserApplet extends Applet {
             
             // 4. T�nh K_user = KDF(PIN_user)
             byte[] tempKey = JCSystem.makeTransientByteArray((short)20, JCSystem.CLEAR_ON_DESELECT);
-            CryptoHelper.KDF(buf, pinUserOffset, pinUserLength,
-                            cardID, (short)0, CARD_ID_LENGTH,
-                            KDF_ITERATIONS, tempKey, sha256);
-            
-            // 5. Gii MK_user t Enc_user: MK_user = AES_Decrypt(K_user, Enc_user)
-            aesKey.setKey(tempKey, (short)0);
-            aesCipher.init(aesKey, Cipher.MODE_DECRYPT);
-            aesCipher.doFinal(encUser, (short)0, MK_USER_LENGTH, mkUser, (short)0);
-            
-            // 6. Gii m� d liu bnh nh�n: patient_data = AES_Decrypt(MK_user, Enc_patient)
-            aesKey.setKey(mkUser, (short)0);
-            aesCipher.init(aesKey, Cipher.MODE_DECRYPT);
-            
-            // Decrypt to temporary buffer
-            byte[] decryptedData = JCSystem.makeTransientByteArray(MAX_PATIENT_DATA_LENGTH, JCSystem.CLEAR_ON_DESELECT);
-            short decryptedLength = aesCipher.doFinal(encPatient, (short)0, encPatientLength, decryptedData, (short)0);
-            
-            // Find actual data length (remove padding zeros from end)
-            while (decryptedLength > 0 && decryptedData[(short)(decryptedLength - 1)] == 0) {
-                decryptedLength--;
+            // [LOG] Step 3: Calculate K_user = KDF(PIN_user)
+            try {
+                CryptoHelper.KDF(buf, pinUserOffset, pinUserLength,
+                                cardID, (short)0, CARD_ID_LENGTH,
+                                KDF_ITERATIONS, tempKey, sha256);
+            } catch (CryptoException e) {
+                // [LOG] Step 3 failed: KDF calculation error
+                ISOException.throwIt((short)0x6F03); // Error at step 3
             }
             
+            // [LOG] Step 4: Decrypt MK_user from Enc_user
+            // 5. Gii MK_user t Enc_user: MK_user = AES_Decrypt(K_user, Enc_user)
+            // Clear mkUser trc  m bo clean state (c� th c�n data t ln verify trc)
+			Util.arrayFillNonAtomic(mkUser, (short)0, (short)(MK_USER_LENGTH + 16), (byte)0);
+            try {
+                aesKey.setKey(tempKey, (short)0);
+                aesCipher.init(aesKey, Cipher.MODE_DECRYPT);
+                aesCipher.doFinal(encUser, (short)0, MK_USER_LENGTH, mkUser, (short)0);
+            } catch (CryptoException e) {
+                // [LOG] Step 4 failed: AES decrypt MK_user error
+                // Clear mkUser on error
+                Util.arrayFillNonAtomic(mkUser, (short)0, (short)(MK_USER_LENGTH + 16), (byte)0);
+                short reason = e.getReason();
+                if (reason == 0) {
+                    ISOException.throwIt((short)0x6F04); // Error at step 4
+                } else {
+                    ISOException.throwIt((short)(0x6F04 | (reason & 0x0F))); // Error at step 4 with reason
+                }
+            }
+            
+            // [LOG] Step 5: Decrypt patient data
+            // 6. Gii m� d liu bnh nh�n: patient_data = AES_Decrypt(MK_user, Enc_patient)
+            byte[] decryptedData = JCSystem.makeTransientByteArray(MAX_PATIENT_DATA_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+            short decryptedLength = 0;
+            try {
+                aesKey.setKey(mkUser, (short)0);
+                aesCipher.init(aesKey, Cipher.MODE_DECRYPT);
+                
+                // Decrypt to temporary buffer
+                decryptedLength = aesCipher.doFinal(encPatient, (short)0, encPatientLength, decryptedData, (short)0);
+                
+                // Find actual data length (remove padding zeros from end)
+                while (decryptedLength > 0 && decryptedData[(short)(decryptedLength - 1)] == 0) {
+                    decryptedLength--;
+                }
+            } catch (CryptoException e) {
+                // [LOG] Step 5 failed: AES decrypt patient data error
+                ISOException.throwIt((short)0x6F05); // Error at step 5
+            }
+            
+            // [LOG] Step 6: Decrypt balance
             // 6.1. Decrypt balance: balance = AES_Decrypt(MK_user, Enc_balance)
             byte[] balanceBytes = JCSystem.makeTransientByteArray(BALANCE_ENC_LENGTH, JCSystem.CLEAR_ON_DESELECT);
-            aesCipher.init(aesKey, Cipher.MODE_DECRYPT);
-            aesCipher.doFinal(encBalance, (short)0, BALANCE_ENC_LENGTH, balanceBytes, (short)0);
-            int balance = DataHelper.getInt(balanceBytes, (short)0);
+            int balance = 0;
+            try {
+                // Re-init cipher với mkUser key để đảm bảo clean state
+                aesKey.setKey(mkUser, (short)0);
+                aesCipher.init(aesKey, Cipher.MODE_DECRYPT);
+                aesCipher.doFinal(encBalance, (short)0, BALANCE_ENC_LENGTH, balanceBytes, (short)0);
+                balance = DataHelper.getInt(balanceBytes, (short)0);
+            } catch (CryptoException e) {
+                // [LOG] Step 6 failed: AES decrypt balance error
+                ISOException.throwIt((short)0x6F06); // Error at step 6
+            }
             
             // 7. Return: [status (0x00)] [patient_data_length (2 bytes)] [patient_data] [balance (4 bytes)]
             short offset = 0;
@@ -571,7 +615,22 @@ public class UserApplet extends Applet {
             apdu.setOutgoingAndSend((short)0, offset);
             
         } catch (CryptoException e) {
-            ISOException.throwIt((short)(0x6F00 | e.getReason()));
+            // [LOG] verifyPinAndReadData: CryptoException caught, reason: e.getReason()
+            // Use specific error codes to identify which step failed
+            short reason = e.getReason();
+            if (reason == 0) {
+                // [LOG] General crypto error at unknown step
+                ISOException.throwIt((short)0x6F00);
+            } else {
+                // [LOG] Crypto error with specific reason
+                ISOException.throwIt((short)(0x6F00 | (reason & 0x0F)));
+            }
+        } catch (ArrayIndexOutOfBoundsException e) {
+            // [LOG] verifyPinAndReadData: Buffer overflow error
+            ISOException.throwIt((short)0x6F30); // Buffer overflow
+        } catch (Exception e) {
+            // [LOG] verifyPinAndReadData: Unexpected error
+            ISOException.throwIt((short)0x6F00); // General error
         }
     }
 
@@ -627,7 +686,7 @@ public class UserApplet extends Applet {
     }
 
     /**
-     * CHANGE_PIN (0x06)
+     * CHANGE_PIN (0x0A)
      * Data: [PIN_user_old (6 bytes)] [PIN_user_new (6 bytes)]
      * Response: [status (1 byte)] (0x00 = success)
      * 
@@ -660,8 +719,12 @@ public class UserApplet extends Applet {
         try {
             // 1. Xác thực PIN_user_old - Tính Hash(PIN_user_old)
             byte[] tempHash = JCSystem.makeTransientByteArray(HASH_LENGTH, JCSystem.CLEAR_ON_DESELECT);
-            sha256.reset();
-            sha256.doFinal(buf, pinOldOffset, pinOldLength, tempHash, (short)0);
+            try {
+                sha256.reset();
+                sha256.doFinal(buf, pinOldOffset, pinOldLength, tempHash, (short)0);
+            } catch (CryptoException e) {
+                ISOException.throwIt((short)0x6F01); // Hash operation failed
+            }
             
             // 2. So sánh với hash_PIN_user
             if (Util.arrayCompare(tempHash, (short)0, hashPinUser, (short)0, HASH_LENGTH) != 0) {
@@ -676,8 +739,12 @@ public class UserApplet extends Applet {
             
             // 3. Kiểm tra PIN_moi ≠ PIN_cu (so sánh hash)
             byte[] tempHashNew = JCSystem.makeTransientByteArray(HASH_LENGTH, JCSystem.CLEAR_ON_DESELECT);
-            sha256.reset();
-            sha256.doFinal(buf, pinNewOffset, pinNewLength, tempHashNew, (short)0);
+            try {
+                sha256.reset();
+                sha256.doFinal(buf, pinNewOffset, pinNewLength, tempHashNew, (short)0);
+            } catch (CryptoException e) {
+                ISOException.throwIt((short)0x6F01); // Hash operation failed
+            }
             
             if (Util.arrayCompare(tempHashNew, (short)0, hashPinUser, (short)0, HASH_LENGTH) == 0) {
                 // PIN mới trùng PIN cũ
@@ -686,28 +753,77 @@ public class UserApplet extends Applet {
             
             // 4. Mở MK_user bằng PIN_cu: K_user_old = KDF(PIN_user_old) - dùng PBKDF2 mô phỏng
             byte[] tempKey = JCSystem.makeTransientByteArray((short)20, JCSystem.CLEAR_ON_DESELECT);
-            CryptoHelper.KDF(buf, pinOldOffset, pinOldLength,
-                            cardID, (short)0, CARD_ID_LENGTH,
-                            KDF_ITERATIONS, tempKey, sha256);
+            try {
+                CryptoHelper.KDF(buf, pinOldOffset, pinOldLength,
+                                cardID, (short)0, CARD_ID_LENGTH,
+                                KDF_ITERATIONS, tempKey, sha256);
+            } catch (CryptoException e) {
+                ISOException.throwIt((short)(0x6F03 | (e.getReason() & 0x0F))); // KDF failed
+            }
             
             // 5. Giải MK_user từ Enc_user: MK_user = AES_Decrypt(K_user_old, Enc_user)
-            aesKey.setKey(tempKey, (short)0);
-            aesCipher.init(aesKey, Cipher.MODE_DECRYPT);
-            aesCipher.doFinal(encUser, (short)0, MK_USER_LENGTH, mkUser, (short)0);
+            // Clear mkUser trước để đảm bảo clean state
+            Util.arrayFillNonAtomic(mkUser, (short)0, (short)(MK_USER_LENGTH + 16), (byte)0);
+            try {
+                aesKey.setKey(tempKey, (short)0);
+                aesCipher.init(aesKey, Cipher.MODE_DECRYPT);
+                aesCipher.doFinal(encUser, (short)0, MK_USER_LENGTH, mkUser, (short)0);
+                
+                // Validate mkUser sau khi decrypt - không được toàn số 0
+                boolean mkUserValid = false;
+                for (short i = 0; i < MK_USER_LENGTH; i++) {
+                    if (mkUser[i] != 0) {
+                        mkUserValid = true;
+                        break;
+                    }
+                }
+                if (!mkUserValid) {
+                    // mkUser toàn số 0 - có thể encUser đã bị hỏng
+                    Util.arrayFillNonAtomic(mkUser, (short)0, (short)(MK_USER_LENGTH + 16), (byte)0);
+                    ISOException.throwIt((short)0x6F04); // Error: Invalid mkUser after decrypt
+                }
+            } catch (CryptoException e) {
+                // Decrypt thất bại - clear mkUser và throw exception
+                Util.arrayFillNonAtomic(mkUser, (short)0, (short)(MK_USER_LENGTH + 16), (byte)0);
+                ISOException.throwIt((short)(0x6F04 | (e.getReason() & 0x0F))); // Error decrypting encUser
+            }
             
             // 6. Tạo hash và khóa mới cho PIN_moi: K_user_new = KDF(PIN_user_new) - dùng PBKDF2 mô phỏng
-            CryptoHelper.KDF(buf, pinNewOffset, pinNewLength,
-                            cardID, (short)0, CARD_ID_LENGTH,
-                            KDF_ITERATIONS, tempKey, sha256);
+            try {
+                CryptoHelper.KDF(buf, pinNewOffset, pinNewLength,
+                                cardID, (short)0, CARD_ID_LENGTH,
+                                KDF_ITERATIONS, tempKey, sha256);
+            } catch (CryptoException e) {
+                // KDF thất bại - clear mkUser và throw exception
+                Util.arrayFillNonAtomic(mkUser, (short)0, (short)(MK_USER_LENGTH + 16), (byte)0);
+                ISOException.throwIt((short)(0x6F03 | (e.getReason() & 0x0F))); // Error in KDF
+            }
             
             // 7. Enc_user_new = AES(K_user_new, MK_user)
-            aesKey.setKey(tempKey, (short)0);
-            aesCipher.init(aesKey, Cipher.MODE_ENCRYPT);
-            aesCipher.doFinal(mkUser, (short)0, MK_USER_LENGTH, encUser, (short)0);
+            // QUAN TRỌNG: Update encUser TRƯỚC khi update hashPinUser (giống adminResetPin)
+            // NOTE: Không clear encUser trước khi encrypt (giống adminResetPin) để tránh lỗi decrypt sau này
+            try {
+                aesKey.setKey(tempKey, (short)0);
+                aesCipher.init(aesKey, Cipher.MODE_ENCRYPT);
+                aesCipher.doFinal(mkUser, (short)0, MK_USER_LENGTH, encUser, (short)0);
+            } catch (CryptoException e) {
+                // Encrypt thất bại - clear mkUser và throw exception
+                // QUAN TRỌNG: Không update hashPinUser nếu encrypt thất bại
+                Util.arrayFillNonAtomic(mkUser, (short)0, (short)(MK_USER_LENGTH + 16), (byte)0);
+                ISOException.throwIt((short)(0x6F04 | (e.getReason() & 0x0F))); // Error encrypting encUser
+            }
             
             // 8. hash_PIN_user_new = Hash(PIN_user_new)
-            sha256.reset();
-            sha256.doFinal(buf, pinNewOffset, pinNewLength, hashPinUser, (short)0);
+            // Update hashPinUser SAU KHI đã update encUser thành công
+            try {
+                sha256.reset();
+                sha256.doFinal(buf, pinNewOffset, pinNewLength, hashPinUser, (short)0);
+            } catch (CryptoException e) {
+                // Hash thất bại - đã update encUser rồi nên không rollback
+                // Clear mkUser và throw exception
+                Util.arrayFillNonAtomic(mkUser, (short)0, (short)(MK_USER_LENGTH + 16), (byte)0);
+                ISOException.throwIt((short)0x6F01); // Hash operation failed
+            }
             
             // 9. Reset pin_retry_counter, giữ blocked_flag = 0
             pinRetryCounter = MAX_PIN_TRIES;
@@ -723,7 +839,17 @@ public class UserApplet extends Applet {
             apdu.setOutgoingAndSend((short)0, (short)1);
             
         } catch (CryptoException e) {
-            ISOException.throwIt((short)(0x6F00 | e.getReason()));
+            // Clear sensitive data on error
+            Util.arrayFillNonAtomic(mkUser, (short)0, (short)(MK_USER_LENGTH + 16), (byte)0);
+            ISOException.throwIt((short)(0x6F00 | (e.getReason() & 0x0F)));
+        } catch (ArrayIndexOutOfBoundsException e) {
+            // Buffer overflow
+            Util.arrayFillNonAtomic(mkUser, (short)0, (short)(MK_USER_LENGTH + 16), (byte)0);
+            ISOException.throwIt((short)0x6F30); // Buffer overflow
+        } catch (Exception e) {
+            // Other unexpected errors
+            Util.arrayFillNonAtomic(mkUser, (short)0, (short)(MK_USER_LENGTH + 16), (byte)0);
+            ISOException.throwIt((short)0x6F00); // General error
         }
     }
     

@@ -6,6 +6,7 @@ import model.UserData;
 
 import javax.swing.*;
 import java.awt.*;
+import java.nio.charset.StandardCharsets;
 
 /**
  * UserFrame - Màn hình chính của User
@@ -51,7 +52,8 @@ public class UserFrame extends JFrame {
             return false;
         }
         try {
-            byte[] pinBytes = userPin.getBytes();
+            // Sử dụng UTF-8 để đảm bảo encoding nhất quán với changePin
+            byte[] pinBytes = userPin.getBytes(StandardCharsets.UTF_8);
             byte[] userDataBytes = apduCommands.verifyPinAndReadData(pinBytes);
             if (userDataBytes != null && userDataBytes.length > 0) {
                 userData = UserData.fromBytes(userDataBytes);
