@@ -21,15 +21,20 @@ import java.security.SecureRandom;
  * CardManagePanel - Panel quản lý/sửa thông tin thẻ User
  */
 public class CardManagePanel extends JPanel {
-    
+
     private CardManager cardManager;
     private APDUCommands apduCommands;
-    
+
     private JTextField txtCardId, txtHoTen, txtIdBenhNhan, txtNgaySinh, txtQueQuan, txtMaBHYT, txtBalance;
     private JPasswordField txtPinUserDefault;
     private JPasswordField txtPinUserForLoad; // PIN User để load data từ thẻ
     private JButton btnLoadFromCard, btnUpdate, btnLoadToCard;
     private JLabel lblAdminPinStatus; // Hiển thị trạng thái Admin PIN
+
+    // V4: Thông tin y tế khẩn cấp
+    private JComboBox<String> cboNhomMau;
+    private JTextArea txtDiUng;
+    private JTextArea txtBenhNen;
 
     public CardManagePanel(CardManager cardManager, APDUCommands apduCommands) {
         this.cardManager = cardManager;
@@ -49,7 +54,8 @@ public class CardManagePanel extends JPanel {
         int row = 0;
 
         // Card ID (hiển thị từ thẻ)
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         formPanel.add(new JLabel("Card ID (hex):"), gbc);
         txtCardId = new JTextField(40);
         txtCardId.setEditable(false);
@@ -62,7 +68,8 @@ public class CardManagePanel extends JPanel {
         btnLoadFromCard = new JButton("Load từ thẻ User");
         btnLoadFromCard.setFont(new Font("Arial", Font.BOLD, 12));
         btnLoadFromCard.setPreferredSize(new Dimension(200, 35));
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         gbc.gridwidth = 2;
         gbc.anchor = GridBagConstraints.CENTER;
         formPanel.add(btnLoadFromCard, gbc);
@@ -71,35 +78,40 @@ public class CardManagePanel extends JPanel {
 
         // Các trường thông tin
         row++;
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         formPanel.add(new JLabel("Họ tên:"), gbc);
         txtHoTen = new JTextField(30);
         gbc.gridx = 1;
         formPanel.add(txtHoTen, gbc);
 
         row++;
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         formPanel.add(new JLabel("ID bệnh nhân:"), gbc);
         txtIdBenhNhan = new JTextField(30);
         gbc.gridx = 1;
         formPanel.add(txtIdBenhNhan, gbc);
 
         row++;
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         formPanel.add(new JLabel("Ngày sinh:"), gbc);
         txtNgaySinh = new JTextField(30);
         gbc.gridx = 1;
         formPanel.add(txtNgaySinh, gbc);
 
         row++;
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         formPanel.add(new JLabel("Quê quán:"), gbc);
         txtQueQuan = new JTextField(30);
         gbc.gridx = 1;
         formPanel.add(txtQueQuan, gbc);
 
         row++;
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         formPanel.add(new JLabel("Mã BHYT:"), gbc);
         txtMaBHYT = new JTextField(30);
         gbc.gridx = 1;
@@ -107,7 +119,8 @@ public class CardManagePanel extends JPanel {
 
         // Số dư
         row++;
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         formPanel.add(new JLabel("Số dư (VNĐ):"), gbc);
         txtBalance = new JTextField(30);
         gbc.gridx = 1;
@@ -115,7 +128,8 @@ public class CardManagePanel extends JPanel {
 
         // PIN User để load data từ thẻ
         row++;
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         formPanel.add(new JLabel("PIN User (để load data):"), gbc);
         txtPinUserForLoad = new JPasswordField(20);
         txtPinUserForLoad.setToolTipText("Nhập PIN User để xác thực và load dữ liệu từ thẻ");
@@ -124,7 +138,8 @@ public class CardManagePanel extends JPanel {
 
         // PIN User Default (để demo)
         row++;
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         formPanel.add(new JLabel("PIN User mặc định:"), gbc);
         txtPinUserDefault = new JPasswordField(20);
         txtPinUserDefault.setToolTipText("PIN User mặc định dùng khi phát hành thẻ mới");
@@ -133,13 +148,65 @@ public class CardManagePanel extends JPanel {
 
         // Admin PIN Status (tự động lấy từ database)
         row++;
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         formPanel.add(new JLabel("Admin PIN:"), gbc);
         lblAdminPinStatus = new JLabel("Chưa load thẻ");
         lblAdminPinStatus.setForeground(new Color(100, 100, 100));
         lblAdminPinStatus.setFont(new Font("Arial", Font.ITALIC, 11));
         gbc.gridx = 1;
         formPanel.add(lblAdminPinStatus, gbc);
+
+        // ===== V4: THÔNG TIN Y TẾ KHẨN CẤP =====
+        row++;
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        gbc.gridwidth = 2;
+        JLabel lblEmergency = new JLabel("🏥 THÔNG TIN Y TẾ KHẨN CẤP");
+        lblEmergency.setFont(new Font("Arial", Font.BOLD, 12));
+        lblEmergency.setForeground(new Color(220, 53, 69));
+        formPanel.add(lblEmergency, gbc);
+        gbc.gridwidth = 1;
+
+        // Nhóm máu (JComboBox)
+        row++;
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        formPanel.add(new JLabel("🩸 Nhóm máu:"), gbc);
+        cboNhomMau = new JComboBox<>(UserData.BLOOD_TYPE_LABELS);
+        cboNhomMau.setSelectedIndex(0);
+        gbc.gridx = 1;
+        formPanel.add(cboNhomMau, gbc);
+
+        // Dị ứng (JTextArea)
+        row++;
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        gbc.anchor = GridBagConstraints.NORTHWEST;
+        formPanel.add(new JLabel("⚠️ Dị ứng:"), gbc);
+        txtDiUng = new JTextArea(2, 25);
+        txtDiUng.setLineWrap(true);
+        txtDiUng.setWrapStyleWord(true);
+        JScrollPane scrollDiUng = new JScrollPane(txtDiUng);
+        scrollDiUng.setPreferredSize(new Dimension(250, 50));
+        gbc.gridx = 1;
+        formPanel.add(scrollDiUng, gbc);
+        gbc.anchor = GridBagConstraints.WEST;
+
+        // Bệnh nền (JTextArea)
+        row++;
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        gbc.anchor = GridBagConstraints.NORTHWEST;
+        formPanel.add(new JLabel("🏥 Bệnh nền:"), gbc);
+        txtBenhNen = new JTextArea(2, 25);
+        txtBenhNen.setLineWrap(true);
+        txtBenhNen.setWrapStyleWord(true);
+        JScrollPane scrollBenhNen = new JScrollPane(txtBenhNen);
+        scrollBenhNen.setPreferredSize(new Dimension(250, 50));
+        gbc.gridx = 1;
+        formPanel.add(scrollBenhNen, gbc);
+        gbc.anchor = GridBagConstraints.WEST;
 
         // Buttons
         btnLoadToCard = new JButton("Nạp vào thẻ (ISSUE_CARD/UPDATE)");
@@ -190,15 +257,15 @@ public class CardManagePanel extends JPanel {
             // Đọc cardId
             byte[] cardId = apduCommands.getCardId();
             boolean hasCardId = (cardId != null && !isCardIdEmpty(cardId));
-            
+
             // Nếu thẻ trắng (không có cardId), không hiển thị gì
             if (!hasCardId) {
                 clearAllFields();
-                JOptionPane.showMessageDialog(this, 
-                    "Thẻ trắng (chưa được phát hành)!\n\n" +
-                    "CardId hiện tại là rỗng.\n" +
-                    "Vui lòng phát hành thẻ trước.", 
-                    "Thẻ trắng", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this,
+                        "Thẻ trắng (chưa được phát hành)!\n\n" +
+                                "CardId hiện tại là rỗng.\n" +
+                                "Vui lòng phát hành thẻ trước.",
+                        "Thẻ trắng", JOptionPane.INFORMATION_MESSAGE);
                 return;
             }
 
@@ -222,25 +289,27 @@ public class CardManagePanel extends JPanel {
             byte[] userDataBytes = null;
             UserData userData = null;
             boolean loadedFromCard = false;
-            
+
             // Yêu cầu nhập PIN User (V3: cần PIN để verify và đọc data)
             String pinUser = new String(txtPinUserForLoad.getPassword());
             if (pinUser.isEmpty() || pinUser.length() != 6) {
                 // Hiển thị dialog để nhập PIN User
                 JPasswordField pinField = new JPasswordField(20);
                 int option = JOptionPane.showConfirmDialog(this,
-                    new Object[]{"V3: Cần nhập PIN User (6 chữ số) để đọc dữ liệu từ thẻ.\nVui lòng nhập PIN User:", pinField},
-                    "Nhập PIN User",
-                    JOptionPane.OK_CANCEL_OPTION,
-                    JOptionPane.QUESTION_MESSAGE);
-                
+                        new Object[] {
+                                "V3: Cần nhập PIN User (6 chữ số) để đọc dữ liệu từ thẻ.\nVui lòng nhập PIN User:",
+                                pinField },
+                        "Nhập PIN User",
+                        JOptionPane.OK_CANCEL_OPTION,
+                        JOptionPane.QUESTION_MESSAGE);
+
                 if (option == JOptionPane.OK_OPTION) {
                     pinUser = new String(pinField.getPassword());
                     // Validate PIN length (must be 6 digits)
                     if (pinUser.length() != 6 || !pinUser.matches("^[0-9]+$")) {
                         JOptionPane.showMessageDialog(this,
-                            "PIN User phải là 6 chữ số!",
-                            "Lỗi", JOptionPane.ERROR_MESSAGE);
+                                "PIN User phải là 6 chữ số!",
+                                "Lỗi", JOptionPane.ERROR_MESSAGE);
                         clearAllFields();
                         txtCardId.setText(cardIdHex);
                         return;
@@ -254,14 +323,14 @@ public class CardManagePanel extends JPanel {
                     return;
                 }
             }
-            
+
             // V3: Gọi verifyPinAndReadData() - verify PIN và đọc data cùng lúc
             try {
                 System.out.println("[CardManagePanel] V3: Đang verify PIN và đọc data từ thẻ...");
                 // Sử dụng UTF-8 để đảm bảo encoding nhất quán với changePin
                 byte[] pinBytes = pinUser.getBytes(StandardCharsets.UTF_8);
                 userDataBytes = apduCommands.verifyPinAndReadData(pinBytes);
-                
+
                 if (userDataBytes != null && userDataBytes.length > 0) {
                     userData = UserData.fromBytes(userDataBytes);
                     loadedFromCard = (userData != null);
@@ -273,14 +342,14 @@ public class CardManagePanel extends JPanel {
                     txtPinUserForLoad.setText(""); // Xóa PIN
                     clearAllFields();
                     txtCardId.setText(cardIdHex);
-                    JOptionPane.showMessageDialog(this, 
-                        "Không thể đọc dữ liệu từ thẻ!\n\n" +
-                        "Nguyên nhân có thể:\n" +
-                        "1. PIN User không đúng\n" +
-                        "2. Thẻ bị khóa (blocked)\n" +
-                        "3. Thẻ chưa được phát hành\n\n" +
-                        "Vui lòng kiểm tra lại PIN User và thử lại.", 
-                        "Lỗi", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(this,
+                            "Không thể đọc dữ liệu từ thẻ!\n\n" +
+                                    "Nguyên nhân có thể:\n" +
+                                    "1. PIN User không đúng\n" +
+                                    "2. Thẻ bị khóa (blocked)\n" +
+                                    "3. Thẻ chưa được phát hành\n\n" +
+                                    "Vui lòng kiểm tra lại PIN User và thử lại.",
+                            "Lỗi", JOptionPane.ERROR_MESSAGE);
                     return;
                 }
             } catch (Exception e) {
@@ -289,17 +358,17 @@ public class CardManagePanel extends JPanel {
                 txtPinUserForLoad.setText(""); // Xóa PIN
                 clearAllFields();
                 txtCardId.setText(cardIdHex);
-                JOptionPane.showMessageDialog(this, 
-                    "Lỗi khi đọc dữ liệu từ thẻ!\n\n" +
-                    "Lỗi: " + e.getMessage() + "\n\n" +
-                    "Vui lòng kiểm tra:\n" +
-                    "- PIN User có đúng không\n" +
-                    "- Thẻ có bị khóa không\n" +
-                    "- Kết nối thẻ có ổn định không", 
-                    "Lỗi", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this,
+                        "Lỗi khi đọc dữ liệu từ thẻ!\n\n" +
+                                "Lỗi: " + e.getMessage() + "\n\n" +
+                                "Vui lòng kiểm tra:\n" +
+                                "- PIN User có đúng không\n" +
+                                "- Thẻ có bị khóa không\n" +
+                                "- Kết nối thẻ có ổn định không",
+                        "Lỗi", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            
+
             // Hiển thị dữ liệu nếu có
             if (userData != null && loadedFromCard) {
                 // Hiển thị các thông tin cần thiết
@@ -309,34 +378,39 @@ public class CardManagePanel extends JPanel {
                 txtQueQuan.setText(userData.getQueQuan() != null ? userData.getQueQuan() : "");
                 txtMaBHYT.setText(userData.getMaBHYT() != null ? userData.getMaBHYT() : "");
                 txtBalance.setText(String.valueOf(userData.getBalance()));
-                
-                JOptionPane.showMessageDialog(this, 
-                    "Đã load thông tin từ thẻ User thành công!", 
-                    "Thành công", JOptionPane.INFORMATION_MESSAGE);
+
+                // V4: Hiển thị thông tin y tế khẩn cấp
+                cboNhomMau.setSelectedIndex(userData.getNhomMau());
+                txtDiUng.setText(userData.getDiUng() != null ? userData.getDiUng() : "");
+                txtBenhNen.setText(userData.getBenhNen() != null ? userData.getBenhNen() : "");
+
+                JOptionPane.showMessageDialog(this,
+                        "Đã load thông tin từ thẻ User thành công!",
+                        "Thành công", JOptionPane.INFORMATION_MESSAGE);
             } else {
                 // Không đọc được UserData từ thẻ
                 clearAllFields();
                 txtCardId.setText(cardIdHex); // Giữ lại Card ID
-                JOptionPane.showMessageDialog(this, 
-                    "Không thể load UserData từ thẻ!\n\n" +
-                    "Nguyên nhân có thể:\n" +
-                    "1. Cần xác thực PIN User để đọc từ thẻ (SW: 0x6982)\n" +
-                    "2. PIN User không đúng\n" +
-                    "3. Thẻ chưa được phát hành đầy đủ\n" +
-                    "4. Lỗi kết nối với thẻ\n\n" +
-                    "Giải pháp:\n" +
-                    "- Nhập đúng PIN User và thử lại\n" +
-                    "- Kiểm tra kết nối thẻ\n" +
-                    "- Phát hành lại thẻ nếu cần", 
-                    "Lỗi", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this,
+                        "Không thể load UserData từ thẻ!\n\n" +
+                                "Nguyên nhân có thể:\n" +
+                                "1. Cần xác thực PIN User để đọc từ thẻ (SW: 0x6982)\n" +
+                                "2. PIN User không đúng\n" +
+                                "3. Thẻ chưa được phát hành đầy đủ\n" +
+                                "4. Lỗi kết nối với thẻ\n\n" +
+                                "Giải pháp:\n" +
+                                "- Nhập đúng PIN User và thử lại\n" +
+                                "- Kiểm tra kết nối thẻ\n" +
+                                "- Phát hành lại thẻ nếu cần",
+                        "Lỗi", JOptionPane.ERROR_MESSAGE);
             }
 
         } catch (Exception e) {
             e.printStackTrace();
             clearAllFields();
-            JOptionPane.showMessageDialog(this, 
-                "Lỗi khi đọc thẻ: " + e.getMessage(), 
-                "Lỗi", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this,
+                    "Lỗi khi đọc thẻ: " + e.getMessage(),
+                    "Lỗi", JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -352,6 +426,10 @@ public class CardManagePanel extends JPanel {
         txtMaBHYT.setText("");
         txtBalance.setText("0");
         txtPinUserDefault.setText("");
+        // V4: Clear thông tin y tế khẩn cấp
+        cboNhomMau.setSelectedIndex(0);
+        txtDiUng.setText("");
+        txtBenhNen.setText("");
         // Không xóa txtPinUserForLoad để giữ PIN cho lần load sau
         lblAdminPinStatus.setText("Chưa load thẻ");
         lblAdminPinStatus.setForeground(new Color(100, 100, 100));
@@ -384,16 +462,17 @@ public class CardManagePanel extends JPanel {
                 System.out.println("[CardManagePanel] Derived Admin PIN: " + pinAdmin);
             } catch (Exception e) {
                 JOptionPane.showMessageDialog(this,
-                    "Lỗi khi derive Admin PIN!\n\n" +
-                    "Vui lòng kiểm tra K_MASTER environment variable.\n\n" +
-                    "Lỗi: " + e.getMessage(),
-                    "Lỗi", JOptionPane.ERROR_MESSAGE);
+                        "Lỗi khi derive Admin PIN!\n\n" +
+                                "Vui lòng kiểm tra K_MASTER environment variable.\n\n" +
+                                "Lỗi: " + e.getMessage(),
+                        "Lỗi", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
             String pinUserDefault = new String(txtPinUserDefault.getPassword());
             if (pinUserDefault.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Vui lòng nhập PIN User mặc định!", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Vui lòng nhập PIN User mặc định!", "Lỗi",
+                        JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
@@ -410,7 +489,12 @@ public class CardManagePanel extends JPanel {
             userData.setNgaySinh(txtNgaySinh.getText());
             userData.setQueQuan(txtQueQuan.getText());
             userData.setMaBHYT(txtMaBHYT.getText());
-            
+
+            // V4: Thông tin y tế khẩn cấp
+            userData.setNhomMau(cboNhomMau.getSelectedIndex());
+            userData.setDiUng(txtDiUng.getText().trim());
+            userData.setBenhNen(txtBenhNen.getText().trim());
+
             // Parse balance
             try {
                 long balance = Long.parseLong(txtBalance.getText().trim());
@@ -427,14 +511,14 @@ public class CardManagePanel extends JPanel {
 
             boolean success = false;
 
-            if (!hasExistingCardId || existingCardIdHex.isEmpty() || 
-                !existingCardIdHex.equalsIgnoreCase(targetCardIdHex)) {
+            if (!hasExistingCardId || existingCardIdHex.isEmpty() ||
+                    !existingCardIdHex.equalsIgnoreCase(targetCardIdHex)) {
                 // Thẻ chưa được phát hành hoặc cardId khác -> dùng ISSUE_CARD
                 // V3: Sinh cardID trước, derive PIN admin, rồi gửi xuống thẻ
                 java.security.SecureRandom random = new java.security.SecureRandom();
                 byte[] cardIdToIssue = new byte[16];
                 random.nextBytes(cardIdToIssue);
-                
+
                 // Derive PIN admin từ cardID
                 String pinAdminReset;
                 try {
@@ -444,33 +528,33 @@ public class CardManagePanel extends JPanel {
                 } catch (Exception e) {
                     System.err.println("[CardManagePanel] Lỗi khi derive Admin PIN: " + e.getMessage());
                     JOptionPane.showMessageDialog(this,
-                        "Lỗi khi derive Admin PIN!\n\n" +
-                        "Vui lòng kiểm tra K_MASTER environment variable.\n\n" +
-                        "Lỗi: " + e.getMessage(),
-                        "Lỗi", JOptionPane.ERROR_MESSAGE);
+                            "Lỗi khi derive Admin PIN!\n\n" +
+                                    "Vui lòng kiểm tra K_MASTER environment variable.\n\n" +
+                                    "Lỗi: " + e.getMessage(),
+                            "Lỗi", JOptionPane.ERROR_MESSAGE);
                     return;
                 }
-                
+
                 byte[] result = apduCommands.issueCard(
-                    cardIdToIssue,  // V3: Gửi cardID xuống thẻ
-                    userData.toBytes(), 
-                    pinUserDefault.getBytes(StandardCharsets.UTF_8), 
-                    pinAdminReset.getBytes(StandardCharsets.UTF_8)  // V3: PIN admin đã derive
+                        cardIdToIssue, // V3: Gửi cardID xuống thẻ
+                        userData.toBytes(),
+                        pinUserDefault.getBytes(StandardCharsets.UTF_8),
+                        pinAdminReset.getBytes(StandardCharsets.UTF_8) // V3: PIN admin đã derive
                 );
-                
+
                 if (result != null && result.length >= 1 && result[0] == 0x00) {
                     // V3: Response chỉ là status byte, đọc cardID từ GET_STATUS
                     byte[] newCardId = apduCommands.getStatus();
                     if (newCardId == null || newCardId.length != 16) {
-                        JOptionPane.showMessageDialog(this, 
-                            "Phát hành thẻ thành công nhưng không thể đọc cardID!", 
-                            "Cảnh báo", JOptionPane.WARNING_MESSAGE);
+                        JOptionPane.showMessageDialog(this,
+                                "Phát hành thẻ thành công nhưng không thể đọc cardID!",
+                                "Cảnh báo", JOptionPane.WARNING_MESSAGE);
                         return;
                     }
-                    
+
                     String newCardIdHex = bytesToHex(newCardId);
                     txtCardId.setText(newCardIdHex);
-                    
+
                     // V3: Không lưu Admin PIN vào database nữa, chỉ derive động
                     // Derive PIN cho card mới
                     try {
@@ -482,30 +566,30 @@ public class CardManagePanel extends JPanel {
                     } catch (Exception e) {
                         System.err.println("[CardManagePanel] Lỗi khi derive Admin PIN: " + e.getMessage());
                         JOptionPane.showMessageDialog(this,
-                            "CẢNH BÁO: Không thể derive Admin PIN!\n\n" +
-                            "Vui lòng kiểm tra K_MASTER environment variable.\n\n" +
-                            "Lỗi: " + e.getMessage(),
-                            "Cảnh báo", JOptionPane.WARNING_MESSAGE);
+                                "CẢNH BÁO: Không thể derive Admin PIN!\n\n" +
+                                        "Vui lòng kiểm tra K_MASTER environment variable.\n\n" +
+                                        "Lỗi: " + e.getMessage(),
+                                "Cảnh báo", JOptionPane.WARNING_MESSAGE);
                     }
-                    
-                    JOptionPane.showMessageDialog(this, 
-                        "Đã phát hành thẻ mới thành công!\nCard ID: " + newCardIdHex, 
-                        "Thành công", JOptionPane.INFORMATION_MESSAGE);
+
+                    JOptionPane.showMessageDialog(this,
+                            "Đã phát hành thẻ mới thành công!\nCard ID: " + newCardIdHex,
+                            "Thành công", JOptionPane.INFORMATION_MESSAGE);
                     success = true;
                 } else {
-                    JOptionPane.showMessageDialog(this, 
-                        "Phát hành thẻ thất bại!", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(this,
+                            "Phát hành thẻ thất bại!", "Lỗi", JOptionPane.ERROR_MESSAGE);
                 }
             } else {
                 // Thẻ đã được phát hành -> dùng UPDATE_USER_DATA
                 if (apduCommands.updateUserData(userData.toBytes())) {
-                    JOptionPane.showMessageDialog(this, 
-                        "Đã cập nhật thông tin vào thẻ thành công!", 
-                        "Thành công", JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.showMessageDialog(this,
+                            "Đã cập nhật thông tin vào thẻ thành công!",
+                            "Thành công", JOptionPane.INFORMATION_MESSAGE);
                     success = true;
                 } else {
-                    JOptionPane.showMessageDialog(this, 
-                        "Cập nhật thông tin vào thẻ thất bại!", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(this,
+                            "Cập nhật thông tin vào thẻ thất bại!", "Lỗi", JOptionPane.ERROR_MESSAGE);
                 }
             }
 
@@ -541,7 +625,12 @@ public class CardManagePanel extends JPanel {
             userData.setNgaySinh(txtNgaySinh.getText());
             userData.setQueQuan(txtQueQuan.getText());
             userData.setMaBHYT(txtMaBHYT.getText());
-            
+
+            // V4: Thông tin y tế khẩn cấp
+            userData.setNhomMau(cboNhomMau.getSelectedIndex());
+            userData.setDiUng(txtDiUng.getText().trim());
+            userData.setBenhNen(txtBenhNen.getText().trim());
+
             // Parse balance
             try {
                 long balance = Long.parseLong(txtBalance.getText().trim());
@@ -560,27 +649,34 @@ public class CardManagePanel extends JPanel {
             snapshot.setMaBHYT(userData.getMaBHYT());
             snapshot.setBalance(userData.getBalance());
             snapshot.setPinUserDefault(pinUserDefault);
-            
+
+            // V4: Thông tin y tế khẩn cấp
+            snapshot.setNhomMau(userData.getNhomMau());
+            snapshot.setDiUng(userData.getDiUng());
+            snapshot.setBenhNen(userData.getBenhNen());
+
             // Derive và lưu PIN admin reset nếu có thể
             try {
                 byte[] cardIdBytes = UserDemoSnapshotManager.hexToBytes(cardIdHex);
                 if (cardIdBytes != null && cardIdBytes.length == 16) {
                     String pinAdminReset = AdminPinDerivation.deriveAdminResetPIN(cardIdBytes);
                     snapshot.setPinAdminReset(pinAdminReset);
-                    System.out.println("[CardManagePanel] saveSnapshotOnly: Đã derive và lưu PIN admin reset: " + pinAdminReset);
+                    System.out.println(
+                            "[CardManagePanel] saveSnapshotOnly: Đã derive và lưu PIN admin reset: " + pinAdminReset);
                 }
             } catch (Exception e) {
-                System.err.println("[CardManagePanel] saveSnapshotOnly: Không thể derive PIN admin reset: " + e.getMessage());
+                System.err.println(
+                        "[CardManagePanel] saveSnapshotOnly: Không thể derive PIN admin reset: " + e.getMessage());
                 // Không báo lỗi, chỉ log vì có thể snapshot cũ không có PIN admin
             }
 
             if (UserDemoSnapshotManager.saveSnapshot(snapshot)) {
-                JOptionPane.showMessageDialog(this, 
-                    "Đã lưu snapshot demo thành công!", 
-                    "Thành công", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this,
+                        "Đã lưu snapshot demo thành công!",
+                        "Thành công", JOptionPane.INFORMATION_MESSAGE);
             } else {
-                JOptionPane.showMessageDialog(this, 
-                    "Lỗi khi lưu snapshot!", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this,
+                        "Lỗi khi lưu snapshot!", "Lỗi", JOptionPane.ERROR_MESSAGE);
             }
 
         } catch (Exception e) {
@@ -588,7 +684,7 @@ public class CardManagePanel extends JPanel {
             JOptionPane.showMessageDialog(this, "Lỗi: " + e.getMessage(), "Lỗi", JOptionPane.ERROR_MESSAGE);
         }
     }
-    
+
     /**
      * Kiểm tra cardId có rỗng không (toàn số 0)
      */
@@ -603,7 +699,7 @@ public class CardManagePanel extends JPanel {
         }
         return true;
     }
-    
+
     /**
      * Generate random Admin PIN (6-8 chữ số)
      */
@@ -616,7 +712,7 @@ public class CardManagePanel extends JPanel {
         }
         return pin.toString();
     }
-    
+
     private String bytesToHex(byte[] bytes) {
         StringBuilder sb = new StringBuilder();
         for (byte b : bytes) {
@@ -624,15 +720,14 @@ public class CardManagePanel extends JPanel {
         }
         return sb.toString();
     }
-    
+
     private byte[] hexStringToBytes(String hex) {
         int len = hex.length();
         byte[] data = new byte[len / 2];
         for (int i = 0; i < len; i += 2) {
             data[i / 2] = (byte) ((Character.digit(hex.charAt(i), 16) << 4)
-                                 + Character.digit(hex.charAt(i+1), 16));
+                    + Character.digit(hex.charAt(i + 1), 16));
         }
         return data;
     }
 }
-

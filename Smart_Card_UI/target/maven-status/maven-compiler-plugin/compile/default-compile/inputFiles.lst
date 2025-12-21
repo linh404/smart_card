@@ -1,3 +1,4 @@
+D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\ui\user\ForceChangePinDialog.java
 D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\model\UserData.java
 D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\ui\user\BHYTPanel.java
 D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\ui\user\UserLoginFrame.java
@@ -7,10 +8,12 @@ D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\ui\admin\ResetPinPanel.java
 D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\util\JsonFileManager.java
 D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\ui\tool\CreateAdminUserTool.java
 D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\ui\tool\DatabaseMigrationTool.java
+D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\ui\ModernUITheme.java
 D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\ui\admin\CardIssuePanel.java
 D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\ui\MainFrame.java
 D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\model\UserCardSnapshot.java
 D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\model\Transaction.java
+D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\ui\SmartCardVisual.java
 D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\ui\user\ChangePinPanel.java
 D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\db\BHYTInfo.java
 D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\ui\tool\ResetUserCardTool.java

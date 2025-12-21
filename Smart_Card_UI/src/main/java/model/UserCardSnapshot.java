@@ -11,44 +11,54 @@ import com.google.gson.annotations.SerializedName;
  * - ⚠️ CHỈ DÙNG CHO DEMO - KHÔNG dùng production
  */
 public class UserCardSnapshot {
-    
+
     @SerializedName("cardId")
     private String cardIdHex; // Card ID dạng hex string
-    
+
     @SerializedName("hoTen")
     private String hoTen;
-    
+
     @SerializedName("idBenhNhan")
     private String idBenhNhan;
-    
+
     @SerializedName("ngaySinh")
     private String ngaySinh;
-    
+
     @SerializedName("queQuan")
     private String queQuan;
-    
+
     @SerializedName("maBHYT")
     private String maBHYT;
-    
+
     @SerializedName("balance")
     private long balance; // Số dư tài khoản (VNĐ)
-    
+
     @SerializedName("pinUserDefault")
     private String pinUserDefault; // PIN mặc định (plaintext, chỉ để demo)
-    
+
     @SerializedName("pinAdminReset")
     private String pinAdminReset; // PIN admin reset (plaintext, chỉ để demo)
-    
+
     // RSA Keys (V3 - DEMO ONLY)
     @SerializedName("pkUserBase64")
     private String pkUserBase64; // Public key (X.509 encoded, Base64)
-    
+
     @SerializedName("skUserBase64")
     private String skUserBase64; // Private key (PKCS#8 encoded, Base64) - DEMO ONLY
-    
+
+    // V4: Thông tin y tế khẩn cấp
+    @SerializedName("nhomMau")
+    private int nhomMau; // 0-8 (enum index)
+
+    @SerializedName("diUng")
+    private String diUng; // Dị ứng (text tự do)
+
+    @SerializedName("benhNen")
+    private String benhNen; // Bệnh nền (text tự do)
+
     @SerializedName("createdAt")
     private String createdAt; // Timestamp tạo snapshot
-    
+
     @SerializedName("updatedAt")
     private String updatedAt; // Timestamp cập nhật lần cuối
 
@@ -65,6 +75,10 @@ public class UserCardSnapshot {
             this.queQuan = userData.getQueQuan();
             this.maBHYT = userData.getMaBHYT();
             this.balance = userData.getBalance();
+            // V4: Copy thông tin y tế khẩn cấp
+            this.nhomMau = userData.getNhomMau();
+            this.diUng = userData.getDiUng();
+            this.benhNen = userData.getBenhNen();
         }
         this.pinUserDefault = pinUserDefault;
     }
@@ -174,6 +188,31 @@ public class UserCardSnapshot {
         this.skUserBase64 = skUserBase64;
     }
 
+    // V4: Getters/Setters cho thông tin y tế khẩn cấp
+    public int getNhomMau() {
+        return nhomMau;
+    }
+
+    public void setNhomMau(int nhomMau) {
+        this.nhomMau = nhomMau;
+    }
+
+    public String getDiUng() {
+        return diUng;
+    }
+
+    public void setDiUng(String diUng) {
+        this.diUng = diUng;
+    }
+
+    public String getBenhNen() {
+        return benhNen;
+    }
+
+    public void setBenhNen(String benhNen) {
+        this.benhNen = benhNen;
+    }
+
     /**
      * Chuyển UserCardSnapshot thành UserData
      */
@@ -185,6 +224,10 @@ public class UserCardSnapshot {
         userData.setQueQuan(this.queQuan);
         userData.setMaBHYT(this.maBHYT);
         userData.setBalance(this.balance);
+        // V4: Copy thông tin y tế khẩn cấp
+        userData.setNhomMau(this.nhomMau);
+        userData.setDiUng(this.diUng);
+        userData.setBenhNen(this.benhNen);
         return userData;
     }
 
@@ -196,4 +239,3 @@ public class UserCardSnapshot {
         return snapshot;
     }
 }
-

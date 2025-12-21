@@ -5,150 +5,208 @@ import card.APDUCommands;
 import model.UserData;
 import util.CryptoUtils;
 import db.DatabaseConnection;
+import ui.ModernUITheme;
 
 import javax.swing.*;
 import javax.smartcardio.CardException;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+import java.awt.geom.RoundRectangle2D;
 import java.nio.charset.StandardCharsets;
 
 /**
  * UserLoginFrame - Màn hình đăng nhập User bằng thẻ User
- * Đơn giản hóa: Chỉ cần nhập PIN và verify với PIN hash trong thẻ
- * Mặc định thẻ đã được connect khi mở form này
+ * V3: Modern UI với light theme, card layout, smooth animations
  */
 public class UserLoginFrame extends JFrame {
-    
-    private JPasswordField txtPin;
-    private JButton btnLogin;
-    private JButton btnCancel;
+
+    private ModernUITheme.RoundedPasswordField txtPin;
+    private ModernUITheme.RoundedButton btnLogin;
+    private ModernUITheme.OutlineButton btnCancel;
     private CardManager cardManager;
     private APDUCommands apduCommands;
 
     public UserLoginFrame() {
+        ModernUITheme.applyTheme();
         initUI();
     }
 
     private void initUI() {
         setTitle("Đăng nhập User");
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        setSize(450, 280);
+        setSize(450, 420);
         setLocationRelativeTo(null);
-        setLayout(new BorderLayout());
 
-        // Header
-        JPanel header = new JPanel(new BorderLayout());
-        header.setBackground(new Color(0, 153, 102));
-        header.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
-        
+        // Main container with gradient background
+        JPanel mainContainer = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+
+                GradientPaint gp = new GradientPaint(
+                        0, 0, ModernUITheme.BG_PRIMARY,
+                        getWidth(), getHeight(), ModernUITheme.BG_SECONDARY);
+                g2.setPaint(gp);
+                g2.fillRect(0, 0, getWidth(), getHeight());
+                g2.dispose();
+            }
+        };
+
+        // Center card
+        ModernUITheme.CardPanel card = new ModernUITheme.CardPanel();
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setPreferredSize(new Dimension(360, 340));
+
+        // Header with icon
+        JPanel headerPanel = new JPanel();
+        headerPanel.setOpaque(false);
+        headerPanel.setLayout(new BoxLayout(headerPanel, BoxLayout.Y_AXIS));
+        headerPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        // User icon
+        JPanel iconPanel = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                // Circle background with gradient
+                GradientPaint gp = new GradientPaint(
+                        0, 0, ModernUITheme.USER_PRIMARY,
+                        50, 50, ModernUITheme.USER_GRADIENT_END);
+                g2.setPaint(gp);
+                g2.fillOval(5, 5, 50, 50);
+
+                // Card icon
+                g2.setColor(Color.WHITE);
+                g2.setStroke(new BasicStroke(2));
+                g2.fillRoundRect(17, 22, 26, 18, 4, 4);
+                // Chip on card
+                g2.setColor(new Color(255, 215, 0)); // Gold chip
+                g2.fillRect(21, 27, 8, 6);
+
+                g2.dispose();
+            }
+        };
+        iconPanel.setOpaque(false);
+        iconPanel.setPreferredSize(new Dimension(60, 60));
+        iconPanel.setMaximumSize(new Dimension(60, 60));
+        iconPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        headerPanel.add(iconPanel);
+
+        headerPanel.add(Box.createVerticalStrut(10));
+
         JLabel titleLabel = new JLabel("ĐĂNG NHẬP USER");
-        titleLabel.setFont(new Font("Arial", Font.BOLD, 18));
-        titleLabel.setForeground(Color.WHITE);
-        header.add(titleLabel, BorderLayout.WEST);
-        add(header, BorderLayout.NORTH);
+        titleLabel.setFont(ModernUITheme.FONT_HEADING);
+        titleLabel.setForeground(ModernUITheme.TEXT_PRIMARY);
+        titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        headerPanel.add(titleLabel);
 
-        // Main panel
-        JPanel mainPanel = new JPanel(new GridBagLayout());
-        mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 30, 20, 30));
+        JLabel subtitleLabel = new JLabel("Vui lòng nhập mã PIN để đăng nhập");
+        subtitleLabel.setFont(ModernUITheme.FONT_SMALL);
+        subtitleLabel.setForeground(ModernUITheme.TEXT_SECONDARY);
+        subtitleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        headerPanel.add(subtitleLabel);
 
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(8, 5, 8, 5);
-        gbc.anchor = GridBagConstraints.WEST;
+        card.add(headerPanel);
+        card.add(Box.createVerticalStrut(25));
 
-        // Hướng dẫn
-        JLabel instructionLabel = new JLabel("<html>Thẻ đã được kết nối.<br>Vui lòng nhập mã PIN để đăng nhập.</html>");
-        instructionLabel.setFont(new Font("Arial", Font.PLAIN, 12));
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        gbc.gridwidth = 2;
-        gbc.insets = new Insets(0, 0, 15, 0);
-        mainPanel.add(instructionLabel, gbc);
+        // Card status indicator
+        JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        statusPanel.setOpaque(false);
+        JLabel statusLabel = new JLabel("✓ Thẻ đã được kết nối");
+        statusLabel.setFont(ModernUITheme.FONT_SMALL);
+        statusLabel.setForeground(ModernUITheme.SUCCESS);
+        statusPanel.add(statusLabel);
+        card.add(statusPanel);
+        card.add(Box.createVerticalStrut(15));
 
-        // PIN Label
-        gbc.gridwidth = 1;
-        gbc.gridx = 0;
-        gbc.gridy = 1;
-        gbc.insets = new Insets(8, 5, 8, 5);
-        JLabel pinLabel = new JLabel("Mã PIN:");
-        pinLabel.setFont(new Font("Arial", Font.PLAIN, 14));
-        mainPanel.add(pinLabel, gbc);
+        // Form fields
+        JPanel formPanel = new JPanel();
+        formPanel.setOpaque(false);
+        formPanel.setLayout(new BoxLayout(formPanel, BoxLayout.Y_AXIS));
+        formPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        // PIN Field
-        txtPin = new JPasswordField(20);
-        txtPin.setFont(new Font("Arial", Font.PLAIN, 14));
-        txtPin.setPreferredSize(new Dimension(250, 30));
-        gbc.gridx = 1;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.weightx = 1.0;
-        mainPanel.add(txtPin, gbc);
+        // PIN field
+        JLabel lblPin = new JLabel("Mã PIN (6 chữ số)");
+        lblPin.setFont(ModernUITheme.FONT_SUBHEADING);
+        lblPin.setForeground(ModernUITheme.TEXT_PRIMARY);
+        lblPin.setAlignmentX(Component.LEFT_ALIGNMENT);
+        formPanel.add(lblPin);
+        formPanel.add(Box.createVerticalStrut(6));
+
+        txtPin = new ModernUITheme.RoundedPasswordField(20);
+        txtPin.setMaximumSize(new Dimension(280, 44));
+        txtPin.setAlignmentX(Component.LEFT_ALIGNMENT);
+        formPanel.add(txtPin);
+
+        // Wrapper to center form
+        JPanel formWrapper = new JPanel();
+        formWrapper.setOpaque(false);
+        formWrapper.add(formPanel);
+        card.add(formWrapper);
+
+        card.add(Box.createVerticalStrut(25));
 
         // Buttons
-        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
-        
-        btnLogin = new JButton("Đăng nhập");
-        btnLogin.setPreferredSize(new Dimension(120, 35));
-        btnLogin.setFont(new Font("Arial", Font.BOLD, 13));
-        btnLogin.setBackground(new Color(0, 153, 102));
-        btnLogin.setForeground(Color.WHITE);
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 0));
+        btnPanel.setOpaque(false);
+
+        btnLogin = new ModernUITheme.RoundedButton(
+                "Đăng nhập",
+                ModernUITheme.USER_PRIMARY,
+                ModernUITheme.USER_PRIMARY_HOVER,
+                ModernUITheme.TEXT_WHITE);
+        btnLogin.setPreferredSize(new Dimension(130, 44));
         btnPanel.add(btnLogin);
-        
-        btnCancel = new JButton("Hủy");
-        btnCancel.setPreferredSize(new Dimension(100, 35));
-        btnCancel.setFont(new Font("Arial", Font.PLAIN, 13));
+
+        btnCancel = new ModernUITheme.OutlineButton(
+                "Hủy",
+                ModernUITheme.TEXT_SECONDARY,
+                ModernUITheme.BG_SECONDARY,
+                ModernUITheme.TEXT_SECONDARY);
+        btnCancel.setPreferredSize(new Dimension(90, 44));
         btnPanel.add(btnCancel);
 
-        gbc.gridx = 0;
-        gbc.gridy = 2;
-        gbc.gridwidth = 2;
-        gbc.weightx = 0;
-        gbc.fill = GridBagConstraints.NONE;
-        gbc.anchor = GridBagConstraints.CENTER;
-        gbc.insets = new Insets(20, 0, 0, 0);
-        mainPanel.add(btnPanel, gbc);
+        card.add(btnPanel);
 
-        add(mainPanel, BorderLayout.CENTER);
+        // Center the card
+        JPanel centerWrapper = new JPanel(new GridBagLayout());
+        centerWrapper.setOpaque(false);
+        centerWrapper.add(card);
+
+        mainContainer.add(centerWrapper, BorderLayout.CENTER);
+        setContentPane(mainContainer);
 
         // Event handlers
-        btnLogin.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                handleLogin();
-            }
-        });
-
-        btnCancel.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                dispose();
-            }
-        });
+        btnLogin.addActionListener(e -> handleLogin());
+        btnCancel.addActionListener(e -> dispose());
+        txtPin.addActionListener(e -> handleLogin());
 
         // Kết nối thẻ
         cardManager = CardManager.getInstance();
-        
-        // QUAN TRỌNG: Reconnect để đảm bảo channel hợp lệ sau khi admin thao tác
-        // Disconnect trước nếu đã kết nối (để refresh connection)
+
         if (cardManager.isConnected()) {
             cardManager.disconnect();
             try {
-                Thread.sleep(100); // Đợi một chút để thẻ ổn định
+                Thread.sleep(100);
             } catch (InterruptedException e) {
                 // Ignore
             }
         }
-        
+
         if (!cardManager.connect()) {
             JOptionPane.showMessageDialog(this, "Không thể kết nối với đầu đọc thẻ!", "Lỗi", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
-        // Select UserApplet (với retry tự động nếu thẻ bị reset)
         if (!cardManager.selectApplet(APDUCommands.AID_USER, true)) {
-            JOptionPane.showMessageDialog(this, 
-                "Không tìm thấy UserApplet trên thẻ!\n\n" +
-                "Có thể thẻ đã bị reset hoặc applet chưa được cài đặt.", 
-                "Lỗi", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this,
+                    "Không tìm thấy UserApplet trên thẻ!\n\n" +
+                            "Có thể thẻ đã bị reset hoặc applet chưa được cài đặt.",
+                    "Lỗi", JOptionPane.ERROR_MESSAGE);
             cardManager.disconnect();
             return;
         }
@@ -159,34 +217,27 @@ public class UserLoginFrame extends JFrame {
     private void handleLogin() {
         try {
             String pin = new String(txtPin.getPassword());
-            
+
             if (pin.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Vui lòng nhập mã PIN!", "Lỗi", JOptionPane.WARNING_MESSAGE);
+                showError("Vui lòng nhập mã PIN!");
                 txtPin.requestFocus();
                 return;
             }
 
-            // V3: Validate PIN length (must be 6 digits)
             if (pin.length() != 6 || !pin.matches("^[0-9]+$")) {
-                JOptionPane.showMessageDialog(this, 
-                    "PIN phải là 6 chữ số!", 
-                    "Lỗi", JOptionPane.ERROR_MESSAGE);
+                showError("PIN phải là 6 chữ số!");
                 txtPin.setText("");
                 txtPin.requestFocus();
                 return;
             }
 
-            // 1. Kiểm tra cardId_user từ thẻ (V3: dùng getStatus())
+            // 1. Kiểm tra cardId_user từ thẻ
             byte[] cardIdUser = apduCommands.getStatus();
             if (cardIdUser == null || cardIdUser.length != 16) {
-                JOptionPane.showMessageDialog(this, 
-                    "Không thể đọc cardId từ thẻ!\n\n" +
-                    "Có thể thẻ chưa được phát hành.", 
-                    "Lỗi", JOptionPane.ERROR_MESSAGE);
+                showError("Không thể đọc cardId từ thẻ!\n\nCó thể thẻ chưa được phát hành.");
                 return;
             }
-            
-            // Kiểm tra cardId có rỗng không (toàn số 0 - thẻ chưa được phát hành)
+
             boolean cardIdEmpty = true;
             for (int i = 0; i < cardIdUser.length; i++) {
                 if (cardIdUser[i] != 0) {
@@ -195,186 +246,176 @@ public class UserLoginFrame extends JFrame {
                 }
             }
             if (cardIdEmpty) {
-                JOptionPane.showMessageDialog(this, 
-                    "Thẻ chưa được phát hành!\n\n" +
-                    "CardId hiện tại là rỗng (toàn số 0).\n" +
-                    "Vui lòng phát hành thẻ trước khi đăng nhập.", 
-                    "Thẻ chưa được phát hành", JOptionPane.WARNING_MESSAGE);
+                showWarning("Thẻ chưa được phát hành!\n\nVui lòng phát hành thẻ trước khi đăng nhập.");
                 return;
             }
 
-            // 2. V3: Xác thực PIN_user và đọc data cùng lúc
-            // Sử dụng UTF-8 để đảm bảo encoding nhất quán với changePin
+            // 2. Xác thực PIN và đọc data (sử dụng method mới với kết quả chi tiết)
             byte[] pinBytes = pin.getBytes(StandardCharsets.UTF_8);
-            
-            // Đảm bảo PIN bytes đúng 6 bytes
+
             if (pinBytes.length != 6) {
-                JOptionPane.showMessageDialog(this, 
-                    "Lỗi: PIN không đúng định dạng (phải là 6 bytes)!", 
-                    "Lỗi", JOptionPane.ERROR_MESSAGE);
-                txtPin.setText("");
-                txtPin.requestFocus();
-                return;
-            }
-            
-            byte[] userDataBytes = apduCommands.verifyPinAndReadData(pinBytes);
-            
-            if (userDataBytes == null || userDataBytes.length == 0) {
-                // ❌ SAI: PIN sai hoặc thẻ bị khóa
-                JOptionPane.showMessageDialog(this, 
-                    "Mã PIN KHÔNG ĐÚNG hoặc thẻ bị khóa!\n\n" +
-                    "Vui lòng kiểm tra lại PIN và thử lại.", 
-                    "Từ chối", JOptionPane.ERROR_MESSAGE);
+                showError("Lỗi: PIN không đúng định dạng (phải là 6 bytes)!");
                 txtPin.setText("");
                 txtPin.requestFocus();
                 return;
             }
 
-            // 3. PIN đúng → Bắt đầu RSA challenge-response (V3)
-            System.out.println("[User Login] ✓ PIN đúng, bắt đầu xác thực RSA...");
-            
-            // 3.1. Lấy PK_user từ database
-            byte[] pkUserBytes = DatabaseConnection.getUserPublicKey(cardIdUser);
-            
-            if (pkUserBytes == null) {
-                // ❌ SAI: Thẻ chưa có RSA key (chưa phát hành đúng)
-                System.err.println("[User Login] ✗ Thẻ chưa có PK_user trong database");
-                
-                JOptionPane.showMessageDialog(this, 
-                    "THẺ CHƯA CÓ RSA KEY!\n\n" +
-                    "Thẻ này chưa được phát hành với RSA.\n" +
-                    "Vui lòng liên hệ admin để phát hành lại thẻ.\n\n" +
-                    "Lý do bảo mật: Không thể xác thực tính hợp lệ của thẻ.", 
-                    "Thẻ không hợp lệ", JOptionPane.ERROR_MESSAGE);
-                return; // TỪ CHỐI đăng nhập
+            APDUCommands.VerifyPinResult verifyResult = apduCommands.verifyPinWithResult(pinBytes);
+
+            if (!verifyResult.isSuccess()) {
+                // Hiển thị thông báo lỗi chi tiết từ kết quả
+                if (verifyResult.isWrongPin()) {
+                    // PIN sai - hiển thị số lần còn lại
+                    showError(verifyResult.errorMessage);
+                } else if (verifyResult.isBlocked()) {
+                    // Thẻ bị khóa
+                    showError(verifyResult.errorMessage);
+                } else {
+                    // Lỗi khác
+                    showError(verifyResult.errorMessage != null ? verifyResult.errorMessage
+                            : "Lỗi xác thực! Vui lòng thử lại.");
+                }
+                txtPin.setText("");
+                txtPin.requestFocus();
+                return;
             }
-            
+
+            byte[] userDataBytes = verifyResult.patientData;
+            if (userDataBytes == null || userDataBytes.length == 0) {
+                showError("Không thể đọc dữ liệu từ thẻ!");
+                txtPin.setText("");
+                txtPin.requestFocus();
+                return;
+            }
+
+            // 3. RSA challenge-response
+            System.out.println("[User Login] ✓ PIN đúng, bắt đầu xác thực RSA...");
+
+            byte[] pkUserBytes = DatabaseConnection.getUserPublicKey(cardIdUser);
+
+            if (pkUserBytes == null) {
+                System.err.println("[User Login] ✗ Thẻ chưa có PK_user trong database");
+                showError("THẺ CHƯA CÓ RSA KEY!\n\nVui lòng liên hệ admin để phát hành lại thẻ.");
+                return;
+            }
+
             System.out.println("[User Login] ✓ Đã lấy PK_user từ database, length: " + pkUserBytes.length);
-            
-            // 3.2. Sinh challenge (32 bytes)
+
             byte[] challenge = CryptoUtils.generateChallenge();
             System.out.println("[User Login] Challenge (32 bytes): " + bytesToHex(challenge));
-            
-            // 3.3. Gửi challenge xuống thẻ, nhận signature
+
             byte[] signature = null;
             try {
                 signature = apduCommands.signChallenge(challenge);
             } catch (CardException e) {
-                // ⚠️ LỖI: Exception khi giao tiếp với thẻ
                 System.err.println("[User Login] CardException: " + e.getMessage());
                 e.printStackTrace();
-                
-                int retry = JOptionPane.showConfirmDialog(this, 
-                    "LỖI GIAO TIẾP VỚI THẺ!\n\n" +
-                    "Lỗi: " + e.getMessage() + "\n\n" +
-                    "Nguyên nhân có thể:\n" +
-                    "- Thẻ bị disconnect\n" +
-                    "- Đầu đọc bị lỗi\n" +
-                    "- Timeout\n\n" +
-                    "Bạn có muốn thử lại không?", 
-                    "Lỗi giao tiếp", 
-                    JOptionPane.YES_NO_OPTION, 
-                    JOptionPane.WARNING_MESSAGE);
-                
-                if (retry == JOptionPane.YES_OPTION) {
-                    handleLogin(); // CHO PHÉP retry
-                }
-                return;
-            }
-            
-            if (signature == null || signature.length == 0) {
-                // ⚠️ LỖI: Thẻ không trả về signature
-                System.err.println("[User Login] ✗ Thẻ không trả về signature");
-                
-                int retry = JOptionPane.showConfirmDialog(this, 
-                    "LỖI XÁC THỰC!\n\n" +
-                    "Không nhận được chữ ký từ thẻ.\n\n" +
-                    "Nguyên nhân có thể:\n" +
-                    "- Lỗi tạm thời\n" +
-                    "- Lỗi giao tiếp\n" +
-                    "- Thẻ bị lỗi\n\n" +
-                    "Bạn có muốn thử lại không?", 
-                    "Lỗi", 
-                    JOptionPane.YES_NO_OPTION, 
-                    JOptionPane.WARNING_MESSAGE);
-                
-                if (retry == JOptionPane.YES_OPTION) {
-                    handleLogin(); // CHO PHÉP retry
-                }
-                return;
-            }
-            
-            System.out.println("[User Login] ✓ Nhận được signature, length: " + signature.length);
-            
-            // 3.4. Convert PK_user từ byte[] sang PublicKey
-            java.security.PublicKey pkUser = CryptoUtils.bytesToPublicKey(pkUserBytes);
-            
-            if (pkUser == null) {
-                // ⚠️ LỖI: Parse public key thất bại
-                System.err.println("[User Login] ✗ Không thể parse PK_user");
-                
-                JOptionPane.showMessageDialog(this, 
-                    "LỖI HỆ THỐNG!\n\n" +
-                    "Không thể parse public key từ database.\n" +
-                    "Vui lòng liên hệ admin để kiểm tra.", 
-                    "Lỗi hệ thống", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-            
-            // 3.5. Verify signature
-            boolean isValid = CryptoUtils.verifyRSASignature(challenge, signature, pkUser);
-            
-            if (!isValid) {
-                // ❌ SAI: Signature không hợp lệ → Thẻ giả!
-                System.err.println("[User Login] ✗✗✗ SIGNATURE KHÔNG HỢP LỆ! ✗✗✗");
-                
-                JOptionPane.showMessageDialog(this, 
-                    "XÁC THỰC THẺ THẤT BẠI!\n\n" +
-                    "CHỮ KÝ SỐ KHÔNG HỢP LỆ.\n" +
-                    "THẺ NÀY CÓ THỂ LÀ GIẢ!\n\n" +
-                    "⚠️ CẢNH BÁO BẢO MẬT ⚠️\n\n" +
-                    "Vui lòng liên hệ admin để kiểm tra ngay.", 
-                    "CẢNH BÁO BẢO MẬT", 
-                    JOptionPane.ERROR_MESSAGE);
-                return; // TỪ CHỐI đăng nhập
-            }
-            
-            // ✅ Xác thực thành công!
-            System.out.println("[User Login] ✓✓✓ XÁC THỰC RSA THÀNH CÔNG! ✓✓✓");
-            System.out.println("[User Login] PIN đúng + RSA verify OK → Cho phép đăng nhập");
 
-            // 4. Parse userData từ response
+                int retry = JOptionPane.showConfirmDialog(this,
+                        "LỖI GIAO TIẾP VỚI THẺ!\n\nBạn có muốn thử lại không?",
+                        "Lỗi giao tiếp",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.WARNING_MESSAGE);
+
+                if (retry == JOptionPane.YES_OPTION) {
+                    handleLogin();
+                }
+                return;
+            }
+
+            if (signature == null || signature.length == 0) {
+                System.err.println("[User Login] ✗ Thẻ không trả về signature");
+
+                int retry = JOptionPane.showConfirmDialog(this,
+                        "LỖI XÁC THỰC!\n\nBạn có muốn thử lại không?",
+                        "Lỗi",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.WARNING_MESSAGE);
+
+                if (retry == JOptionPane.YES_OPTION) {
+                    handleLogin();
+                }
+                return;
+            }
+
+            System.out.println("[User Login] ✓ Nhận được signature, length: " + signature.length);
+
+            java.security.PublicKey pkUser = CryptoUtils.bytesToPublicKey(pkUserBytes);
+
+            if (pkUser == null) {
+                System.err.println("[User Login] ✗ Không thể parse PK_user");
+                showError("LỖI HỆ THỐNG!\n\nVui lòng liên hệ admin để kiểm tra.");
+                return;
+            }
+
+            boolean isValid = CryptoUtils.verifyRSASignature(challenge, signature, pkUser);
+
+            if (!isValid) {
+                System.err.println("[User Login] ✗✗✗ SIGNATURE KHÔNG HỢP LỆ! ✗✗✗");
+                showError("XÁC THỰC THẺ THẤT BẠI!\n\nCHỮ KÝ SỐ KHÔNG HỢP LỆ.\nTHẺ NÀY CÓ THỂ LÀ GIẢ!");
+                return;
+            }
+
+            System.out.println("[User Login] ✓✓✓ XÁC THỰC RSA THÀNH CÔNG! ✓✓✓");
+
+            // 4. Parse userData
             UserData userData = UserData.fromBytes(userDataBytes);
             if (userData == null) {
-                JOptionPane.showMessageDialog(this, 
-                    "Không thể parse dữ liệu từ thẻ!", 
-                    "Lỗi", JOptionPane.ERROR_MESSAGE);
+                showError("Không thể parse dữ liệu từ thẻ!");
                 return;
             }
 
-            // 5. Đăng nhập thành công
+            // 5. V4: Kiểm tra user đã đổi PIN mặc định chưa
+            boolean pinChanged = apduCommands.isPinChanged();
+            System.out.println("[User Login] PIN changed status: " + pinChanged);
+
+            if (!pinChanged) {
+                System.out.println("[User Login] ⚠️ User chưa đổi PIN mặc định, yêu cầu đổi PIN");
+
+                // Hiển thị dialog bắt buộc đổi PIN
+                ForceChangePinDialog dialog = new ForceChangePinDialog(
+                        this, cardManager, apduCommands, pin);
+                dialog.setVisible(true);
+
+                if (!dialog.isPinChanged()) {
+                    // User không đổi PIN -> không cho đăng nhập
+                    JOptionPane.showMessageDialog(this,
+                            "Bạn PHẢI đổi mã PIN mặc định trước khi sử dụng!\n\n" +
+                                    "Đây là yêu cầu bảo mật bắt buộc.",
+                            "Yêu cầu bảo mật", JOptionPane.WARNING_MESSAGE);
+                    txtPin.setText("");
+                    txtPin.requestFocus();
+                    return;
+                }
+
+                // Cập nhật PIN mới cho session hiện tại
+                pin = dialog.getNewPin();
+                System.out.println("[User Login] ✓ Đã đổi PIN thành công, tiếp tục đăng nhập");
+            }
+
+            // 6. Đăng nhập thành công
             System.out.println("[User Login] UserData loaded: " + userData.getHoTen());
-            
+
             dispose();
-            // Truyền PIN và userData xuống UserFrame
             new UserFrame(cardManager, apduCommands, pin, userData).setVisible(true);
 
         } catch (Exception e) {
-            // ⚠️ LỖI: Unexpected exception
             e.printStackTrace();
-            JOptionPane.showMessageDialog(this, 
-                "LỖI KHÔNG XÁC ĐỊNH!\n\n" +
-                "Lỗi: " + e.getMessage() + "\n\n" +
-                "Vui lòng thử lại hoặc liên hệ admin.", 
-                "Lỗi", JOptionPane.ERROR_MESSAGE);
+            showError("LỖI KHÔNG XÁC ĐỊNH!\n\nLỗi: " + e.getMessage());
         }
     }
-    
-    /**
-     * Helper: Convert byte array sang hex string
-     */
+
+    private void showError(String message) {
+        JOptionPane.showMessageDialog(this, message, "Lỗi", JOptionPane.ERROR_MESSAGE);
+    }
+
+    private void showWarning(String message) {
+        JOptionPane.showMessageDialog(this, message, "Cảnh báo", JOptionPane.WARNING_MESSAGE);
+    }
+
     private String bytesToHex(byte[] bytes) {
-        if (bytes == null) return "null";
+        if (bytes == null)
+            return "null";
         StringBuilder sb = new StringBuilder();
         for (byte b : bytes) {
             sb.append(String.format("%02X", b));
@@ -382,4 +423,3 @@ public class UserLoginFrame extends JFrame {
         return sb.toString();
     }
 }
-

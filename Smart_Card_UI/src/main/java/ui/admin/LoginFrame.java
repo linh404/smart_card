@@ -3,38 +3,39 @@ package ui.admin;
 import card.CardManager;
 import card.APDUCommands;
 import db.DatabaseConnection;
+import ui.ModernUITheme;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+import java.awt.geom.RoundRectangle2D;
 import java.net.InetAddress;
 
 /**
  * LoginFrame - Màn hình đăng nhập Admin bằng username/password
- * V2: Admin không cần thẻ nữa, đăng nhập bằng username/password
+ * V3: Modern UI với light theme, rounded inputs, smooth animations
  */
 public class LoginFrame extends JFrame {
-    
-    private JTextField txtUsername;
-    private JPasswordField txtPassword;
-    private JButton btnLogin;
-    private JButton btnCancel;
+
+    private ModernUITheme.RoundedTextField txtUsername;
+    private ModernUITheme.RoundedPasswordField txtPassword;
+    private ModernUITheme.RoundedButton btnLogin;
+    private ModernUITheme.OutlineButton btnCancel;
 
     // Lưu current admin user (static để các panel khác có thể truy cập)
     private static DatabaseConnection.AdminUserInfo currentAdminUser = null;
 
     public LoginFrame() {
+        ModernUITheme.applyTheme();
         initUI();
     }
-    
+
     /**
      * Get current logged-in admin user
      */
     public static DatabaseConnection.AdminUserInfo getCurrentAdminUser() {
         return currentAdminUser;
     }
-    
+
     /**
      * Clear current admin user (khi logout)
      */
@@ -45,116 +46,177 @@ public class LoginFrame extends JFrame {
     private void initUI() {
         setTitle("Đăng nhập Admin");
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        setSize(550, 320);
+        setSize(480, 420);
         setLocationRelativeTo(null);
-        setLayout(new BorderLayout());
 
-        JPanel mainPanel = new JPanel(new GridBagLayout());
-        mainPanel.setBorder(BorderFactory.createEmptyBorder(30, 30, 30, 30));
+        // Main container with gradient background
+        JPanel mainContainer = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
 
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(10, 10, 10, 10);
-        gbc.anchor = GridBagConstraints.WEST;
+                GradientPaint gp = new GradientPaint(
+                        0, 0, ModernUITheme.BG_PRIMARY,
+                        getWidth(), getHeight(), ModernUITheme.BG_SECONDARY);
+                g2.setPaint(gp);
+                g2.fillRect(0, 0, getWidth(), getHeight());
+                g2.dispose();
+            }
+        };
 
-        // Tiêu đề
+        // Center card
+        ModernUITheme.CardPanel card = new ModernUITheme.CardPanel();
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setPreferredSize(new Dimension(380, 340));
+
+        // Header with icon
+        JPanel headerPanel = new JPanel();
+        headerPanel.setOpaque(false);
+        headerPanel.setLayout(new BoxLayout(headerPanel, BoxLayout.Y_AXIS));
+        headerPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        // Admin icon
+        JPanel iconPanel = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                // Circle background
+                GradientPaint gp = new GradientPaint(
+                        0, 0, ModernUITheme.ADMIN_PRIMARY,
+                        50, 50, ModernUITheme.ADMIN_GRADIENT_END);
+                g2.setPaint(gp);
+                g2.fillOval(5, 5, 50, 50);
+
+                // Lock icon
+                g2.setColor(Color.WHITE);
+                g2.setStroke(new BasicStroke(2));
+                // Lock body
+                g2.fillRoundRect(20, 30, 20, 18, 4, 4);
+                // Lock shackle
+                g2.drawArc(22, 20, 16, 16, 0, 180);
+
+                g2.dispose();
+            }
+        };
+        iconPanel.setOpaque(false);
+        iconPanel.setPreferredSize(new Dimension(60, 60));
+        iconPanel.setMaximumSize(new Dimension(60, 60));
+        iconPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        headerPanel.add(iconPanel);
+
+        headerPanel.add(Box.createVerticalStrut(10));
+
         JLabel titleLabel = new JLabel("ĐĂNG NHẬP ADMIN");
-        titleLabel.setFont(new Font("Arial", Font.BOLD, 18));
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        gbc.gridwidth = 2;
-        gbc.anchor = GridBagConstraints.CENTER;
-        mainPanel.add(titleLabel, gbc);
+        titleLabel.setFont(ModernUITheme.FONT_HEADING);
+        titleLabel.setForeground(ModernUITheme.TEXT_PRIMARY);
+        titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        headerPanel.add(titleLabel);
 
-        // Username
-        gbc.gridwidth = 1;
-        gbc.gridy = 1;
-        gbc.anchor = GridBagConstraints.WEST;
-        JLabel lblUsername = new JLabel("Username:");
-        lblUsername.setFont(new Font("Arial", Font.PLAIN, 13));
-        mainPanel.add(lblUsername, gbc);
+        JLabel subtitleLabel = new JLabel("Nhập thông tin đăng nhập của bạn");
+        subtitleLabel.setFont(ModernUITheme.FONT_SMALL);
+        subtitleLabel.setForeground(ModernUITheme.TEXT_SECONDARY);
+        subtitleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        headerPanel.add(subtitleLabel);
 
-        txtUsername = new JTextField(30);
-        txtUsername.setFont(new Font("Arial", Font.PLAIN, 14));
-        txtUsername.setPreferredSize(new Dimension(300, 35));
-        gbc.gridx = 1;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.weightx = 1.0;
-        mainPanel.add(txtUsername, gbc);
+        card.add(headerPanel);
+        card.add(Box.createVerticalStrut(25));
 
-        // Password
-        gbc.gridx = 0;
-        gbc.gridy = 2;
-        gbc.fill = GridBagConstraints.NONE;
-        gbc.weightx = 0;
-        JLabel lblPassword = new JLabel("Password:");
-        lblPassword.setFont(new Font("Arial", Font.PLAIN, 13));
-        mainPanel.add(lblPassword, gbc);
+        // Form fields
+        JPanel formPanel = new JPanel();
+        formPanel.setOpaque(false);
+        formPanel.setLayout(new BoxLayout(formPanel, BoxLayout.Y_AXIS));
+        formPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        txtPassword = new JPasswordField(30);
-        txtPassword.setFont(new Font("Arial", Font.PLAIN, 14));
-        txtPassword.setPreferredSize(new Dimension(300, 35));
-        gbc.gridx = 1;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.weightx = 1.0;
-        mainPanel.add(txtPassword, gbc);
+        // Username field
+        JLabel lblUsername = new JLabel("Username");
+        lblUsername.setFont(ModernUITheme.FONT_SUBHEADING);
+        lblUsername.setForeground(ModernUITheme.TEXT_PRIMARY);
+        lblUsername.setAlignmentX(Component.LEFT_ALIGNMENT);
+        formPanel.add(lblUsername);
+        formPanel.add(Box.createVerticalStrut(6));
+
+        txtUsername = new ModernUITheme.RoundedTextField(25);
+        txtUsername.setMaximumSize(new Dimension(320, 42));
+        txtUsername.setAlignmentX(Component.LEFT_ALIGNMENT);
+        formPanel.add(txtUsername);
+        formPanel.add(Box.createVerticalStrut(15));
+
+        // Password field
+        JLabel lblPassword = new JLabel("Password");
+        lblPassword.setFont(ModernUITheme.FONT_SUBHEADING);
+        lblPassword.setForeground(ModernUITheme.TEXT_PRIMARY);
+        lblPassword.setAlignmentX(Component.LEFT_ALIGNMENT);
+        formPanel.add(lblPassword);
+        formPanel.add(Box.createVerticalStrut(6));
+
+        txtPassword = new ModernUITheme.RoundedPasswordField(25);
+        txtPassword.setMaximumSize(new Dimension(320, 42));
+        txtPassword.setAlignmentX(Component.LEFT_ALIGNMENT);
+        formPanel.add(txtPassword);
+
+        // Wrapper to center form
+        JPanel formWrapper = new JPanel();
+        formWrapper.setOpaque(false);
+        formWrapper.add(formPanel);
+        card.add(formWrapper);
+
+        card.add(Box.createVerticalStrut(20));
 
         // Buttons
-        JPanel btnPanel = new JPanel(new FlowLayout());
-        btnLogin = new JButton("Đăng nhập");
-        btnLogin.setPreferredSize(new Dimension(140, 40));
-        btnLogin.setFont(new Font("Arial", Font.BOLD, 13));
-        btnCancel = new JButton("Hủy");
-        btnCancel.setPreferredSize(new Dimension(140, 40));
-        btnCancel.setFont(new Font("Arial", Font.PLAIN, 13));
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 0));
+        btnPanel.setOpaque(false);
+
+        btnLogin = new ModernUITheme.RoundedButton(
+                "Đăng nhập",
+                ModernUITheme.ADMIN_PRIMARY,
+                ModernUITheme.ADMIN_PRIMARY_HOVER,
+                ModernUITheme.TEXT_WHITE);
+        btnLogin.setPreferredSize(new Dimension(140, 44));
         btnPanel.add(btnLogin);
+
+        btnCancel = new ModernUITheme.OutlineButton(
+                "Hủy",
+                ModernUITheme.TEXT_SECONDARY,
+                ModernUITheme.BG_SECONDARY,
+                ModernUITheme.TEXT_SECONDARY);
+        btnCancel.setPreferredSize(new Dimension(100, 44));
         btnPanel.add(btnCancel);
 
-        gbc.gridx = 0;
-        gbc.gridy = 3;
-        gbc.gridwidth = 2;
-        gbc.anchor = GridBagConstraints.CENTER;
-        mainPanel.add(btnPanel, gbc);
+        card.add(btnPanel);
 
-        add(mainPanel, BorderLayout.CENTER);
+        // Center the card
+        JPanel centerWrapper = new JPanel(new GridBagLayout());
+        centerWrapper.setOpaque(false);
+        centerWrapper.add(card);
+
+        mainContainer.add(centerWrapper, BorderLayout.CENTER);
+        setContentPane(mainContainer);
 
         // Event handlers
-        btnLogin.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                handleLogin();
-            }
-        });
-
-        btnCancel.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                dispose();
-            }
-        });
-        
-        // Enter key để đăng nhập
-        txtPassword.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                handleLogin();
-            }
-        });
+        btnLogin.addActionListener(e -> handleLogin());
+        btnCancel.addActionListener(e -> dispose());
+        txtPassword.addActionListener(e -> handleLogin());
     }
 
     private void handleLogin() {
         try {
             String username = txtUsername.getText().trim();
             String password = new String(txtPassword.getPassword());
-            
+
             // Validate input
             if (username.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Vui lòng nhập username!", "Lỗi", JOptionPane.WARNING_MESSAGE);
+                showError("Vui lòng nhập username!");
                 txtUsername.requestFocus();
                 return;
             }
-            
+
             if (password.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Vui lòng nhập password!", "Lỗi", JOptionPane.WARNING_MESSAGE);
+                showError("Vui lòng nhập password!");
                 txtPassword.requestFocus();
                 return;
             }
@@ -162,12 +224,9 @@ public class LoginFrame extends JFrame {
             // Xác thực admin user
             System.out.println("[Admin Login] Đang xác thực: username = " + username);
             DatabaseConnection.AdminUserInfo adminUser = DatabaseConnection.authenticateAdmin(username, password);
-            
+
             if (adminUser == null) {
-                JOptionPane.showMessageDialog(this, 
-                    "Username hoặc password không đúng!", 
-                    "Đăng nhập thất bại", 
-                    JOptionPane.ERROR_MESSAGE);
+                showError("Username hoặc password không đúng!");
                 txtPassword.setText("");
                 txtPassword.requestFocus();
                 return;
@@ -175,7 +234,7 @@ public class LoginFrame extends JFrame {
 
             // Lưu current admin user
             currentAdminUser = adminUser;
-            
+
             // Lấy IP address để log
             String ipAddress = null;
             try {
@@ -183,39 +242,39 @@ public class LoginFrame extends JFrame {
             } catch (Exception e) {
                 // Ignore
             }
-            
+
             // Lưu audit log
             DatabaseConnection.saveAdminAuditLog(
-                adminUser.id, 
-                "LOGIN", 
-                null, 
-                "Login successful from " + username,
-                ipAddress
-            );
-            
+                    adminUser.id,
+                    "LOGIN",
+                    null,
+                    "Login successful from " + username,
+                    ipAddress);
+
             System.out.println("[Admin Login] Đăng nhập thành công: " + adminUser.username);
-            
+
             // Đăng nhập thành công
-            JOptionPane.showMessageDialog(this, 
-                "Đăng nhập thành công!\nChào mừng: " + 
-                (adminUser.fullName != null ? adminUser.fullName : adminUser.username), 
-                "Thành công", 
-                JOptionPane.INFORMATION_MESSAGE);
-            
+            showSuccess("Đăng nhập thành công!\nChào mừng: " +
+                    (adminUser.fullName != null ? adminUser.fullName : adminUser.username));
+
             // Khởi tạo CardManager (cần cho các panel khác)
             CardManager cardManager = CardManager.getInstance();
             APDUCommands apduCommands = new APDUCommands(cardManager.getChannel());
-            
+
             dispose();
             new AdminFrame(cardManager, apduCommands).setVisible(true);
 
         } catch (Exception e) {
             e.printStackTrace();
-            JOptionPane.showMessageDialog(this, 
-                "Lỗi khi đăng nhập: " + e.getMessage(), 
-                "Lỗi", 
-                JOptionPane.ERROR_MESSAGE);
+            showError("Lỗi khi đăng nhập: " + e.getMessage());
         }
     }
-}
 
+    private void showError(String message) {
+        JOptionPane.showMessageDialog(this, message, "Lỗi", JOptionPane.ERROR_MESSAGE);
+    }
+
+    private void showSuccess(String message) {
+        JOptionPane.showMessageDialog(this, message, "Thành công", JOptionPane.INFORMATION_MESSAGE);
+    }
+}
