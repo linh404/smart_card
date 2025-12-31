@@ -138,9 +138,10 @@ public class AdminFrame extends JFrame {
                     JOptionPane.YES_NO_OPTION);
             if (confirm == JOptionPane.YES_OPTION) {
                 LoginFrame.clearCurrentAdminUser();
-                if (cardManager != null && cardManager.isConnected()) {
-                    cardManager.disconnect();
-                }
+                // Không disconnect thẻ để giữ kết nối cho lần đăng nhập sau hoặc User App
+                // if (cardManager != null && cardManager.isConnected()) {
+                // cardManager.disconnect();
+                // }
                 dispose();
                 new LoginFrame().setVisible(true);
             }

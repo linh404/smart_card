@@ -734,6 +734,36 @@
       "nhomMau": 0,
       "createdAt": "2025-12-31 12:29:48",
       "updatedAt": "2025-12-31 12:29:48"
+    },
+    "89ADE8F5064D3AC141C5EF94F8AF7EF9": {
+      "cardId": "89ADE8F5064D3AC141C5EF94F8AF7EF9",
+      "hoTen": "123123",
+      "idBenhNhan": "50",
+      "ngaySinh": "12/03/1234",
+      "queQuan": "123123",
+      "maBHYT": "123123",
+      "balance": 0,
+      "pinUserDefault": "123456",
+      "pinAdminReset": "464445",
+      "pkUserBase64": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDKWgOXe9NYRh7sFvG+KBaH3ibV+b0kGDF/LdCYDUNSStxiPWBbH7huZ8zv5y5fB3sY0EFZeH1dJ1/TOU7HoHVAUWedYEIO7W/7RUR411Ylwa+2G/PjqsjZlzPpKQWEOGGSZ8JIw+nD6c9TxocUKP36pZh7NeT9kASGdCNftE1JZQIDAQAB",
+      "nhomMau": 0,
+      "createdAt": "2025-12-31 12:34:02",
+      "updatedAt": "2025-12-31 12:34:02"
+    },
+    "9B9193BC55CD75BB663B8B73AFA2DE83": {
+      "cardId": "9B9193BC55CD75BB663B8B73AFA2DE83",
+      "hoTen": "123123",
+      "idBenhNhan": "51",
+      "ngaySinh": "12/03/1233",
+      "queQuan": "123123",
+      "maBHYT": "123123",
+      "balance": 0,
+      "pinUserDefault": "123456",
+      "pinAdminReset": "227119",
+      "pkUserBase64": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC+PGELinPtLzkxDhnb0vxNOjWLiGbYX80WSm/msp298ryfswyzHJfiwJId8PnvvkFQsAuLEUOYP7K8QHWP48+kjg2tlbgfNVn07wBwAMc29pzpceNw1ltXu+BeRsn9z70NoxwPtEF0Zrr+xXko2Iwu5Da3meMaK2nOJ6WK5ZGRswIDAQAB",
+      "nhomMau": 0,
+      "createdAt": "2025-12-31 12:41:00",
+      "updatedAt": "2025-12-31 12:41:00"
     }
   }
 }

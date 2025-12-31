@@ -437,7 +437,8 @@ public class UserApplet extends Applet {
                     cardID, (short) 0, CARD_ID_LENGTH,
                     KDF_ITERATIONS,
                     encAdmin, mkUser,
-                    aesCipher, aesKey, sha256);
+                    aesCipher, aesKey, sha256,
+                    tempDecryptBuffer, (short) 0);
 
             if (!success) {
                 ISOException.throwIt((short) 0x6F04);
@@ -449,7 +450,8 @@ public class UserApplet extends Applet {
                     cardID, (short) 0, CARD_ID_LENGTH,
                     KDF_ITERATIONS,
                     mkUser, encUser,
-                    aesCipher, aesKey, sha256);
+                    aesCipher, aesKey, sha256,
+                    tempDecryptBuffer, (short) 0);
 
             // Hash new PIN
             PINHelper.safeHash(sha256, buf, newPinUserOffset, newPinUserLength, hashPinUser, (short) 0);
@@ -759,7 +761,8 @@ public class UserApplet extends Applet {
                 cardID, (short) 0, CARD_ID_LENGTH,
                 KDF_ITERATIONS,
                 mkUser, encUser,
-                aesCipher, aesKey, sha256);
+                aesCipher, aesKey, sha256,
+                tempDecryptBuffer, (short) 0);
 
         // Wrap MK with PIN_admin_reset using helper
         CryptoHelper.wrapMasterKeyWithPIN(
@@ -767,7 +770,8 @@ public class UserApplet extends Applet {
                 cardID, (short) 0, CARD_ID_LENGTH,
                 KDF_ITERATIONS,
                 mkUser, encAdmin,
-                aesCipher, aesKey, sha256);
+                aesCipher, aesKey, sha256,
+                tempDecryptBuffer, (short) 0);
     }
 
     /**
@@ -906,7 +910,8 @@ public class UserApplet extends Applet {
                     cardID, (short) 0, CARD_ID_LENGTH,
                     KDF_ITERATIONS,
                     encUser, mkUser,
-                    aesCipher, aesKey, sha256);
+                    aesCipher, aesKey, sha256,
+                    tempDecryptBuffer, (short) 0);
         } catch (Exception e) {
             ISOException.throwIt((short) 0x6FAC); // unwrapMasterKeyWithPIN threw exception
         }
@@ -1025,7 +1030,8 @@ public class UserApplet extends Applet {
                 cardID, (short) 0, CARD_ID_LENGTH,
                 KDF_ITERATIONS,
                 encUser, mkUser,
-                aesCipher, aesKey, sha256);
+                aesCipher, aesKey, sha256,
+                tempDecryptBuffer, (short) 0);
 
         if (!unwrapSuccess) {
             Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
@@ -1045,7 +1051,8 @@ public class UserApplet extends Applet {
                     cardID, (short) 0, CARD_ID_LENGTH,
                     KDF_ITERATIONS,
                     mkUser, encUser,
-                    aesCipher, aesKey, sha256);
+                    aesCipher, aesKey, sha256,
+                    tempDecryptBuffer, (short) 0);
         } catch (Exception e) {
             Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
             ISOException.throwIt((short) 0x6F04);

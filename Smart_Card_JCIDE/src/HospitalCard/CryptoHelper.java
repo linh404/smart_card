@@ -77,21 +77,28 @@ public class CryptoHelper {
      * support HMAC).
      * Still secure and effective with many iterations.
      * 
-     * @param pin        PIN bytes
-     * @param pinOffset  PIN offset in buffer
-     * @param pinLen     PIN length
-     * @param salt       salt bytes (16 bytes)
-     * @param saltOffset salt offset
-     * @param saltLen    salt length
-     * @param iterations iteration count (recommended: 1000-10000)
-     * @param keyOut     output buffer for key (must have minimum 20 bytes, first 16
-     *                   bytes used as AES-128 key)
-     * @param sha        MessageDigest instance (ALG_SHA) - passed in for reuse,
-     *                   avoid creating multiple times
+     * @param pin          PIN bytes
+     * @param pinOffset    PIN offset in buffer
+     * @param pinLen       PIN length
+     * @param salt         salt bytes (16 bytes)
+     * @param saltOffset   salt offset
+     * @param saltLen      salt length
+     * @param iterations   iteration count (recommended: 1000-10000)
+     * @param keyOut       output buffer for key (must have minimum 20 bytes, first
+     *                     16
+     *                     bytes used as AES-128 key)
+     * @param keyOutOffset Offset in keyOut buffer where the derived key should be
+     *                     written
+     * @param sha          MessageDigest instance (ALG_SHA) - passed in for reuse,
+     *                     avoid creating multiple times
+     * @param scratch      Scratch buffer for temporary calculation (must be at
+     *                     least 80 bytes)
+     * @param scratchOff   Offset in scratch buffer
      */
     public static void KDF(byte[] pin, short pinOffset, short pinLen,
             byte[] salt, short saltOffset, short saltLen,
-            short iterations, byte[] keyOut, MessageDigest sha) {
+            short iterations, byte[] keyOut, short keyOutOffset, MessageDigest sha,
+            byte[] scratch, short scratchOff) {
         // Validate iterations (minimum 1, maximum 65535)
         if (iterations < 1) {
             iterations = 1;
@@ -100,74 +107,66 @@ public class CryptoHelper {
             iterations = (short) 65535; // Limit to avoid overflow
         }
 
-        // Create temporary buffer for hash intermediate values
-        // T1, T2, ... Tn each 20 bytes (SHA-1 output)
-        byte[] t = JCSystem.makeTransientByteArray((short) 20, JCSystem.CLEAR_ON_DESELECT);
-        byte[] tPrev = JCSystem.makeTransientByteArray((short) 20, JCSystem.CLEAR_ON_DESELECT);
-        // Buffer for hash input:
-        // - First time: PIN || salt || counter (pinLen + saltLen + 4)
-        // - Subsequent times: PIN || T(i-1) (pinLen + 20)
-        // Take max of 2 to be sufficient for both cases
-        short maxInputLen = (short) (pinLen + saltLen + 4);
-        if (pinLen + 20 > maxInputLen) {
-            maxInputLen = (short) (pinLen + 20);
-        }
-        byte[] hashInput = JCSystem.makeTransientByteArray(maxInputLen, JCSystem.CLEAR_ON_DESELECT);
+        // Partition scratch buffer:
+        // t: 20 bytes at scratchOff
+        // tPrev: 20 bytes at scratchOff + 20
+        // hashInput: rest (need at least pinLen + 20, usually ~60 bytes is safe)
+
+        short tOff = scratchOff;
+        short tPrevOff = (short) (scratchOff + 20);
+        short hashInputOff = (short) (scratchOff + 40);
 
         // Initialize keyOut = 0 (will XOR with Ti)
-        Util.arrayFillNonAtomic(keyOut, (short) 0, (short) 20, (byte) 0);
+        Util.arrayFillNonAtomic(keyOut, keyOutOffset, (short) 20, (byte) 0);
 
         // Calculate T1 = SHA-1(PIN || salt || INT_32_BE(1))
-        // Format: PIN || salt || [0x00 0x00 0x00 0x01] (counter = 1, 4 bytes
-        // big-endian)
-        short inputOffset = 0;
-        Util.arrayCopyNonAtomic(pin, pinOffset, hashInput, inputOffset, pinLen);
+        // Format: PIN || salt || [0x00 0x00 0x00 0x01]
+        short inputOffset = hashInputOff;
+        Util.arrayCopyNonAtomic(pin, pinOffset, scratch, inputOffset, pinLen);
         inputOffset += pinLen;
-        Util.arrayCopyNonAtomic(salt, saltOffset, hashInput, inputOffset, saltLen);
+        Util.arrayCopyNonAtomic(salt, saltOffset, scratch, inputOffset, saltLen);
         inputOffset += saltLen;
         // Counter = 1 (4 bytes big-endian)
-        hashInput[inputOffset++] = (byte) 0x00;
-        hashInput[inputOffset++] = (byte) 0x00;
-        hashInput[inputOffset++] = (byte) 0x00;
-        hashInput[inputOffset++] = (byte) 0x01;
+        scratch[inputOffset++] = (byte) 0x00;
+        scratch[inputOffset++] = (byte) 0x00;
+        scratch[inputOffset++] = (byte) 0x00;
+        scratch[inputOffset++] = (byte) 0x01;
 
         sha.reset();
-        sha.doFinal(hashInput, (short) 0, inputOffset, t, (short) 0);
+        sha.doFinal(scratch, hashInputOff, (short) (inputOffset - hashInputOff), scratch, tOff);
 
         // XOR into keyOut
         for (short i = 0; i < 20; i++) {
-            keyOut[i] = (byte) (keyOut[i] ^ t[i]);
+            keyOut[(short) (keyOutOffset + i)] = (byte) (keyOut[(short) (keyOutOffset + i)]
+                    ^ scratch[(short) (tOff + i)]);
         }
 
         // Copy t into tPrev for next iteration
-        Util.arrayCopyNonAtomic(t, (short) 0, tPrev, (short) 0, (short) 20);
+        Util.arrayCopyNonAtomic(scratch, tOff, scratch, tPrevOff, (short) 20);
 
         // Calculate T2, T3, ..., Tn
         // Ti = SHA-1(PIN || T(i-1)) - no more salt
         for (short iter = 2; iter <= iterations; iter++) {
             // Create input: PIN || T(i-1)
-            inputOffset = 0;
-            Util.arrayCopyNonAtomic(pin, pinOffset, hashInput, inputOffset, pinLen);
+            inputOffset = hashInputOff;
+            Util.arrayCopyNonAtomic(pin, pinOffset, scratch, inputOffset, pinLen);
             inputOffset += pinLen;
-            Util.arrayCopyNonAtomic(tPrev, (short) 0, hashInput, inputOffset, (short) 20);
+            Util.arrayCopyNonAtomic(scratch, tPrevOff, scratch, inputOffset, (short) 20);
             inputOffset += 20;
 
             // Hash
             sha.reset();
-            sha.doFinal(hashInput, (short) 0, inputOffset, t, (short) 0);
+            sha.doFinal(scratch, hashInputOff, (short) (inputOffset - hashInputOff), scratch, tOff);
 
             // XOR into keyOut
             for (short i = 0; i < 20; i++) {
-                keyOut[i] = (byte) (keyOut[i] ^ t[i]);
+                keyOut[(short) (keyOutOffset + i)] = (byte) (keyOut[(short) (keyOutOffset + i)]
+                        ^ scratch[(short) (tOff + i)]);
             }
 
             // Copy t into tPrev for next iteration
-            Util.arrayCopyNonAtomic(t, (short) 0, tPrev, (short) 0, (short) 20);
+            Util.arrayCopyNonAtomic(scratch, tOff, scratch, tPrevOff, (short) 20);
         }
-
-        // keyOut now has 20 bytes (SHA-1 output)
-        // Take first 16 bytes as AES-128 key
-        // Note: keyOut must have minimum size of 20 bytes
     }
 
     /**
@@ -180,10 +179,15 @@ public class CryptoHelper {
      * @param iterations iteration count (recommended: 1000-10000)
      * @param keyOut     output buffer for key (must have minimum 20 bytes)
      * @param sha        MessageDigest instance (ALG_SHA)
+     * @param scratch    Scratch buffer for temporary calculation (must be at least
+     *                   80 bytes)
+     * @param scratchOff Offset in scratch buffer
      */
     public static void KDF(byte[] pin, short pinOffset, short pinLen,
-            byte[] salt, short iterations, byte[] keyOut, MessageDigest sha) {
-        KDF(pin, pinOffset, pinLen, salt, (short) 0, (short) 16, iterations, keyOut, sha);
+            byte[] salt, short iterations, byte[] keyOut, MessageDigest sha,
+            byte[] scratch, short scratchOff) {
+        KDF(pin, pinOffset, pinLen, salt, (short) 0, (short) 16, iterations, keyOut, (short) 0, sha, scratch,
+                scratchOff);
     }
 
     /**
@@ -344,32 +348,40 @@ public class CryptoHelper {
      * @param cipher     AES cipher instance
      * @param aesKey     AES key object
      * @param sha        MessageDigest instance
+     * @param scratch    Scratch buffer for temporary calculation (must be at least
+     *                   80 bytes)
+     * @param scratchOff Offset in scratch buffer
      */
     public static void wrapMasterKeyWithPIN(
             byte[] pin, short pinOffset, short pinLen,
             byte[] salt, short saltOffset, short saltLen,
             short iterations,
             byte[] mkUser, byte[] encOut,
-            Cipher cipher, AESKey aesKey, MessageDigest sha) {
+            Cipher cipher, AESKey aesKey, MessageDigest sha,
+            byte[] scratch, short scratchOff) {
 
-        byte[] tempKey = JCSystem.makeTransientByteArray((short) 20,
-                JCSystem.CLEAR_ON_DESELECT);
+        // Use scratch buffer for derived key (20 bytes)
+        short derivedKeyOff = scratchOff;
+        // KDF needs its own scratch space, so partition the provided scratch buffer
+        short kdfScratchOff = (short) (scratchOff + 20); // KDF needs ~60 bytes, so this is fine
+
         try {
-            // Derive key from PIN
+            // Derive key from PIN, writing into scratch at derivedKeyOff
             KDF(pin, pinOffset, pinLen,
                     salt, saltOffset, saltLen,
-                    iterations, tempKey, sha);
+                    iterations, scratch, derivedKeyOff, sha,
+                    scratch, kdfScratchOff);
 
             // Encrypt MK with derived key
-            aesKey.setKey(tempKey, (short) 0);
+            aesKey.setKey(scratch, derivedKeyOff); // Take first 16 bytes as key
             cipher.init(aesKey, Cipher.MODE_ENCRYPT);
             cipher.doFinal(mkUser, (short) 0, (short) 16, encOut, (short) 0);
 
         } catch (CryptoException e) {
             ISOException.throwIt((short) (0x6F04 | (e.getReason() & 0x0F)));
         } finally {
-            // Always clear tempKey
-            Util.arrayFillNonAtomic(tempKey, (short) 0, (short) 20, (byte) 0);
+            // Always clear derived key from scratch
+            Util.arrayFillNonAtomic(scratch, derivedKeyOff, (short) 20, (byte) 0);
         }
     }
 
@@ -388,6 +400,9 @@ public class CryptoHelper {
      * @param cipher     AES cipher instance
      * @param aesKey     AES key object
      * @param sha        MessageDigest instance
+     * @param scratch    Scratch buffer for temporary calculation (must be at least
+     *                   80 bytes)
+     * @param scratchOff Offset in scratch buffer
      * @return true if successful, false on error
      */
     public static boolean unwrapMasterKeyWithPIN(
@@ -395,18 +410,23 @@ public class CryptoHelper {
             byte[] salt, short saltOffset, short saltLen,
             short iterations,
             byte[] mkEnc, byte[] mkOut,
-            Cipher cipher, AESKey aesKey, MessageDigest sha) {
+            Cipher cipher, AESKey aesKey, MessageDigest sha,
+            byte[] scratch, short scratchOff) {
 
-        byte[] tempKey = JCSystem.makeTransientByteArray((short) 20,
-                JCSystem.CLEAR_ON_DESELECT);
+        // Use scratch buffer for derived key (20 bytes)
+        short derivedKeyOff = scratchOff;
+        // KDF needs its own scratch space, so partition the provided scratch buffer
+        short kdfScratchOff = (short) (scratchOff + 20); // KDF needs ~60 bytes, so this is fine
+
         try {
-            // Derive key from PIN
+            // Derive key from PIN, writing into scratch at derivedKeyOff
             KDF(pin, pinOffset, pinLen,
                     salt, saltOffset, saltLen,
-                    iterations, tempKey, sha);
+                    iterations, scratch, derivedKeyOff, sha,
+                    scratch, kdfScratchOff);
 
             // Decrypt MK with derived key
-            aesKey.setKey(tempKey, (short) 0);
+            aesKey.setKey(scratch, derivedKeyOff); // Take first 16 bytes as key
             cipher.init(aesKey, Cipher.MODE_DECRYPT);
             cipher.doFinal(mkEnc, (short) 0, (short) 16, mkOut, (short) 0);
 
@@ -415,7 +435,7 @@ public class CryptoHelper {
         } catch (CryptoException e) {
             return false;
         } finally {
-            Util.arrayFillNonAtomic(tempKey, (short) 0, (short) 20, (byte) 0);
+            Util.arrayFillNonAtomic(scratch, derivedKeyOff, (short) 20, (byte) 0);
         }
     }
 }
