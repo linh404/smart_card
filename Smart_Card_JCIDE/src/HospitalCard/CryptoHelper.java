@@ -2,326 +2,420 @@ package HospitalCard;
 
 import javacard.framework.Util;
 import javacard.framework.JCSystem;
+import javacard.framework.ISOException;
 import javacard.security.*;
 import javacardx.crypto.Cipher;
 
 /**
- * CryptoHelper - Helper class cho các thao tác mã hóa/giải mã
- * Bao gồm: AES encryption/decryption, SHA-1 hash, key derivation sử dụng ALG_SHA
+ * CryptoHelper - Helper class for cryptographic operations
+ * Includes: AES encryption/decryption, SHA-1 hash, key derivation using ALG_SHA
  */
 public class CryptoHelper {
-    
+
     /**
-     * Hash PIN với salt bằng SHA-1
-     * Kết quả: SHA-1(PIN || salt)
+     * Hash PIN with salt using SHA-1
+     * Result: SHA-1(PIN || salt)
      * 
-     * @param pin PIN bytes
-     * @param pinOffset offset của PIN trong buffer
-     * @param pinLen độ dài PIN
-     * @param salt salt bytes (16 bytes)
-     * @param hashOut output buffer cho hash (20 bytes cho SHA-1)
-     * @return độ dài hash (20 bytes)
+     * @param pin       PIN bytes
+     * @param pinOffset PIN offset in buffer
+     * @param pinLen    PIN length
+     * @param salt      salt bytes (16 bytes)
+     * @param hashOut   output buffer for hash (20 bytes for SHA-1)
+     * @return hash length (20 bytes)
      */
-    public static short hashPin(byte[] pin, short pinOffset, short pinLen, 
-                                byte[] salt, byte[] hashOut) {
+    public static short hashPin(byte[] pin, short pinOffset, short pinLen,
+            byte[] salt, byte[] hashOut) {
         MessageDigest sha = MessageDigest.getInstance(MessageDigest.ALG_SHA, false);
         sha.reset();
         sha.update(pin, pinOffset, pinLen);
-        sha.doFinal(salt, (short)0, (short)16, hashOut, (short)0);
-        return (short)20; // SHA-1 = 20 bytes
+        sha.doFinal(salt, (short) 0, (short) 16, hashOut, (short) 0);
+        return (short) 20; // SHA-1 = 20 bytes
     }
-    
+
     /**
-     * Dẫn xuất khóa từ PIN sử dụng ALG_SHA từ thư viện Java Card
-     * Sử dụng SHA-1(PIN || salt) - một lần hash duy nhất
+     * Derive key from PIN using ALG_SHA from Java Card library
+     * Uses SHA-1(PIN || salt) - single hash only
      * 
-     * @param pin PIN bytes
-     * @param pinOffset offset của PIN trong buffer
-     * @param pinLen độ dài PIN
-     * @param salt salt bytes (16 bytes)
-     * @param keyOut output buffer cho key (phải có tối thiểu 20 bytes, lấy 16 bytes đầu làm AES-128 key)
+     * @param pin       PIN bytes
+     * @param pinOffset PIN offset in buffer
+     * @param pinLen    PIN length
+     * @param salt      salt bytes (16 bytes)
+     * @param keyOut    output buffer for key (must have minimum 20 bytes, first 16
+     *                  bytes used as AES-128 key)
      */
-    public static void deriveKeyFromPin(byte[] pin, short pinOffset, short pinLen, 
-                                        byte[] salt, byte[] keyOut) {
-        // Sử dụng ALG_SHA từ thư viện Java Card
+    public static void deriveKeyFromPin(byte[] pin, short pinOffset, short pinLen,
+            byte[] salt, byte[] keyOut) {
+        // Use ALG_SHA from Java Card library
         MessageDigest sha = MessageDigest.getInstance(MessageDigest.ALG_SHA, false);
-        
+
         // Hash PIN + salt: SHA-1(PIN || salt)
         sha.reset();
         sha.update(pin, pinOffset, pinLen);
-        sha.doFinal(salt, (short)0, (short)16, keyOut, (short)0);
-        
-        // keyOut đã có 20 bytes hash (SHA-1 output)
-        // Lấy 16 bytes đầu làm AES-128 key (không cần copy, chỉ cần đảm bảo keyOut có ít nhất 20 bytes)
-        // Note: keyOut phải có kích thước tối thiểu 20 bytes
+        sha.doFinal(salt, (short) 0, (short) 16, keyOut, (short) 0);
+
+        // keyOut now has 20 bytes hash (SHA-1 output)
+        // Take first 16 bytes as AES-128 key (no copy needed, just ensure keyOut has
+        // at least 20 bytes)
+        // Note: keyOut must have minimum size of 20 bytes
     }
-    
+
     /**
-     * KDF - Mô phỏng PBKDF2 sử dụng SHA-1 (ALG_SHA)
+     * KDF - Simulates PBKDF2 using SHA-1 (ALG_SHA)
      * 
-     * PBKDF2-SHA1 mô phỏng: Lặp lại hash nhiều lần để tăng độ khó brute force
-     * Algorithm (mô phỏng PBKDF2, không dùng HMAC vì JavaCard không hỗ trợ):
-     *   T1 = SHA-1(PIN || salt || INT_32_BE(1))
-     *   T2 = SHA-1(PIN || T1)
-     *   T3 = SHA-1(PIN || T2)
-     *   ...
-     *   Tn = SHA-1(PIN || T(n-1))
-     *   Key = T1 XOR T2 XOR ... XOR Tn
+     * PBKDF2-SHA1 simulation: Iterate hash many times to increase brute force
+     * difficulty
+     * Algorithm (simulates PBKDF2, no HMAC since JavaCard doesn't support it):
+     * T1 = SHA-1(PIN || salt || INT_32_BE(1))
+     * T2 = SHA-1(PIN || T1)
+     * T3 = SHA-1(PIN || T2)
+     * ...
+     * Tn = SHA-1(PIN || T(n-1))
+     * Key = T1 XOR T2 XOR ... XOR Tn
      * 
-     * Note: Thuật toán này mô phỏng PBKDF2 nhưng không dùng HMAC (vì JavaCard không hỗ trợ HMAC).
-     * Vẫn an toàn và hiệu quả với nhiều iterations.
+     * Note: This algorithm simulates PBKDF2 but doesn't use HMAC (since JavaCard
+     * doesn't
+     * support HMAC).
+     * Still secure and effective with many iterations.
      * 
-     * @param pin PIN bytes
-     * @param pinOffset offset của PIN trong buffer
-     * @param pinLen độ dài PIN
-     * @param salt salt bytes (16 bytes)
-     * @param saltOffset offset của salt
-     * @param saltLen độ dài salt
-     * @param iterations số lần lặp (khuyến nghị: 1000-10000)
-     * @param keyOut output buffer cho key (phải có tối thiểu 20 bytes, lấy 16 bytes đầu làm AES-128 key)
-     * @param sha MessageDigest instance (ALG_SHA) - được truyền vào để tái sử dụng, tránh tạo mới nhiều lần
+     * @param pin        PIN bytes
+     * @param pinOffset  PIN offset in buffer
+     * @param pinLen     PIN length
+     * @param salt       salt bytes (16 bytes)
+     * @param saltOffset salt offset
+     * @param saltLen    salt length
+     * @param iterations iteration count (recommended: 1000-10000)
+     * @param keyOut     output buffer for key (must have minimum 20 bytes, first 16
+     *                   bytes used as AES-128 key)
+     * @param sha        MessageDigest instance (ALG_SHA) - passed in for reuse,
+     *                   avoid creating multiple times
      */
     public static void KDF(byte[] pin, short pinOffset, short pinLen,
-                           byte[] salt, short saltOffset, short saltLen,
-                           short iterations, byte[] keyOut, MessageDigest sha) {
-        // Validate iterations (tối thiểu 1, tối đa 65535)
+            byte[] salt, short saltOffset, short saltLen,
+            short iterations, byte[] keyOut, MessageDigest sha) {
+        // Validate iterations (minimum 1, maximum 65535)
         if (iterations < 1) {
             iterations = 1;
         }
         if (iterations > 65535) {
-            iterations = (short)65535; // Giới hạn để tránh overflow
+            iterations = (short) 65535; // Limit to avoid overflow
         }
-        
-        // Tạo buffer tạm cho hash intermediate values
-        // T1, T2, ... Tn mỗi cái 20 bytes (SHA-1 output)
-        byte[] t = JCSystem.makeTransientByteArray((short)20, JCSystem.CLEAR_ON_DESELECT);
-        byte[] tPrev = JCSystem.makeTransientByteArray((short)20, JCSystem.CLEAR_ON_DESELECT);
-        // Buffer cho hash input: 
-        // - Lần đầu: PIN || salt || counter (pinLen + saltLen + 4)
-        // - Các lần sau: PIN || T(i-1) (pinLen + 20)
-        // Lấy max của 2 để đủ cho cả 2 trường hợp
-        short maxInputLen = (short)(pinLen + saltLen + 4);
+
+        // Create temporary buffer for hash intermediate values
+        // T1, T2, ... Tn each 20 bytes (SHA-1 output)
+        byte[] t = JCSystem.makeTransientByteArray((short) 20, JCSystem.CLEAR_ON_DESELECT);
+        byte[] tPrev = JCSystem.makeTransientByteArray((short) 20, JCSystem.CLEAR_ON_DESELECT);
+        // Buffer for hash input:
+        // - First time: PIN || salt || counter (pinLen + saltLen + 4)
+        // - Subsequent times: PIN || T(i-1) (pinLen + 20)
+        // Take max of 2 to be sufficient for both cases
+        short maxInputLen = (short) (pinLen + saltLen + 4);
         if (pinLen + 20 > maxInputLen) {
-            maxInputLen = (short)(pinLen + 20);
+            maxInputLen = (short) (pinLen + 20);
         }
         byte[] hashInput = JCSystem.makeTransientByteArray(maxInputLen, JCSystem.CLEAR_ON_DESELECT);
-        
-        // Khởi tạo keyOut = 0 (sẽ XOR với các Ti)
-        Util.arrayFillNonAtomic(keyOut, (short)0, (short)20, (byte)0);
-        
-        // Tính T1 = SHA-1(PIN || salt || INT_32_BE(1))
-        // Format: PIN || salt || [0x00 0x00 0x00 0x01] (counter = 1, 4 bytes big-endian)
+
+        // Initialize keyOut = 0 (will XOR with Ti)
+        Util.arrayFillNonAtomic(keyOut, (short) 0, (short) 20, (byte) 0);
+
+        // Calculate T1 = SHA-1(PIN || salt || INT_32_BE(1))
+        // Format: PIN || salt || [0x00 0x00 0x00 0x01] (counter = 1, 4 bytes
+        // big-endian)
         short inputOffset = 0;
         Util.arrayCopyNonAtomic(pin, pinOffset, hashInput, inputOffset, pinLen);
         inputOffset += pinLen;
         Util.arrayCopyNonAtomic(salt, saltOffset, hashInput, inputOffset, saltLen);
         inputOffset += saltLen;
         // Counter = 1 (4 bytes big-endian)
-        hashInput[inputOffset++] = (byte)0x00;
-        hashInput[inputOffset++] = (byte)0x00;
-        hashInput[inputOffset++] = (byte)0x00;
-        hashInput[inputOffset++] = (byte)0x01;
-        
+        hashInput[inputOffset++] = (byte) 0x00;
+        hashInput[inputOffset++] = (byte) 0x00;
+        hashInput[inputOffset++] = (byte) 0x00;
+        hashInput[inputOffset++] = (byte) 0x01;
+
         sha.reset();
-        sha.doFinal(hashInput, (short)0, inputOffset, t, (short)0);
-        
-        // XOR vào keyOut
+        sha.doFinal(hashInput, (short) 0, inputOffset, t, (short) 0);
+
+        // XOR into keyOut
         for (short i = 0; i < 20; i++) {
-            keyOut[i] = (byte)(keyOut[i] ^ t[i]);
+            keyOut[i] = (byte) (keyOut[i] ^ t[i]);
         }
-        
-        // Copy t vào tPrev để dùng cho lần lặp tiếp theo
-        Util.arrayCopyNonAtomic(t, (short)0, tPrev, (short)0, (short)20);
-        
-        // Tính T2, T3, ..., Tn
-        // Ti = SHA-1(PIN || T(i-1)) - không dùng salt nữa
+
+        // Copy t into tPrev for next iteration
+        Util.arrayCopyNonAtomic(t, (short) 0, tPrev, (short) 0, (short) 20);
+
+        // Calculate T2, T3, ..., Tn
+        // Ti = SHA-1(PIN || T(i-1)) - no more salt
         for (short iter = 2; iter <= iterations; iter++) {
-            // Tạo input: PIN || T(i-1)
+            // Create input: PIN || T(i-1)
             inputOffset = 0;
             Util.arrayCopyNonAtomic(pin, pinOffset, hashInput, inputOffset, pinLen);
             inputOffset += pinLen;
-            Util.arrayCopyNonAtomic(tPrev, (short)0, hashInput, inputOffset, (short)20);
+            Util.arrayCopyNonAtomic(tPrev, (short) 0, hashInput, inputOffset, (short) 20);
             inputOffset += 20;
-            
+
             // Hash
             sha.reset();
-            sha.doFinal(hashInput, (short)0, inputOffset, t, (short)0);
-            
-            // XOR vào keyOut
+            sha.doFinal(hashInput, (short) 0, inputOffset, t, (short) 0);
+
+            // XOR into keyOut
             for (short i = 0; i < 20; i++) {
-                keyOut[i] = (byte)(keyOut[i] ^ t[i]);
+                keyOut[i] = (byte) (keyOut[i] ^ t[i]);
             }
-            
-            // Copy t vào tPrev cho lần lặp tiếp theo
-            Util.arrayCopyNonAtomic(t, (short)0, tPrev, (short)0, (short)20);
+
+            // Copy t into tPrev for next iteration
+            Util.arrayCopyNonAtomic(t, (short) 0, tPrev, (short) 0, (short) 20);
         }
-        
-        // keyOut đã có 20 bytes (SHA-1 output)
-        // Lấy 16 bytes đầu làm AES-128 key
-        // Note: keyOut phải có kích thước tối thiểu 20 bytes
+
+        // keyOut now has 20 bytes (SHA-1 output)
+        // Take first 16 bytes as AES-128 key
+        // Note: keyOut must have minimum size of 20 bytes
     }
-    
+
     /**
-     * KDF - Overload version với salt offset = 0 và saltLen = 16
+     * KDF - Overload version with salt offset = 0 and saltLen = 16
      * 
-     * @param pin PIN bytes
-     * @param pinOffset offset của PIN trong buffer
-     * @param pinLen độ dài PIN
-     * @param salt salt bytes (16 bytes, offset = 0)
-     * @param iterations số lần lặp (khuyến nghị: 1000-10000)
-     * @param keyOut output buffer cho key (phải có tối thiểu 20 bytes)
-     * @param sha MessageDigest instance (ALG_SHA)
+     * @param pin        PIN bytes
+     * @param pinOffset  PIN offset in buffer
+     * @param pinLen     PIN length
+     * @param salt       salt bytes (16 bytes, offset = 0)
+     * @param iterations iteration count (recommended: 1000-10000)
+     * @param keyOut     output buffer for key (must have minimum 20 bytes)
+     * @param sha        MessageDigest instance (ALG_SHA)
      */
     public static void KDF(byte[] pin, short pinOffset, short pinLen,
-                           byte[] salt, short iterations, byte[] keyOut, MessageDigest sha) {
-        KDF(pin, pinOffset, pinLen, salt, (short)0, (short)16, iterations, keyOut, sha);
+            byte[] salt, short iterations, byte[] keyOut, MessageDigest sha) {
+        KDF(pin, pinOffset, pinLen, salt, (short) 0, (short) 16, iterations, keyOut, sha);
     }
-    
+
     /**
-     * Mã hóa dữ liệu bằng AES-128 ECB
-     * Tự động thêm PKCS#7 padding nếu cần (vì dùng NOPAD)
+     * Encrypt data using AES-128 ECB
      * 
-     * @param cipher AES cipher instance
-     * @param key AES key
-     * @param plaintext dữ liệu cần mã hóa
-     * @param plainOffset offset của plaintext
-     * @param plainLen độ dài plaintext
-     * @param ciphertext output buffer cho ciphertext
-     * @param cipherOffset offset của ciphertext
-     * @return độ dài ciphertext
+     * @param key        AES key (16 bytes)
+     * @param data       data to encrypt
+     * @param dataOffset data offset
+     * @param dataLen    data length
+     * @param encOut     output buffer for encrypted data
+     * @param cipher     AES cipher instance
+     * @param aesKey     AES key object
+     * @return encrypted data length
      */
-    public static short encryptAES(Cipher cipher, AESKey key, 
-                                   byte[] plaintext, short plainOffset, short plainLen,
-                                   byte[] ciphertext, short cipherOffset) {
-        // Tính độ dài sau khi pad (phải là bội số của 16)
-        short paddedLen = (short)((plainLen + 15) / 16 * 16);
-        
-        // Nếu cần padding, tạo buffer với padding
-        if (paddedLen != plainLen) {
-            // Tạo transient buffer để padding
-            byte[] paddedData = JCSystem.makeTransientByteArray(paddedLen, JCSystem.CLEAR_ON_DESELECT);
-            
-            // Copy dữ liệu gốc
-            Util.arrayCopy(plaintext, plainOffset, paddedData, (short)0, plainLen);
-            
-            // Thêm PKCS#7 padding: các byte cuối = số byte padding
-            byte paddingValue = (byte)(paddedLen - plainLen);
-            Util.arrayFillNonAtomic(paddedData, plainLen, paddingValue, paddingValue);
-            
-            // Mã hóa dữ liệu đã padding
-            cipher.init(key, Cipher.MODE_ENCRYPT);
-            return cipher.doFinal(paddedData, (short)0, paddedLen, ciphertext, cipherOffset);
-        } else {
-            // Không cần padding
-            cipher.init(key, Cipher.MODE_ENCRYPT);
-            return cipher.doFinal(plaintext, plainOffset, plainLen, ciphertext, cipherOffset);
+    public static short encryptAES(byte[] key, byte[] data, short dataOffset, short dataLen,
+            byte[] encOut, Cipher cipher, AESKey aesKey) {
+        aesKey.setKey(key, (short) 0);
+        cipher.init(aesKey, Cipher.MODE_ENCRYPT);
+
+        // Calculate padding length (PKCS#7 padding)
+        short paddingLen = (short) (16 - (dataLen % 16));
+        if (paddingLen == 0) {
+            paddingLen = 16;
+        }
+        short paddedLen = (short) (dataLen + paddingLen);
+
+        try {
+            // Create transient buffer for padding
+            byte[] paddedData = JCSystem.makeTransientByteArray(paddedLen,
+                    JCSystem.CLEAR_ON_DESELECT);
+            Util.arrayCopyNonAtomic(data, dataOffset, paddedData, (short) 0, dataLen);
+
+            // Add PKCS#7 padding: last bytes = number of padding bytes
+            for (short i = dataLen; i < paddedLen; i++) {
+                paddedData[i] = (byte) paddingLen;
+            }
+
+            // Encrypt padded data
+            return cipher.doFinal(paddedData, (short) 0, paddedLen, encOut, (short) 0);
+        } catch (Exception e) {
+            return 0;
         }
     }
-    
+
     /**
-     * Giải mã dữ liệu bằng AES-128 ECB
-     * Tự động loại bỏ PKCS#7 padding nếu có
+     * Decrypt data using AES-128 ECB
      * 
-     * @param cipher AES cipher instance
-     * @param key AES key
-     * @param ciphertext dữ liệu cần giải mã
-     * @param cipherOffset offset của ciphertext
-     * @param cipherLen độ dài ciphertext
-     * @param plaintext output buffer cho plaintext
-     * @param plainOffset offset của plaintext
-     * @return độ dài plaintext (sau khi loại bỏ padding)
+     * @param key       AES key (16 bytes)
+     * @param encData   encrypted data
+     * @param encOffset encrypted data offset
+     * @param encLen    encrypted data length
+     * @param dataOut   output buffer for decrypted data
+     * @param cipher    AES cipher instance
+     * @param aesKey    AES key object
+     * @return decrypted data length (without padding)
      */
-    public static short decryptAES(Cipher cipher, AESKey key,
-                                   byte[] ciphertext, short cipherOffset, short cipherLen,
-                                   byte[] plaintext, short plainOffset) {
-        cipher.init(key, Cipher.MODE_DECRYPT);
-        short decryptedLen = cipher.doFinal(ciphertext, cipherOffset, cipherLen, plaintext, plainOffset);
-        
-        // Loại bỏ PKCS#7 padding: byte cuối chỉ số byte padding
-        if (decryptedLen > 0) {
-            byte paddingValue = plaintext[(short)(plainOffset + decryptedLen - 1)];
-            
-            // Kiểm tra padding hợp lệ (1 <= padding <= 16)
-            if (paddingValue > 0 && paddingValue <= 16 && paddingValue <= decryptedLen) {
-                // Verify tất cả padding bytes đều giống nhau
-                boolean validPadding = true;
-                short i;
-                for (i = (short)(decryptedLen - paddingValue); i < decryptedLen; i = (short)(i + 1)) {
-                    if (plaintext[(short)(plainOffset + i)] != paddingValue) {
-                        validPadding = false;
-                        break;
-                    }
-                }
-                
-                if (validPadding) {
-                    // Trả về độ dài không bao gồm padding
-                    return (short)(decryptedLen - paddingValue);
+    public static short decryptAES(byte[] key, byte[] encData, short encOffset, short encLen,
+            byte[] dataOut, Cipher cipher, AESKey aesKey) {
+        aesKey.setKey(key, (short) 0);
+        cipher.init(aesKey, Cipher.MODE_DECRYPT);
+
+        try {
+            short decryptedLen = cipher.doFinal(encData, encOffset, encLen, dataOut, (short) 0);
+
+            // Remove PKCS#7 padding
+            if (decryptedLen > 0) {
+                byte paddingLen = dataOut[(short) (decryptedLen - 1)];
+
+                // Validate padding (1 <= padding <= 16)
+                if (paddingLen >= 1 && paddingLen <= 16) {
+                    decryptedLen -= paddingLen;
                 }
             }
-        }
-        
-        return decryptedLen;
-    }
-    
-    /**
-     * Mở Master Key từ encrypted MK bằng PIN
-     * 
-     * @param pin PIN bytes
-     * @param pinOffset offset của PIN
-     * @param pinLen độ dài PIN
-     * @param salt salt để derive key
-     * @param mkEnc encrypted master key (32 bytes)
-     * @param mkOut output buffer cho master key (phải có ít nhất 20 bytes)
-     * @param cipher AES cipher instance
-     * @param aesKey AES key object để set key
-     * @return true nếu thành công, false nếu lỗi
-     */
-    public static boolean openMasterKey(byte[] pin, short pinOffset, short pinLen,
-                                       byte[] salt, byte[] mkEnc,
-                                       byte[] mkOut, Cipher cipher, AESKey aesKey) {
-        try {
-            // Dẫn xuất keyUser từ PIN vào mkOut (tạm thời, cần 20 bytes)
-            deriveKeyFromPin(pin, pinOffset, pinLen, salt, mkOut);
-            
-            // Set key vào aesKey (lấy 16 bytes đầu)
-            aesKey.setKey(mkOut, (short)0);
-            
-            // Giải mã MK_user vào chính mkOut (overwrite derivedKey)
-            cipher.init(aesKey, Cipher.MODE_DECRYPT);
-            short mkLen = cipher.doFinal(mkEnc, (short)0, (short)16, mkOut, (short)0);
-            
-            // Cập nhật aesKey với MK_user để dùng cho mã hóa/giải mã dữ liệu
-            aesKey.setKey(mkOut, (short)0);
-            return true;
+
+            return decryptedLen;
         } catch (Exception e) {
-            return false;
+            return 0;
         }
     }
-    
+
     /**
-     * Mã hóa Master Key bằng key derived từ PIN
+     * Decrypt master key using key derived from PIN
+     * Combines KDF + AES decryption into one helper method
      * 
-     * @param pin PIN bytes
-     * @param pinOffset offset của PIN
-     * @param pinLen độ dài PIN
-     * @param salt salt để derive key
-     * @param mk master key (16 bytes)
-     * @param mkEncOut output buffer cho encrypted master key (32 bytes)
-     * @param cipher AES cipher instance
-     * @param aesKey AES key object
+     * @param pin       PIN bytes
+     * @param pinOffset PIN offset
+     * @param pinLen    PIN length
+     * @param salt      salt for key derivation
+     * @param mkEnc     encrypted master key (16 bytes)
+     * @param mkOut     decrypted master key output (16 bytes)
+     * @param cipher    AES cipher instance
+     * @param aesKey    AES key object
+     * @param sha       MessageDigest instance
+     */
+    public static void decryptMasterKeyWithPin(byte[] pin, short pinOffset, short pinLen,
+            byte[] salt, byte[] mkEnc, byte[] mkOut,
+            javacardx.crypto.Cipher cipher,
+            javacard.security.AESKey aesKey,
+            MessageDigest sha) {
+        // MasterKey is stored in mkOut temporarily (will be overwritten)
+        // Uses mkOut as temporary buffer to save derived key (leverage mkOut[0..19])
+        deriveKeyFromPin(pin, pinOffset, pinLen, salt, mkOut);
+
+        try {
+            // Set key and decrypt - MK into mkOut itself (overwrite derivedKey)
+            aesKey.setKey(mkOut, (short) 0); // Take first 16 bytes as key
+            cipher.init(aesKey, javacardx.crypto.Cipher.MODE_DECRYPT);
+            // Decrypt MK_user into mkOut itself (overwrite derivedKey)
+            cipher.doFinal(mkEnc, (short) 0, (short) 16, mkOut, (short) 0);
+
+            // Update aesKey with MK_user for use in encrypting/decrypting data
+            aesKey.setKey(mkOut, (short) 0);
+        } catch (Exception e) {
+            // Handle error silently
+        }
+    }
+
+    /**
+     * Encrypt Master Key using key derived from PIN
+     * 
+     * @param pin       PIN bytes
+     * @param pinOffset PIN offset
+     * @param pinLen    PIN length
+     * @param salt      salt for key derivation
+     * @param mk        master key (16 bytes)
+     * @param mkEncOut  output buffer for encrypted master key (32 bytes)
+     * @param cipher    AES cipher instance
+     * @param aesKey    AES key object
      */
     public static void encryptMasterKey(byte[] pin, short pinOffset, short pinLen,
-                                        byte[] salt, byte[] mk,
-                                        byte[] mkEncOut, Cipher cipher, AESKey aesKey) {
-        // Sử dụng mkEncOut làm buffer tạm để lưu derivedKey (tận dụng mkEncOut[0..19])
-        // deriveKeyFromPin cần buffer 20 bytes, mkEncOut có 32 bytes nên đủ
-        deriveKeyFromPin(pin, pinOffset, pinLen, salt, mkEncOut); // Lưu vào mkEncOut tạm thời
-        
-        // Set key và mã hóa - MK vào chính mkEncOut (overwrite derivedKey)
-        aesKey.setKey(mkEncOut, (short)0); // Lấy 16 bytes đầu làm key
+            byte[] salt, byte[] mk,
+            byte[] mkEncOut, Cipher cipher, AESKey aesKey) {
+        // Use mkEncOut as temp buffer to save derivedKey (leverage mkEncOut[0..19])
+        // deriveKeyFromPin needs 20 byte buffer, mkEncOut has 32 bytes so sufficient
+        deriveKeyFromPin(pin, pinOffset, pinLen, salt, mkEncOut); // Save to mkEncOut temporarily
+
+        // Set key and encrypt - MK into mkEncOut itself (overwrite derivedKey)
+        aesKey.setKey(mkEncOut, (short) 0); // Take first 16 bytes as key
         cipher.init(aesKey, Cipher.MODE_ENCRYPT);
         // Pad MK to 16 bytes if needed (ECB NOPAD requires 16 bytes block)
-        cipher.doFinal(mk, (short)0, (short)16, mkEncOut, (short)0);
+        cipher.doFinal(mk, (short) 0, (short) 16, mkEncOut, (short) 0);
+    }
+
+    /**
+     * Wrap (encrypt) master key with key derived from PIN
+     * 
+     * Combines KDF + AES encryption in one method to avoid code duplication
+     * 
+     * @param pin        PIN bytes
+     * @param pinOffset  PIN offset
+     * @param pinLen     PIN length
+     * @param salt       salt for key derivation (usually cardID)
+     * @param saltOffset salt offset
+     * @param saltLen    salt length
+     * @param iterations iterations for KDF
+     * @param mkUser     master key to wrap (16 bytes)
+     * @param encOut     output buffer for encrypted MK (16 bytes)
+     * @param cipher     AES cipher instance
+     * @param aesKey     AES key object
+     * @param sha        MessageDigest instance
+     */
+    public static void wrapMasterKeyWithPIN(
+            byte[] pin, short pinOffset, short pinLen,
+            byte[] salt, short saltOffset, short saltLen,
+            short iterations,
+            byte[] mkUser, byte[] encOut,
+            Cipher cipher, AESKey aesKey, MessageDigest sha) {
+
+        byte[] tempKey = JCSystem.makeTransientByteArray((short) 20,
+                JCSystem.CLEAR_ON_DESELECT);
+        try {
+            // Derive key from PIN
+            KDF(pin, pinOffset, pinLen,
+                    salt, saltOffset, saltLen,
+                    iterations, tempKey, sha);
+
+            // Encrypt MK with derived key
+            aesKey.setKey(tempKey, (short) 0);
+            cipher.init(aesKey, Cipher.MODE_ENCRYPT);
+            cipher.doFinal(mkUser, (short) 0, (short) 16, encOut, (short) 0);
+
+        } catch (CryptoException e) {
+            ISOException.throwIt((short) (0x6F04 | (e.getReason() & 0x0F)));
+        } finally {
+            // Always clear tempKey
+            Util.arrayFillNonAtomic(tempKey, (short) 0, (short) 20, (byte) 0);
+        }
+    }
+
+    /**
+     * Unwrap (decrypt) master key with key derived from PIN
+     * 
+     * @param pin        PIN bytes
+     * @param pinOffset  PIN offset
+     * @param pinLen     PIN length
+     * @param salt       salt for key derivation
+     * @param saltOffset salt offset
+     * @param saltLen    salt length
+     * @param iterations iterations for KDF
+     * @param mkEnc      encrypted master key (16 bytes)
+     * @param mkOut      output buffer for decrypted MK (16 bytes)
+     * @param cipher     AES cipher instance
+     * @param aesKey     AES key object
+     * @param sha        MessageDigest instance
+     * @return true if successful, false on error
+     */
+    public static boolean unwrapMasterKeyWithPIN(
+            byte[] pin, short pinOffset, short pinLen,
+            byte[] salt, short saltOffset, short saltLen,
+            short iterations,
+            byte[] mkEnc, byte[] mkOut,
+            Cipher cipher, AESKey aesKey, MessageDigest sha) {
+
+        byte[] tempKey = JCSystem.makeTransientByteArray((short) 20,
+                JCSystem.CLEAR_ON_DESELECT);
+        try {
+            // Derive key from PIN
+            KDF(pin, pinOffset, pinLen,
+                    salt, saltOffset, saltLen,
+                    iterations, tempKey, sha);
+
+            // Decrypt MK with derived key
+            aesKey.setKey(tempKey, (short) 0);
+            cipher.init(aesKey, Cipher.MODE_DECRYPT);
+            cipher.doFinal(mkEnc, (short) 0, (short) 16, mkOut, (short) 0);
+
+            return true;
+
+        } catch (CryptoException e) {
+            return false;
+        } finally {
+            Util.arrayFillNonAtomic(tempKey, (short) 0, (short) 20, (byte) 0);
+        }
     }
 }
-

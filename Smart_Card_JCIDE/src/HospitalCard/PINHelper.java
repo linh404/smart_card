@@ -2,92 +2,117 @@ package HospitalCard;
 
 import javacard.framework.*;
 import javacard.framework.JCSystem;
+import javacard.security.MessageDigest;
+import javacard.security.CryptoException;
 
 /**
- * PINHelper - Helper class cho các thao tác liên quan đến PIN
- * Bao gồm: verify PIN, change PIN, reset PIN
+ * PINHelper - Helper class for PIN-related operations
+ * Includes: verify PIN, change PIN, reset PIN
  */
 public class PINHelper {
-    
+
     /**
-     * Xác thực PIN bằng cách so sánh hash
+     * Verify PIN by comparing hash
      * 
-     * NOTE: Sử dụng pinHash làm buffer tạm để tính toán, sau đó restore lại
+     * NOTE: Uses pinHash as temporary buffer for calculation, then restores it
      * 
-     * @param pin PIN bytes cần verify
-     * @param pinOffset offset của PIN
-     * @param pinLen độ dài PIN
-     * @param pinHash stored PIN hash (20 bytes) - CẢNH BÁO: buffer này sẽ bị overwrite tạm thời
-     * @param salt salt để hash PIN (16 bytes)
-     * @return true nếu PIN đúng, false nếu sai
+     * @param pin       PIN bytes to verify
+     * @param pinOffset PIN offset
+     * @param pinLen    PIN length
+     * @param pinHash   stored PIN hash (20 bytes) - WARNING: this buffer will be
+     *                  temporarily overwritten
+     * @param salt      salt for hashing PIN (16 bytes)
+     * @return true if PIN is correct, false if incorrect
      */
     public static boolean verifyPin(byte[] pin, short pinOffset, short pinLen,
-                                    byte[] pinHash, byte[] salt) {
-        // Tạo transient buffer (RAM) để tính hash
-        byte[] computedHash = JCSystem.makeTransientByteArray((short)20, JCSystem.CLEAR_ON_DESELECT);
+            byte[] pinHash, byte[] salt) {
+        // Create transient buffer (RAM) for hash calculation
+        byte[] computedHash = JCSystem.makeTransientByteArray((short) 20, JCSystem.CLEAR_ON_DESELECT);
         CryptoHelper.hashPin(pin, pinOffset, pinLen, salt, computedHash);
-        
-        // So sánh với stored hash
-        return (Util.arrayCompare(computedHash, (short)0, pinHash, (short)0, (short)20) == 0);
+
+        // Compare with stored hash
+        return (Util.arrayCompare(computedHash, (short) 0, pinHash, (short) 0, (short) 20) == 0);
     }
-    
+
     /**
-     * Tạo PIN hash mới từ PIN
+     * Create new PIN hash from PIN
      * 
-     * @param pin PIN bytes
-     * @param pinOffset offset của PIN
-     * @param pinLen độ dài PIN
-     * @param salt salt để hash (16 bytes)
-     * @param hashOut output buffer cho hash (20 bytes)
+     * @param pin       PIN bytes
+     * @param pinOffset PIN offset
+     * @param pinLen    PIN length
+     * @param salt      salt for hashing (16 bytes)
+     * @param hashOut   output buffer for hash (20 bytes)
      */
     public static void createPinHash(byte[] pin, short pinOffset, short pinLen,
-                                     byte[] salt, byte[] hashOut) {
+            byte[] salt, byte[] hashOut) {
         CryptoHelper.hashPin(pin, pinOffset, pinLen, salt, hashOut);
     }
-    
+
     /**
-     * Kiểm tra PIN tries và throw exception nếu cần
+     * Check PIN tries and throw exception if needed
      * 
-     * @param pinTriesRemaining số lần thử còn lại
-     * @return số lần thử còn lại sau khi giảm
+     * @param pinTriesRemaining number of remaining tries
+     * @return remaining tries after decrement
      */
     public static short checkPinTries(byte pinTriesRemaining) {
         if (pinTriesRemaining == 0) {
             ISOException.throwIt(ISO7816.SW_COMMAND_NOT_ALLOWED);
         }
-        return (short)(pinTriesRemaining - 1);
+        return (short) (pinTriesRemaining - 1);
     }
-    
+
     /**
-     * Throw exception với số lần thử còn lại
+     * Throw exception with remaining tries count
      * 
-     * @param pinTriesRemaining số lần thử còn lại
+     * @param pinTriesRemaining number of remaining tries
      */
     public static void throwPinTriesException(byte pinTriesRemaining) {
         if (pinTriesRemaining == 0) {
             ISOException.throwIt(ISO7816.SW_COMMAND_NOT_ALLOWED);
         } else {
-            ISOException.throwIt((short)(0x63C0 | pinTriesRemaining));
+            ISOException.throwIt((short) (0x63C0 | pinTriesRemaining));
         }
     }
-    
+
     /**
-     * Kiểm tra PIN mới có khác PIN cũ không
+     * Check if new PIN is different from old PIN
      * 
-     * @param oldPin PIN cũ
-     * @param oldPinOffset offset của PIN cũ
-     * @param oldPinLen độ dài PIN cũ
-     * @param newPin PIN mới
-     * @param newPinOffset offset của PIN mới
-     * @param newPinLen độ dài PIN mới
-     * @return true nếu PIN mới khác PIN cũ
+     * @param oldPin       old PIN
+     * @param oldPinOffset old PIN offset
+     * @param oldPinLen    old PIN length
+     * @param newPin       new PIN
+     * @param newPinOffset new PIN offset
+     * @param newPinLen    new PIN length
+     * @return true if new PIN is different from old PIN
      */
     public static boolean isPinDifferent(byte[] oldPin, short oldPinOffset, short oldPinLen,
-                                         byte[] newPin, short newPinOffset, short newPinLen) {
+            byte[] newPin, short newPinOffset, short newPinLen) {
         if (oldPinLen != newPinLen) {
             return true;
         }
         return (Util.arrayCompare(oldPin, oldPinOffset, newPin, newPinOffset, oldPinLen) != 0);
     }
-}
 
+    /**
+     * Safe hash with automatic error handling
+     * Eliminates repetitive try-catch blocks in code
+     * 
+     * @param sha    MessageDigest instance
+     * @param input  data to hash
+     * @param inOff  input offset
+     * @param inLen  input length
+     * @param output buffer for hash output
+     * @param outOff output offset
+     * @throws ISOException 0x6F01 if hash fails
+     */
+    public static void safeHash(MessageDigest sha,
+            byte[] input, short inOff, short inLen,
+            byte[] output, short outOff) {
+        try {
+            sha.reset();
+            sha.doFinal(input, inOff, inLen, output, outOff);
+        } catch (CryptoException e) {
+            ISOException.throwIt((short) 0x6F01);
+        }
+    }
+}

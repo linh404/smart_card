@@ -6,6 +6,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException; // Added for sha256 method
 import java.security.SecureRandom;
 import java.security.Signature;
 
@@ -14,6 +15,18 @@ import java.security.Signature;
  * Tham khảo từ SmartCard_Old, mở rộng thêm các hàm cần thiết
  */
 public class CryptoUtils {
+
+    /**
+     * Hash data using SHA-1 (matches Java Card MessageDigest.ALG_SHA)
+     */
+    public static byte[] sha1(byte[] data) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-1");
+            return digest.digest(data);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-1 not available", e);
+        }
+    }
 
     private static final int SALT_LEN = 16;
 
@@ -60,12 +73,12 @@ public class CryptoUtils {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
             byte[] input = (pin + new String(salt, StandardCharsets.UTF_8)).getBytes(StandardCharsets.UTF_8);
-            
+
             // Lặp 1000 lần (mô phỏng PBKDF2)
             for (int i = 0; i < 1000; i++) {
                 input = md.digest(input);
             }
-            
+
             // Lấy 16 bytes đầu làm AES key
             byte[] key = new byte[16];
             System.arraycopy(input, 0, key, 0, 16);
@@ -98,26 +111,27 @@ public class CryptoUtils {
 
     /**
      * Kiểm tra chữ ký RSA (Raw RSA - thẻ ký bằng raw encryption, không hash)
-     * Thẻ dùng Cipher.MODE_ENCRYPT với private key để ký, nên ta cần decrypt signature bằng public key và so sánh với message
+     * Thẻ dùng Cipher.MODE_ENCRYPT với private key để ký, nên ta cần decrypt
+     * signature bằng public key và so sánh với message
      */
     public static boolean verifyRSASignature(byte[] message, byte[] signature, java.security.PublicKey publicKey) {
         if (message == null || signature == null || publicKey == null) {
             return false;
         }
-        
+
         // Thử raw RSA trước (thẻ ký bằng raw encryption)
         try {
             Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
             cipher.init(Cipher.DECRYPT_MODE, publicKey);
             byte[] decryptedMessage = cipher.doFinal(signature);
-            
+
             if (java.util.Arrays.equals(message, decryptedMessage)) {
                 return true;
             }
         } catch (Exception e) {
             // Raw RSA failed, try SHA256withRSA below
         }
-        
+
         // Fallback: thử SHA256withRSA nếu raw RSA fail
         try {
             Signature sig = Signature.getInstance("SHA256withRSA");
@@ -137,7 +151,7 @@ public class CryptoUtils {
             if (keyBytes == null || keyBytes.length == 0) {
                 return null;
             }
-            
+
             java.security.spec.X509EncodedKeySpec spec = new java.security.spec.X509EncodedKeySpec(keyBytes);
             java.security.KeyFactory kf = java.security.KeyFactory.getInstance("RSA");
             return kf.generatePublic(spec);
@@ -155,4 +169,3 @@ public class CryptoUtils {
         return challenge;
     }
 }
-

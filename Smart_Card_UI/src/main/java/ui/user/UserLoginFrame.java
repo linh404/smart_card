@@ -348,7 +348,14 @@ public class UserLoginFrame extends JFrame {
                 return;
             }
 
-            boolean isValid = CryptoUtils.verifyRSASignature(challenge, signature, pkUser);
+            // IMPORTANT: Applet signs HASH of challenge (SHA-1), not raw challenge
+            // Java Card uses MessageDigest.ALG_SHA which is SHA-1 (20 bytes)
+            // So we must hash the challenge with SHA-1 before verifying signature
+            byte[] challengeHash = CryptoUtils.sha1(challenge);
+            System.out.println("[User Login] Challenge hash SHA-1 (20 bytes): " + bytesToHex(challengeHash));
+
+            // Verify signature against HASH, not raw challenge
+            boolean isValid = CryptoUtils.verifyRSASignature(challengeHash, signature, pkUser);
 
             if (!isValid) {
                 System.err.println("[User Login] ✗✗✗ SIGNATURE KHÔNG HỢP LỆ! ✗✗✗");

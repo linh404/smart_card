@@ -62,6 +62,12 @@ public class UserApplet extends Applet {
     private AESKey aesKey;
     private RandomData randomData;
 
+    // Reusable transient buffers to prevent memory exhaustion
+    private byte[] tempHashBuffer;
+    private byte[] tempPinBuffer;
+    private byte[] tempDecryptBuffer;
+    private byte[] tempBalanceBuffer;
+
     protected UserApplet(byte[] bArray, short bOffset, byte bLength) {
         cardID = new byte[CARD_ID_LENGTH];
         hashPinUser = new byte[HASH_LENGTH];
@@ -73,6 +79,12 @@ public class UserApplet extends Applet {
         lastTxnHash = new byte[HASH_LENGTH];
 
         mkUser = JCSystem.makeTransientByteArray((short) (MK_USER_LENGTH + 16), JCSystem.CLEAR_ON_DESELECT);
+
+        // Allocate reusable transient buffers ONCE to prevent memory exhaustion
+        tempHashBuffer = JCSystem.makeTransientByteArray(HASH_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+        tempPinBuffer = JCSystem.makeTransientByteArray((short) 6, JCSystem.CLEAR_ON_DESELECT);
+        tempDecryptBuffer = JCSystem.makeTransientByteArray(MAX_PATIENT_DATA_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+        tempBalanceBuffer = JCSystem.makeTransientByteArray(BALANCE_ENC_LENGTH, JCSystem.CLEAR_ON_DESELECT);
 
         initialized = 0;
         pinRetryCounter = MAX_PIN_TRIES;
@@ -189,182 +201,43 @@ public class UserApplet extends Applet {
         }
 
         byte[] buf = apdu.getBuffer();
-        short offset = ISO7816.OFFSET_CDATA;
 
         try {
-            boolean hasProvidedCardID = false;
-            short cardIDOffset = offset;
-            for (short i = 0; i < CARD_ID_LENGTH; i++) {
-                if (buf[(short) (cardIDOffset + i)] != 0) {
-                    hasProvidedCardID = true;
-                    break;
-                }
-            }
+            // Parse input data (cardID, patient info, PINs, balance)
+            short[] inputData = JCSystem.makeTransientShortArray((short) 7, JCSystem.CLEAR_ON_DESELECT);
+            parseIssueCardInput(buf, inputData);
 
-            if (hasProvidedCardID) {
-                Util.arrayCopyNonAtomic(buf, cardIDOffset, cardID, (short) 0, CARD_ID_LENGTH);
-                offset += CARD_ID_LENGTH;
-            } else {
-                randomData.generateData(cardID, (short) 0, CARD_ID_LENGTH);
-            }
+            // Extract parsed values
+            short patientInfoOffset = inputData[1];
+            short patientInfoLength = inputData[2];
+            short pinUserOffset = inputData[3];
+            short pinAdminResetOffset = inputData[4];
+            int initialBalance = (int) ((inputData[5] << 16) | (inputData[6] & 0xFFFF));
 
-            short patientInfoLength = Util.getShort(buf, offset);
-            offset += 2;
+            // Generate master key and RSA keypair
+            generateAndInitializeKeys();
 
-            if (patientInfoLength <= 0 || patientInfoLength > MAX_PATIENT_DATA_LENGTH) {
-                ISOException.throwIt((short) 0x6F40);
-            }
+            // Hash PINs and wrap master key
+            setupPINsAndEncryptMK(buf, pinUserOffset, pinAdminResetOffset);
 
-            short patientInfoOffset = offset;
-            offset += patientInfoLength;
+            // Encrypt patient data
+            encryptAndStorePatientData(buf, patientInfoOffset, patientInfoLength);
 
-            short pinUserOffset = offset;
-            short pinUserLength = 6;
-            offset += pinUserLength;
+            // Encrypt balance
+            encryptAndStoreBalance(initialBalance);
 
-            short pinAdminResetOffset = offset;
-            short pinAdminResetLength = 6;
-            offset += pinAdminResetLength;
-
-            int initialBalance = 0;
-            short dataLen = (short) (buf[ISO7816.OFFSET_LC] & 0xFF);
-            short cardIdPart = (short) (hasProvidedCardID ? CARD_ID_LENGTH : 0);
-            short expectedMinLen = (short) (cardIdPart + 2 + patientInfoLength + pinUserLength + pinAdminResetLength);
-            if (dataLen >= expectedMinLen + 4) {
-                initialBalance = DataHelper.getInt(buf, offset);
-            } else {
-                initialBalance = 0;
-            }
-
-            randomData.generateData(mkUser, (short) 0, MK_USER_LENGTH);
-
-            try {
-                if (!RSAHelper.generateKeyPair(rsaKeyPair)) {
-                    ISOException.throwIt((short) 0x6F01);
-                }
-                skUser = (RSAPrivateKey) rsaKeyPair.getPrivate();
-                pkUser = (RSAPublicKey) rsaKeyPair.getPublic();
-
-                if (skUser == null || pkUser == null || !skUser.isInitialized() || !pkUser.isInitialized()) {
-                    ISOException.throwIt((short) 0x6F01);
-                }
-            } catch (CryptoException ce) {
-                ISOException.throwIt((short) (0x6F10 | (ce.getReason() & 0x0F)));
-            }
-
-            try {
-                sha256.reset();
-                sha256.doFinal(buf, pinUserOffset, pinUserLength, hashPinUser, (short) 0);
-            } catch (CryptoException ce) {
-                ISOException.throwIt((short) 0x6F03);
-            }
-
-            try {
-                sha256.reset();
-                sha256.doFinal(buf, pinAdminResetOffset, pinAdminResetLength, hashPinAdminReset, (short) 0);
-            } catch (CryptoException ce) {
-                ISOException.throwIt((short) 0x6F03);
-            }
-
-            byte[] tempKey = JCSystem.makeTransientByteArray((short) 20, JCSystem.CLEAR_ON_DESELECT);
-            try {
-                CryptoHelper.KDF(buf, pinUserOffset, pinUserLength,
-                        cardID, (short) 0, CARD_ID_LENGTH,
-                        KDF_ITERATIONS, tempKey, sha256);
-            } catch (CryptoException ce) {
-                ISOException.throwIt((short) 0x6F03);
-            }
-
-            try {
-                aesKey.setKey(tempKey, (short) 0);
-                aesCipher.init(aesKey, Cipher.MODE_ENCRYPT);
-                aesCipher.doFinal(mkUser, (short) 0, MK_USER_LENGTH, encUser, (short) 0);
-            } catch (CryptoException ce) {
-                ISOException.throwIt((short) 0x6F04);
-            }
-
-            try {
-                CryptoHelper.KDF(buf, pinAdminResetOffset, pinAdminResetLength,
-                        cardID, (short) 0, CARD_ID_LENGTH,
-                        KDF_ITERATIONS, tempKey, sha256);
-            } catch (CryptoException ce) {
-                ISOException.throwIt((short) 0x6F03);
-            }
-
-            try {
-                aesKey.setKey(tempKey, (short) 0);
-                aesCipher.init(aesKey, Cipher.MODE_ENCRYPT);
-                aesCipher.doFinal(mkUser, (short) 0, MK_USER_LENGTH, encAdmin, (short) 0);
-            } catch (CryptoException ce) {
-                ISOException.throwIt((short) 0x6F04);
-            }
-
-            try {
-                aesKey.setKey(mkUser, (short) 0);
-                aesCipher.init(aesKey, Cipher.MODE_ENCRYPT);
-
-                short paddedLength = (short) ((patientInfoLength + 15) / 16 * 16);
-                byte[] paddedData = JCSystem.makeTransientByteArray(paddedLength, JCSystem.CLEAR_ON_DESELECT);
-                Util.arrayCopyNonAtomic(buf, patientInfoOffset, paddedData, (short) 0, patientInfoLength);
-
-                encPatientLength = aesCipher.doFinal(paddedData, (short) 0, paddedLength, encPatient, (short) 0);
-            } catch (CryptoException ce) {
-                ISOException.throwIt((short) 0x6F04);
-            }
-
-            try {
-                byte[] balanceBytes = JCSystem.makeTransientByteArray(BALANCE_ENC_LENGTH, JCSystem.CLEAR_ON_DESELECT);
-                Util.arrayFillNonAtomic(balanceBytes, (short) 0, BALANCE_ENC_LENGTH, (byte) 0);
-                DataHelper.setInt(balanceBytes, (short) 0, initialBalance);
-                aesKey.setKey(mkUser, (short) 0);
-                aesCipher.init(aesKey, Cipher.MODE_ENCRYPT);
-                aesCipher.doFinal(balanceBytes, (short) 0, BALANCE_ENC_LENGTH, encBalance, (short) 0);
-            } catch (CryptoException ce) {
-                ISOException.throwIt((short) 0x6F04);
-            }
-
+            // Mark card as initialized
             initialized = 1;
             pinChangedFlag = 0;
 
+            // Clear master key from memory
             Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
-            Util.arrayFillNonAtomic(tempKey, (short) 0, (short) 20, (byte) 0);
 
-            short respOffset = 0;
-            buf[respOffset++] = (byte) 0x00;
-
-            try {
-                short pkLen = RSAHelper.getPublicKeyBytes(pkUser, buf, respOffset);
-
-                if (pkLen <= 0 || pkLen > 200) {
-                    ISOException.throwIt((short) 0x6F02);
-                }
-
-                respOffset += pkLen;
-            } catch (CryptoException ce) {
-                ISOException.throwIt((short) 0x6F02);
-            } catch (ArrayIndexOutOfBoundsException ae) {
-                ISOException.throwIt((short) 0x6F30);
-            }
-
-            short estimatedSkSize = (short) 260;
-            short availableSpace = (short) (256 - respOffset);
-
-            if (availableSpace > estimatedSkSize) {
-                try {
-                    short skModLen = skUser.getModulus(buf, (short) (respOffset + 2));
-                    Util.setShort(buf, respOffset, skModLen);
-                    respOffset += (short) (2 + skModLen);
-
-                    short skExpLen = skUser.getExponent(buf, (short) (respOffset + 2));
-                    Util.setShort(buf, respOffset, skExpLen);
-                    respOffset += (short) (2 + skExpLen);
-
-                } catch (CryptoException e) {
-                }
-            }
+            // Build and send response with public key
+            short respLength = buildIssueCardResponse(buf);
 
             try {
-                apdu.setOutgoingAndSend((short) 0, respOffset);
+                apdu.setOutgoingAndSend((short) 0, respLength);
             } catch (Exception e) {
                 ISOException.throwIt((short) 0x6F31);
             }
@@ -391,111 +264,38 @@ public class UserApplet extends Applet {
         short pinUserOffset = ISO7816.OFFSET_CDATA;
         short pinUserLength = 6;
 
-        // Step marker for debugging
-        byte[] tempHash = null;
-
         try {
-            // Step A1: Create transient array for hash
-            tempHash = JCSystem.makeTransientByteArray(HASH_LENGTH, JCSystem.CLEAR_ON_DESELECT);
-        } catch (SystemException e) {
-            ISOException.throwIt((short) 0x6FA1); // Step A1 failed - transient memory
-        } catch (Exception e) {
-            ISOException.throwIt((short) 0x6FA2); // Step A1 failed - other
-        }
+            // Validate PIN
+            try {
+                validateAndVerifyPIN(buf, pinUserOffset, pinUserLength);
+            } catch (ISOException e) {
+                // Re-throw ISOException from helper (e.g., wrong PIN)
+                throw e;
+            } catch (Exception e) {
+                ISOException.throwIt((short) 0x6FAA); // validateAndVerifyPIN threw non-ISO exception
+            }
 
-        try {
-            // Step A2: Hash the PIN
-            sha256.reset();
-            sha256.doFinal(buf, pinUserOffset, pinUserLength, tempHash, (short) 0);
+            // Decrypt data and build response
+            short respLength = 0;
+            try {
+                respLength = decryptDataAndBuildResponse(buf, pinUserOffset, pinUserLength, apdu);
+            } catch (ISOException e) {
+                throw e;
+            } catch (Exception e) {
+                ISOException.throwIt((short) 0x6FAB); // decryptDataAndBuildResponse threw non-ISO exception
+            }
+
+            // Send response (mkUser is kept for subsequent operations like signChallenge)
+            try {
+                apdu.setOutgoingAndSend((short) 0, respLength);
+            } catch (Exception e) {
+                ISOException.throwIt((short) 0x6FA9); // setOutgoingAndSend failed
+            }
+
+        } catch (ISOException e) {
+            // Re-throw ISO exceptions from helpers (PIN mismatch, crypto errors, etc.)
+            ISOException.throwIt(e.getReason());
         } catch (CryptoException e) {
-            ISOException.throwIt((short) 0x6F01);
-        } catch (NullPointerException e) {
-            ISOException.throwIt((short) 0x6FA3); // sha256 is null
-        } catch (Exception e) {
-            ISOException.throwIt((short) 0x6FA4);
-        }
-
-        // Step A3: Compare PIN hash
-        if (Util.arrayCompare(tempHash, (short) 0, hashPinUser, (short) 0, HASH_LENGTH) != 0) {
-            pinRetryCounter--;
-            if (pinRetryCounter == 0) {
-                blockedFlag = 1;
-            }
-            ISOException.throwIt((short) (0x63C0 | pinRetryCounter));
-        }
-
-        pinRetryCounter = MAX_PIN_TRIES;
-
-        try {
-            byte[] tempKey = JCSystem.makeTransientByteArray((short) 20, JCSystem.CLEAR_ON_DESELECT);
-
-            try {
-                CryptoHelper.KDF(buf, pinUserOffset, pinUserLength,
-                        cardID, (short) 0, CARD_ID_LENGTH,
-                        KDF_ITERATIONS, tempKey, sha256);
-            } catch (CryptoException e) {
-                ISOException.throwIt((short) 0x6F03);
-            }
-
-            Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
-            try {
-                aesKey.setKey(tempKey, (short) 0);
-                aesCipher.init(aesKey, Cipher.MODE_DECRYPT);
-                aesCipher.doFinal(encUser, (short) 0, MK_USER_LENGTH, mkUser, (short) 0);
-            } catch (CryptoException e) {
-                Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
-                short reason = e.getReason();
-                if (reason == 0) {
-                    ISOException.throwIt((short) 0x6F04);
-                } else {
-                    ISOException.throwIt((short) (0x6F04 | (reason & 0x0F)));
-                }
-            }
-
-            byte[] decryptedData = JCSystem.makeTransientByteArray(MAX_PATIENT_DATA_LENGTH, JCSystem.CLEAR_ON_DESELECT);
-            short decryptedLength = 0;
-            try {
-                aesKey.setKey(mkUser, (short) 0);
-                aesCipher.init(aesKey, Cipher.MODE_DECRYPT);
-
-                decryptedLength = aesCipher.doFinal(encPatient, (short) 0, encPatientLength, decryptedData, (short) 0);
-
-                while (decryptedLength > 0 && decryptedData[(short) (decryptedLength - 1)] == 0) {
-                    decryptedLength--;
-                }
-            } catch (CryptoException e) {
-                ISOException.throwIt((short) 0x6F05);
-            }
-
-            byte[] balanceBytes = JCSystem.makeTransientByteArray(BALANCE_ENC_LENGTH, JCSystem.CLEAR_ON_DESELECT);
-            int balance = 0;
-            try {
-                aesKey.setKey(mkUser, (short) 0);
-                aesCipher.init(aesKey, Cipher.MODE_DECRYPT);
-                aesCipher.doFinal(encBalance, (short) 0, BALANCE_ENC_LENGTH, balanceBytes, (short) 0);
-                balance = DataHelper.getInt(balanceBytes, (short) 0);
-            } catch (CryptoException e) {
-                ISOException.throwIt((short) 0x6F06);
-            }
-
-            short offset = 0;
-            buf[offset++] = (byte) 0x00;
-            Util.setShort(buf, offset, decryptedLength);
-            offset += 2;
-            Util.arrayCopyNonAtomic(decryptedData, (short) 0, buf, offset, decryptedLength);
-            offset += decryptedLength;
-            DataHelper.setInt(buf, offset, balance);
-            offset += 4;
-
-            Util.arrayFillNonAtomic(tempKey, (short) 0, (short) 20, (byte) 0);
-            Util.arrayFillNonAtomic(tempHash, (short) 0, HASH_LENGTH, (byte) 0);
-            Util.arrayFillNonAtomic(balanceBytes, (short) 0, BALANCE_ENC_LENGTH, (byte) 0);
-
-            apdu.setOutgoingAndSend((short) 0, offset);
-
-        } catch (
-
-        CryptoException e) {
             short reason = e.getReason();
             if (reason == 0) {
                 ISOException.throwIt((short) 0x6F00);
@@ -508,7 +308,8 @@ public class UserApplet extends Applet {
             // Crypto objects not initialized - applet needs reinstall
             ISOException.throwIt((short) 0x6F50);
         } catch (Exception e) {
-            ISOException.throwIt((short) 0x6F99);
+            // Debug: 0x6F98 means new refactored code is running
+            ISOException.throwIt((short) 0x6F98);
         }
     }
 
@@ -517,7 +318,7 @@ public class UserApplet extends Applet {
             ISOException.throwIt((short) 0x6985);
         }
 
-        if (mkUser[0] == 0 && mkUser[1] == 0 && mkUser[2] == 0 && mkUser[3] == 0) {
+        if (!isMasterKeyValid()) {
             ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
         }
 
@@ -569,111 +370,40 @@ public class UserApplet extends Applet {
         short pinNewLength = 6;
 
         try {
-            byte[] tempHash = JCSystem.makeTransientByteArray(HASH_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+            // Use reusable buffer for new PIN hash instead of allocating
+            Util.arrayFillNonAtomic(tempHashBuffer, (short) 0, HASH_LENGTH, (byte) 0);
+
+            // Validate old PIN and new PIN
             try {
-                sha256.reset();
-                sha256.doFinal(buf, pinOldOffset, pinOldLength, tempHash, (short) 0);
-            } catch (CryptoException e) {
-                ISOException.throwIt((short) 0x6F01);
+                validatePINChange(buf, pinOldOffset, pinOldLength, pinNewOffset, pinNewLength, tempHashBuffer);
+            } catch (ISOException e) {
+                throw e;
+            } catch (Exception e) {
+                ISOException.throwIt((short) 0x6FB0); // validatePINChange threw non-ISO exception
             }
 
-            if (Util.arrayCompare(tempHash, (short) 0, hashPinUser, (short) 0, HASH_LENGTH) != 0) {
-                pinRetryCounter--;
-                if (pinRetryCounter == 0) {
-                    blockedFlag = 1;
-                }
-                ISOException.throwIt((short) (0x63C0 | pinRetryCounter));
-            }
-
-            byte[] tempHashNew = JCSystem.makeTransientByteArray(HASH_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+            // Re-encrypt master key with new PIN
             try {
-                sha256.reset();
-                sha256.doFinal(buf, pinNewOffset, pinNewLength, tempHashNew, (short) 0);
-            } catch (CryptoException e) {
-                ISOException.throwIt((short) 0x6F01);
+                reEncryptMasterKeyWithNewPIN(buf, pinOldOffset, pinOldLength, pinNewOffset, pinNewLength,
+                        tempHashBuffer);
+            } catch (ISOException e) {
+                throw e;
+            } catch (Exception e) {
+                ISOException.throwIt((short) 0x6FB1); // reEncryptMasterKeyWithNewPIN threw non-ISO exception
             }
 
-            if (Util.arrayCompare(tempHashNew, (short) 0, hashPinUser, (short) 0, HASH_LENGTH) == 0) {
-                ISOException.throwIt((short) 0x6A80);
-            }
-
-            byte[] tempKey = JCSystem.makeTransientByteArray((short) 20, JCSystem.CLEAR_ON_DESELECT);
-            try {
-                CryptoHelper.KDF(buf, pinOldOffset, pinOldLength,
-                        cardID, (short) 0, CARD_ID_LENGTH,
-                        KDF_ITERATIONS, tempKey, sha256);
-            } catch (CryptoException e) {
-                ISOException.throwIt((short) (0x6F03 | (e.getReason() & 0x0F)));
-            }
-
-            Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
-            try {
-                aesKey.setKey(tempKey, (short) 0);
-                aesCipher.init(aesKey, Cipher.MODE_DECRYPT);
-                aesCipher.doFinal(encUser, (short) 0, MK_USER_LENGTH, mkUser, (short) 0);
-
-                boolean mkUserValid = false;
-                for (short i = 0; i < MK_USER_LENGTH; i++) {
-                    if (mkUser[i] != 0) {
-                        mkUserValid = true;
-                        break;
-                    }
-                }
-                if (!mkUserValid) {
-                    Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
-                    ISOException.throwIt((short) 0x6F04);
-                }
-            } catch (CryptoException e) {
-                Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
-                ISOException.throwIt((short) (0x6F04 | (e.getReason() & 0x0F)));
-            }
-
-            try {
-                CryptoHelper.KDF(buf, pinNewOffset, pinNewLength,
-                        cardID, (short) 0, CARD_ID_LENGTH,
-                        KDF_ITERATIONS, tempKey, sha256);
-            } catch (CryptoException e) {
-                Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
-                ISOException.throwIt((short) (0x6F03 | (e.getReason() & 0x0F)));
-            }
-
-            try {
-                aesKey.setKey(tempKey, (short) 0);
-                aesCipher.init(aesKey, Cipher.MODE_ENCRYPT);
-                aesCipher.doFinal(mkUser, (short) 0, MK_USER_LENGTH, encUser, (short) 0);
-            } catch (CryptoException e) {
-                Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
-                ISOException.throwIt((short) (0x6F04 | (e.getReason() & 0x0F)));
-            }
-
-            try {
-                sha256.reset();
-                sha256.doFinal(buf, pinNewOffset, pinNewLength, hashPinUser, (short) 0);
-            } catch (CryptoException e) {
-                Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
-                ISOException.throwIt((short) 0x6F01);
-            }
-
-            pinRetryCounter = MAX_PIN_TRIES;
-            pinChangedFlag = 1;
-
-            Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
-            Util.arrayFillNonAtomic(tempKey, (short) 0, (short) 20, (byte) 0);
-            Util.arrayFillNonAtomic(tempHash, (short) 0, HASH_LENGTH, (byte) 0);
-            Util.arrayFillNonAtomic(tempHashNew, (short) 0, HASH_LENGTH, (byte) 0);
-
+            // Success
             buf[0] = (byte) 0x00;
             apdu.setOutgoingAndSend((short) 0, (short) 1);
 
+        } catch (ISOException e) {
+            // Re-throw ISO exceptions from helpers (PIN mismatch, etc.)
+            ISOException.throwIt(e.getReason());
         } catch (CryptoException e) {
-            Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
-            ISOException.throwIt((short) (0x6F00 | (e.getReason() & 0x0F)));
-        } catch (ArrayIndexOutOfBoundsException e) {
-            Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
-            ISOException.throwIt((short) 0x6F30);
+            ISOException.throwIt((short) (0x6F00 | e.getReason()));
         } catch (Exception e) {
-            Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
-            ISOException.throwIt((short) 0x6F00);
+            // Debug: 0x6F99 means unexpected exception
+            ISOException.throwIt((short) 0x6F99);
         }
     }
 
@@ -693,41 +423,42 @@ public class UserApplet extends Applet {
         short newPinUserLength = 6;
 
         try {
+            // Hash and verify PIN_admin_reset
             byte[] tempHash = JCSystem.makeTransientByteArray(HASH_LENGTH, JCSystem.CLEAR_ON_DESELECT);
-            sha256.reset();
-            sha256.doFinal(buf, pinAdminResetOffset, pinAdminResetLength, tempHash, (short) 0);
+            PINHelper.safeHash(sha256, buf, pinAdminResetOffset, pinAdminResetLength, tempHash, (short) 0);
 
             if (Util.arrayCompare(tempHash, (short) 0, hashPinAdminReset, (short) 0, HASH_LENGTH) != 0) {
                 ISOException.throwIt((short) 0x6300);
             }
 
-            byte[] tempKey = JCSystem.makeTransientByteArray((short) 20, JCSystem.CLEAR_ON_DESELECT);
-            CryptoHelper.KDF(buf, pinAdminResetOffset, pinAdminResetLength,
+            // Unwrap MK with PIN_admin_reset
+            boolean success = CryptoHelper.unwrapMasterKeyWithPIN(
+                    buf, pinAdminResetOffset, pinAdminResetLength,
                     cardID, (short) 0, CARD_ID_LENGTH,
-                    KDF_ITERATIONS, tempKey, sha256);
+                    KDF_ITERATIONS,
+                    encAdmin, mkUser,
+                    aesCipher, aesKey, sha256);
 
-            aesKey.setKey(tempKey, (short) 0);
-            aesCipher.init(aesKey, Cipher.MODE_DECRYPT);
-            aesCipher.doFinal(encAdmin, (short) 0, MK_USER_LENGTH, mkUser, (short) 0);
+            if (!success) {
+                ISOException.throwIt((short) 0x6F04);
+            }
 
-            CryptoHelper.KDF(buf, newPinUserOffset, newPinUserLength,
+            // Re-wrap MK with new PIN_user
+            CryptoHelper.wrapMasterKeyWithPIN(
+                    buf, newPinUserOffset, newPinUserLength,
                     cardID, (short) 0, CARD_ID_LENGTH,
-                    KDF_ITERATIONS, tempKey, sha256);
+                    KDF_ITERATIONS,
+                    mkUser, encUser,
+                    aesCipher, aesKey, sha256);
 
-            aesKey.setKey(tempKey, (short) 0);
-            aesCipher.init(aesKey, Cipher.MODE_ENCRYPT);
-            aesCipher.doFinal(mkUser, (short) 0, MK_USER_LENGTH, encUser, (short) 0);
-
-            sha256.reset();
-            sha256.doFinal(buf, newPinUserOffset, newPinUserLength, hashPinUser, (short) 0);
+            // Hash new PIN
+            PINHelper.safeHash(sha256, buf, newPinUserOffset, newPinUserLength, hashPinUser, (short) 0);
 
             pinRetryCounter = MAX_PIN_TRIES;
             blockedFlag = 0;
             pinChangedFlag = 0;
 
             Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
-            Util.arrayFillNonAtomic(tempKey, (short) 0, (short) 20, (byte) 0);
-            Util.arrayFillNonAtomic(tempHash, (short) 0, HASH_LENGTH, (byte) 0);
 
             buf[0] = (byte) 0x00;
             apdu.setOutgoingAndSend((short) 0, (short) 1);
@@ -737,12 +468,26 @@ public class UserApplet extends Applet {
         }
     }
 
+    /**
+     * Check if MasterKey is valid (not all zeros)
+     * 
+     * @return true if MK is valid
+     */
+    private boolean isMasterKeyValid() {
+        for (short i = 0; i < MK_USER_LENGTH; i++) {
+            if (mkUser[i] != 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void signChallenge(APDU apdu) {
         if (initialized != 1) {
             ISOException.throwIt((short) 0x6985);
         }
 
-        if (mkUser[0] == 0 && mkUser[1] == 0 && mkUser[2] == 0 && mkUser[3] == 0) {
+        if (!isMasterKeyValid()) {
             ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
         }
 
@@ -755,8 +500,17 @@ public class UserApplet extends Applet {
         }
 
         try {
+            // Hash challenge before signing (security best practice)
+            // This prevents chosen-plaintext attacks on RSA
+            // Use reusable buffer instead of allocating
+            Util.arrayFillNonAtomic(tempHashBuffer, (short) 0, HASH_LENGTH, (byte) 0);
+
+            sha256.reset();
+            sha256.doFinal(buf, challengeOffset, challengeLen, tempHashBuffer, (short) 0);
+
+            // Sign the HASH, not raw challenge
             short sigLen = RSAHelper.sign(rsaCipher, skUser,
-                    buf, challengeOffset, challengeLen,
+                    tempHashBuffer, (short) 0, HASH_LENGTH,
                     buf, (short) 0);
 
             apdu.setOutgoingAndSend((short) 0, sigLen);
@@ -775,7 +529,7 @@ public class UserApplet extends Applet {
             ISOException.throwIt((short) 0x6983);
         }
 
-        if (mkUser[0] == 0 && mkUser[1] == 0 && mkUser[2] == 0 && mkUser[3] == 0) {
+        if (!isMasterKeyValid()) {
             ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
         }
 
@@ -903,5 +657,408 @@ public class UserApplet extends Applet {
         byte[] buf = apdu.getBuffer();
         buf[0] = pinChangedFlag;
         apdu.setOutgoingAndSend((short) 0, (short) 1);
+    }
+
+    // ========== Phase 3: issueCard() Helper Methods ==========
+
+    /**
+     * Parse and validate input data for card issuance
+     * Returns array: [hasProvidedCardID, patientInfoOffset, patientInfoLength,
+     * pinUserOffset, pinAdminResetOffset, initialBalance_high16,
+     * initialBalance_low16]
+     */
+    private void parseIssueCardInput(byte[] buf, short[] output) {
+        short offset = ISO7816.OFFSET_CDATA;
+
+        // Check if cardID is provided (non-zero)
+        boolean hasProvidedCardID = false;
+        short cardIDOffset = offset;
+        for (short i = 0; i < CARD_ID_LENGTH; i++) {
+            if (buf[(short) (cardIDOffset + i)] != 0) {
+                hasProvidedCardID = true;
+                break;
+            }
+        }
+
+        if (hasProvidedCardID) {
+            Util.arrayCopyNonAtomic(buf, cardIDOffset, cardID, (short) 0, CARD_ID_LENGTH);
+            offset += CARD_ID_LENGTH;
+        } else {
+            randomData.generateData(cardID, (short) 0, CARD_ID_LENGTH);
+        }
+
+        short patientInfoLength = Util.getShort(buf, offset);
+        offset += 2;
+
+        if (patientInfoLength <= 0 || patientInfoLength > MAX_PATIENT_DATA_LENGTH) {
+            ISOException.throwIt((short) 0x6F40);
+        }
+
+        short patientInfoOffset = offset;
+        offset += patientInfoLength;
+
+        short pinUserOffset = offset;
+        short pinUserLength = 6;
+        offset += pinUserLength;
+
+        short pinAdminResetOffset = offset;
+        short pinAdminResetLength = 6;
+        offset += pinAdminResetLength;
+
+        // Parse initial balance (if provided)
+        int initialBalance = 0;
+        short dataLen = (short) (buf[ISO7816.OFFSET_LC] & 0xFF);
+        short cardIdPart = (short) (hasProvidedCardID ? CARD_ID_LENGTH : 0);
+        short expectedMinLen = (short) (cardIdPart + 2 + patientInfoLength + pinUserLength + pinAdminResetLength);
+        if (dataLen >= expectedMinLen + 4) {
+            initialBalance = DataHelper.getInt(buf, offset);
+        }
+
+        // Pack output
+        output[0] = (short) (hasProvidedCardID ? 1 : 0);
+        output[1] = patientInfoOffset;
+        output[2] = patientInfoLength;
+        output[3] = pinUserOffset;
+        output[4] = pinAdminResetOffset;
+        output[5] = (short) (initialBalance >>> 16); // high 16 bits
+        output[6] = (short) (initialBalance & 0xFFFF); // low 16 bits
+    }
+
+    /**
+     * Generate master key and RSA keypair
+     */
+    private void generateAndInitializeKeys() {
+        randomData.generateData(mkUser, (short) 0, MK_USER_LENGTH);
+
+        try {
+            if (!RSAHelper.generateKeyPair(rsaKeyPair)) {
+                ISOException.throwIt((short) 0x6F01);
+            }
+            skUser = (RSAPrivateKey) rsaKeyPair.getPrivate();
+            pkUser = (RSAPublicKey) rsaKeyPair.getPublic();
+
+            if (skUser == null || pkUser == null || !skUser.isInitialized() || !pkUser.isInitialized()) {
+                ISOException.throwIt((short) 0x6F01);
+            }
+        } catch (CryptoException ce) {
+            ISOException.throwIt((short) (0x6F10 | (ce.getReason() & 0x0F)));
+        }
+    }
+
+    /**
+     * Hash PINs and encrypt master key with both PINs
+     */
+    private void setupPINsAndEncryptMK(byte[] buf, short pinUserOffset, short pinAdminResetOffset) {
+        // Hash PINs using safeHash helper
+        PINHelper.safeHash(sha256, buf, pinUserOffset, (short) 6, hashPinUser, (short) 0);
+        PINHelper.safeHash(sha256, buf, pinAdminResetOffset, (short) 6, hashPinAdminReset, (short) 0);
+
+        // Wrap MK with PIN_user using helper
+        CryptoHelper.wrapMasterKeyWithPIN(
+                buf, pinUserOffset, (short) 6,
+                cardID, (short) 0, CARD_ID_LENGTH,
+                KDF_ITERATIONS,
+                mkUser, encUser,
+                aesCipher, aesKey, sha256);
+
+        // Wrap MK with PIN_admin_reset using helper
+        CryptoHelper.wrapMasterKeyWithPIN(
+                buf, pinAdminResetOffset, (short) 6,
+                cardID, (short) 0, CARD_ID_LENGTH,
+                KDF_ITERATIONS,
+                mkUser, encAdmin,
+                aesCipher, aesKey, sha256);
+    }
+
+    /**
+     * Encrypt patient data with master key
+     */
+    private void encryptAndStorePatientData(byte[] buf, short patientInfoOffset, short patientInfoLength) {
+        try {
+            aesKey.setKey(mkUser, (short) 0);
+            aesCipher.init(aesKey, Cipher.MODE_ENCRYPT);
+
+            short paddedLength = (short) ((patientInfoLength + 15) / 16 * 16);
+            byte[] paddedData = JCSystem.makeTransientByteArray(paddedLength, JCSystem.CLEAR_ON_DESELECT);
+            Util.arrayCopyNonAtomic(buf, patientInfoOffset, paddedData, (short) 0, patientInfoLength);
+
+            encPatientLength = aesCipher.doFinal(paddedData, (short) 0, paddedLength, encPatient, (short) 0);
+        } catch (CryptoException ce) {
+            ISOException.throwIt((short) 0x6F04);
+        }
+    }
+
+    /**
+     * Encrypt and store initial balance
+     */
+    private void encryptAndStoreBalance(int initialBalance) {
+        try {
+            byte[] balanceBytes = JCSystem.makeTransientByteArray(BALANCE_ENC_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+            Util.arrayFillNonAtomic(balanceBytes, (short) 0, BALANCE_ENC_LENGTH, (byte) 0);
+            DataHelper.setInt(balanceBytes, (short) 0, initialBalance);
+            aesKey.setKey(mkUser, (short) 0);
+            aesCipher.init(aesKey, Cipher.MODE_ENCRYPT);
+            aesCipher.doFinal(balanceBytes, (short) 0, BALANCE_ENC_LENGTH, encBalance, (short) 0);
+        } catch (CryptoException ce) {
+            ISOException.throwIt((short) 0x6F04);
+        }
+    }
+
+    /**
+     * Build response with public key (and optionally private key if space permits)
+     */
+    private short buildIssueCardResponse(byte[] buf) {
+        short respOffset = 0;
+        buf[respOffset++] = (byte) 0x00; // Status: success
+
+        try {
+            short pkLen = RSAHelper.getPublicKeyBytes(pkUser, buf, respOffset);
+
+            if (pkLen <= 0 || pkLen > 200) {
+                ISOException.throwIt((short) 0x6F02);
+            }
+
+            respOffset += pkLen;
+        } catch (CryptoException ce) {
+            ISOException.throwIt((short) 0x6F02);
+        } catch (ArrayIndexOutOfBoundsException ae) {
+            ISOException.throwIt((short) 0x6F30);
+        }
+
+        // Optionally include private key if space permits
+        short estimatedSkSize = (short) 260;
+        short availableSpace = (short) (256 - respOffset);
+
+        if (availableSpace > estimatedSkSize) {
+            try {
+                short skModLen = skUser.getModulus(buf, (short) (respOffset + 2));
+                Util.setShort(buf, respOffset, skModLen);
+                respOffset += (short) (2 + skModLen);
+
+                short skExpLen = skUser.getExponent(buf, (short) (respOffset + 2));
+                Util.setShort(buf, respOffset, skExpLen);
+                respOffset += (short) (2 + skExpLen);
+
+            } catch (CryptoException e) {
+                // Ignore if SK export fails (not critical)
+            }
+        }
+
+        return respOffset;
+    }
+
+    // ========== Phase 3: verifyPinAndReadData() Helper Methods ==========
+
+    /**
+     * Validate PIN by comparing hash with stored PIN hash
+     * Returns true if PIN is valid, throws exception if invalid
+     */
+    private void validateAndVerifyPIN(byte[] buf, short pinOffset, short pinLength) {
+        // Use reusable buffer instead of allocating
+        Util.arrayFillNonAtomic(tempHashBuffer, (short) 0, HASH_LENGTH, (byte) 0);
+
+        try {
+            // Hash the input PIN
+            sha256.reset();
+            sha256.doFinal(buf, pinOffset, pinLength, tempHashBuffer, (short) 0);
+        } catch (CryptoException e) {
+            ISOException.throwIt((short) 0x6F01);
+        } catch (NullPointerException e) {
+            ISOException.throwIt((short) 0x6FA3); // sha256 is null
+        } catch (Exception e) {
+            ISOException.throwIt((short) 0x6FA4);
+        }
+
+        // Compare PIN hash
+        if (Util.arrayCompare(tempHashBuffer, (short) 0, hashPinUser, (short) 0, HASH_LENGTH) != 0) {
+            pinRetryCounter--;
+            if (pinRetryCounter == 0) {
+                blockedFlag = 1;
+            }
+            ISOException.throwIt((short) (0x63C0 | pinRetryCounter));
+        }
+
+        // PIN valid - reset retry counter
+        pinRetryCounter = MAX_PIN_TRIES;
+    }
+
+    private short decryptDataAndBuildResponse(byte[] buf, short pinOffset, short pinLength, APDU apdu) {
+        // CRITICAL: Clear all reusable buffers first to prevent pollution from previous
+        // calls
+        Util.arrayFillNonAtomic(tempPinBuffer, (short) 0, (short) 6, (byte) 0);
+        Util.arrayFillNonAtomic(tempDecryptBuffer, (short) 0, (short) 20, (byte) 0); // At least first 20 bytes used for
+                                                                                     // hashing
+
+        // Copy PIN to reusable buffer BEFORE any processing (buf might get overwritten)
+        Util.arrayCopyNonAtomic(buf, pinOffset, tempPinBuffer, (short) 0, pinLength);
+
+        // Unwrap MK with PIN_user using helper
+        try {
+            Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
+        } catch (Exception e) {
+            ISOException.throwIt((short) 0x6FA5); // Failed to clear mkUser
+        }
+
+        boolean success = false;
+        try {
+            success = CryptoHelper.unwrapMasterKeyWithPIN(
+                    tempPinBuffer, (short) 0, pinLength, // Use tempPinBuffer instead of buf!
+                    cardID, (short) 0, CARD_ID_LENGTH,
+                    KDF_ITERATIONS,
+                    encUser, mkUser,
+                    aesCipher, aesKey, sha256);
+        } catch (Exception e) {
+            ISOException.throwIt((short) 0x6FAC); // unwrapMasterKeyWithPIN threw exception
+        }
+
+        if (!success) {
+            Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
+            ISOException.throwIt((short) 0x6F04);
+        }
+
+        // Decrypt patient data - use reusable buffer
+        Util.arrayFillNonAtomic(tempDecryptBuffer, (short) 0, MAX_PATIENT_DATA_LENGTH, (byte) 0);
+
+        short decryptedLength = 0;
+        try {
+            aesKey.setKey(mkUser, (short) 0);
+            aesCipher.init(aesKey, Cipher.MODE_DECRYPT);
+
+            decryptedLength = aesCipher.doFinal(encPatient, (short) 0, encPatientLength, tempDecryptBuffer, (short) 0);
+
+            // Remove padding
+            while (decryptedLength > 0 && tempDecryptBuffer[(short) (decryptedLength - 1)] == 0) {
+                decryptedLength--;
+            }
+        } catch (CryptoException e) {
+            ISOException.throwIt((short) 0x6F05);
+        } catch (Exception e) {
+            ISOException.throwIt((short) 0x6FAD); // Non-crypto exception in patient data decrypt
+        }
+
+        // Decrypt balance - use reusable buffer
+        Util.arrayFillNonAtomic(tempBalanceBuffer, (short) 0, BALANCE_ENC_LENGTH, (byte) 0);
+
+        int balance = 0;
+        try {
+            aesKey.setKey(mkUser, (short) 0);
+            aesCipher.init(aesKey, Cipher.MODE_DECRYPT);
+            aesCipher.doFinal(encBalance, (short) 0, BALANCE_ENC_LENGTH, tempBalanceBuffer, (short) 0);
+            balance = DataHelper.getInt(tempBalanceBuffer, (short) 0);
+        } catch (CryptoException e) {
+            ISOException.throwIt((short) 0x6F06);
+        } catch (Exception e) {
+            ISOException.throwIt((short) 0x6FAE); // Non-crypto exception in balance decrypt
+        }
+
+        // Build response: status(1) + dataLen(2) + patientData + balance(4)
+        short offset = 0;
+        try {
+            buf[offset++] = (byte) 0x00; // Status: success
+            Util.setShort(buf, offset, decryptedLength);
+            offset += 2;
+            Util.arrayCopyNonAtomic(tempDecryptBuffer, (short) 0, buf, offset, decryptedLength);
+            offset += decryptedLength;
+            DataHelper.setInt(buf, offset, balance);
+            offset += 4;
+        } catch (Exception e) {
+            ISOException.throwIt((short) 0x6FA8); // Failed to build response
+        }
+
+        return offset;
+    }
+
+    // ========== Phase 3: changePin() Helper Methods ==========
+
+    /**
+     * Validate old PIN and new PIN for PIN change operation
+     * Stores new PIN hash in tempHashNew array
+     */
+    private void validatePINChange(byte[] buf, short pinOldOffset, short pinOldLength,
+            short pinNewOffset, short pinNewLength, byte[] tempHashNew) {
+        // Use tempPinBuffer as temporary storage for old PIN hash (reuse existing
+        // buffer)
+        // Note: tempPinBuffer is only 6 bytes but we need 20 bytes for hash
+        // So we'll use tempBalanceBuffer (16 bytes) - still not enough!
+        // We need to use tempDecryptBuffer which is large enough
+        // Actually, let's use a portion of tempDecryptBuffer for old PIN hash
+
+        // Hash and verify old PIN into tempDecryptBuffer[0..19]
+        try {
+            sha256.reset();
+            sha256.doFinal(buf, pinOldOffset, pinOldLength, tempDecryptBuffer, (short) 0);
+        } catch (CryptoException e) {
+            ISOException.throwIt((short) 0x6F01);
+        }
+
+        if (Util.arrayCompare(tempDecryptBuffer, (short) 0, hashPinUser, (short) 0, HASH_LENGTH) != 0) {
+            pinRetryCounter--;
+            if (pinRetryCounter == 0) {
+                blockedFlag = 1;
+            }
+            ISOException.throwIt((short) (0x63C0 | pinRetryCounter));
+        }
+
+        // Hash new PIN into tempHashNew parameter
+        try {
+            sha256.reset();
+            sha256.doFinal(buf, pinNewOffset, pinNewLength, tempHashNew, (short) 0);
+        } catch (CryptoException e) {
+            ISOException.throwIt((short) 0x6F01);
+        }
+
+        // Check new PIN is different from old PIN
+        if (Util.arrayCompare(tempHashNew, (short) 0, hashPinUser, (short) 0, HASH_LENGTH) == 0) {
+            ISOException.throwIt((short) 0x6A80); // New PIN same as old
+        }
+    }
+
+    /**
+     * Re-encrypt master key with new PIN and update stored values
+     */
+    private void reEncryptMasterKeyWithNewPIN(byte[] buf, short pinOldOffset, short pinOldLength,
+            short pinNewOffset, short pinNewLength, byte[] newPinHash) {
+        // Unwrap MK with old PIN
+        Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
+        boolean unwrapSuccess = CryptoHelper.unwrapMasterKeyWithPIN(
+                buf, pinOldOffset, pinOldLength,
+                cardID, (short) 0, CARD_ID_LENGTH,
+                KDF_ITERATIONS,
+                encUser, mkUser,
+                aesCipher, aesKey, sha256);
+
+        if (!unwrapSuccess) {
+            Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
+            ISOException.throwIt((short) 0x6F04);
+        }
+
+        // Validate MK
+        if (!isMasterKeyValid()) {
+            Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
+            ISOException.throwIt((short) 0x6F04);
+        }
+
+        // Re-wrap MK with new PIN
+        try {
+            CryptoHelper.wrapMasterKeyWithPIN(
+                    buf, pinNewOffset, pinNewLength,
+                    cardID, (short) 0, CARD_ID_LENGTH,
+                    KDF_ITERATIONS,
+                    mkUser, encUser,
+                    aesCipher, aesKey, sha256);
+        } catch (Exception e) {
+            Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
+            ISOException.throwIt((short) 0x6F04);
+        }
+
+        // Update stored PIN hash
+        Util.arrayCopyNonAtomic(newPinHash, (short) 0, hashPinUser, (short) 0, HASH_LENGTH);
+
+        // Reset retry counter and set PIN changed flag
+        pinRetryCounter = MAX_PIN_TRIES;
+        pinChangedFlag = 1;
+
+        // Clear master key
+        Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
     }
 }
