@@ -11,18 +11,18 @@ import java.awt.*;
  * BHYTPanel - Panel hiển thị thông tin BHYT
  */
 public class BHYTPanel extends JPanel {
-    
+
     private CardManager cardManager;
     private APDUCommands apduCommands;
     private UserFrame userFrame; // V3: Reference to UserFrame
-    
-    private JLabel lblMaBHYT, lblHoTen, lblNgaySinh, lblSoThe, lblNgayHetHan, lblMucHuong;
+
+    private JLabel lblMaBHYT, lblHoTen, lblNgaySinh, lblGioiTinh, lblSoThe, lblNgayHetHan, lblMucHuong;
     private JButton btnLoad;
 
     public BHYTPanel(CardManager cardManager, APDUCommands apduCommands) {
         this(cardManager, apduCommands, null);
     }
-    
+
     public BHYTPanel(CardManager cardManager, APDUCommands apduCommands, UserFrame userFrame) {
         this.cardManager = cardManager;
         this.apduCommands = apduCommands;
@@ -41,42 +41,56 @@ public class BHYTPanel extends JPanel {
 
         int row = 0;
 
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         infoPanel.add(new JLabel("Mã BHYT:"), gbc);
         lblMaBHYT = new JLabel("-");
         gbc.gridx = 1;
         infoPanel.add(lblMaBHYT, gbc);
 
         row++;
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         infoPanel.add(new JLabel("Họ tên:"), gbc);
         lblHoTen = new JLabel("-");
         gbc.gridx = 1;
         infoPanel.add(lblHoTen, gbc);
 
         row++;
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         infoPanel.add(new JLabel("Ngày sinh:"), gbc);
         lblNgaySinh = new JLabel("-");
         gbc.gridx = 1;
         infoPanel.add(lblNgaySinh, gbc);
 
         row++;
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        infoPanel.add(new JLabel("Giới tính:"), gbc);
+        lblGioiTinh = new JLabel("-");
+        gbc.gridx = 1;
+        infoPanel.add(lblGioiTinh, gbc);
+
+        row++;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         infoPanel.add(new JLabel("Số thẻ:"), gbc);
         lblSoThe = new JLabel("-");
         gbc.gridx = 1;
         infoPanel.add(lblSoThe, gbc);
 
         row++;
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         infoPanel.add(new JLabel("Ngày hết hạn:"), gbc);
         lblNgayHetHan = new JLabel("-");
         gbc.gridx = 1;
         infoPanel.add(lblNgayHetHan, gbc);
 
         row++;
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         infoPanel.add(new JLabel("Mức hưởng:"), gbc);
         lblMucHuong = new JLabel("-");
         gbc.gridx = 1;
@@ -99,19 +113,20 @@ public class BHYTPanel extends JPanel {
             if (userFrame != null) {
                 userData = userFrame.getUserData();
             }
-            
+
             if (userData == null) {
-                JOptionPane.showMessageDialog(this, 
-                    "Không thể đọc dữ liệu từ thẻ!\n\n" +
-                    "Vui lòng đăng nhập lại.", 
-                    "Lỗi", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(this,
+                        "Không thể đọc dữ liệu từ thẻ!\n\n" +
+                                "Vui lòng đăng nhập lại.",
+                        "Lỗi", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            
+
             String maBHYT = userData.getMaBHYT();
             if (maBHYT == null || maBHYT.isEmpty()) {
                 lblMaBHYT.setText("-");
-                JOptionPane.showMessageDialog(this, "Mã BHYT không có trong thẻ!", "Cảnh báo", JOptionPane.WARNING_MESSAGE);
+                JOptionPane.showMessageDialog(this, "Mã BHYT không có trong thẻ!", "Cảnh báo",
+                        JOptionPane.WARNING_MESSAGE);
                 return;
             }
 
@@ -121,10 +136,11 @@ public class BHYTPanel extends JPanel {
             // Hiển thị thông tin từ userData
             lblHoTen.setText(userData.getHoTen() != null ? userData.getHoTen() : "-");
             lblNgaySinh.setText(userData.getNgaySinh() != null ? userData.getNgaySinh() : "-");
+            lblGioiTinh.setText(userData.getGenderLabel()); // V5: Hiển thị giới tính
             lblSoThe.setText(maBHYT); // Dùng mã BHYT làm số thẻ
             lblNgayHetHan.setText("-"); // V3: Cần thêm field này vào patients table nếu cần
             lblMucHuong.setText("-"); // V3: Cần thêm field này vào patients table nếu cần
-            
+
             // TODO V3: Query từ patients table nếu cần thông tin đầy đủ hơn
 
         } catch (Exception e) {
@@ -133,4 +149,3 @@ public class BHYTPanel extends JPanel {
         }
     }
 }
-

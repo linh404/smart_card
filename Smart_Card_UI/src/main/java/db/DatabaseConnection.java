@@ -271,18 +271,20 @@ public class DatabaseConnection {
      * @param dateOfBirth     Ngày sinh (format: DD/MM/YYYY)
      * @param address         Địa chỉ/Quê quán
      * @param insuranceNumber Mã BHYT
+     * @param gender          Giới tính (1=Nam, 2=Nữ, 3=Khác, 0=Không rõ)
      * @return true nếu thành công
      */
     public static boolean savePatient(String patientId, String fullName, String dateOfBirth, String address,
-            String insuranceNumber) {
-        String sql = "INSERT INTO patients (patient_id, full_name, date_of_birth, address, insurance_number, created_at, updated_at) "
+            String insuranceNumber, int gender) {
+        String sql = "INSERT INTO patients (patient_id, full_name, date_of_birth, address, insurance_number, gender, created_at, updated_at) "
                 +
-                "VALUES (?, ?, ?, ?, ?, NOW(), NOW()) " +
+                "VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW()) " +
                 "ON CONFLICT (patient_id) DO UPDATE SET " +
                 "full_name = EXCLUDED.full_name, " +
                 "date_of_birth = EXCLUDED.date_of_birth, " +
                 "address = EXCLUDED.address, " +
                 "insurance_number = EXCLUDED.insurance_number, " +
+                "gender = EXCLUDED.gender, " +
                 "updated_at = NOW()";
         try (Connection conn = getConnection();
                 PreparedStatement pst = conn.prepareStatement(sql)) {
@@ -305,6 +307,7 @@ public class DatabaseConnection {
 
             pst.setString(4, address);
             pst.setString(5, insuranceNumber);
+            pst.setInt(6, gender);
 
             return pst.executeUpdate() > 0;
         } catch (Exception e) {

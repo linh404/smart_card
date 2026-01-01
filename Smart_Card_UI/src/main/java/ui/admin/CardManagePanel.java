@@ -26,6 +26,7 @@ public class CardManagePanel extends JPanel {
     private APDUCommands apduCommands;
 
     private JTextField txtCardId, txtHoTen, txtIdBenhNhan, txtNgaySinh, txtQueQuan, txtMaBHYT, txtBalance;
+    private JLabel lblGioiTinh; // V5: Hiển thị giới tính (read-only)
     private JPasswordField txtPinUserDefault;
     private JPasswordField txtPinUserForLoad; // PIN User để load data từ thẻ
     private JButton btnLoadFromCard, btnUpdate, btnLoadToCard;
@@ -116,6 +117,16 @@ public class CardManagePanel extends JPanel {
         txtMaBHYT = new JTextField(30);
         gbc.gridx = 1;
         formPanel.add(txtMaBHYT, gbc);
+
+        // V5: Giới tính (read-only)
+        row++;
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        formPanel.add(new JLabel("Giới tính:"), gbc);
+        lblGioiTinh = new JLabel("-");
+        lblGioiTinh.setFont(new Font("Arial", Font.PLAIN, 12));
+        gbc.gridx = 1;
+        formPanel.add(lblGioiTinh, gbc);
 
         // Số dư
         row++;
@@ -379,6 +390,9 @@ public class CardManagePanel extends JPanel {
                 txtMaBHYT.setText(userData.getMaBHYT() != null ? userData.getMaBHYT() : "");
                 txtBalance.setText(String.valueOf(userData.getBalance()));
 
+                // V5: Hiển thị giới tính
+                lblGioiTinh.setText(userData.getGenderLabel());
+
                 // V4: Hiển thị thông tin y tế khẩn cấp
                 cboNhomMau.setSelectedIndex(userData.getNhomMau());
                 txtDiUng.setText(userData.getDiUng() != null ? userData.getDiUng() : "");
@@ -426,6 +440,7 @@ public class CardManagePanel extends JPanel {
         txtMaBHYT.setText("");
         txtBalance.setText("0");
         txtPinUserDefault.setText("");
+        lblGioiTinh.setText("-"); // V5: Clear gender
         // V4: Clear thông tin y tế khẩn cấp
         cboNhomMau.setSelectedIndex(0);
         txtDiUng.setText("");

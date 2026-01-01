@@ -21,7 +21,7 @@ public class ResetPinPanel extends JPanel {
     private APDUCommands apduCommands;
 
     private JTextField txtCardIdUser;
-    private JPasswordField txtPinUserNew;
+    private JTextField txtPinUserNew; // V5: Đổi từ JPasswordField sang JTextField
     private JButton btnResetPin;
     private JButton btnLoadCard;
     private JTextArea txtLog;
@@ -71,9 +71,11 @@ public class ResetPinPanel extends JPanel {
         row++;
         gbc.gridx = 0;
         gbc.gridy = row;
-        formPanel.add(new JLabel("PIN User mới (mặc định: 123456):"), gbc);
-        txtPinUserNew = new JPasswordField(20);
-        txtPinUserNew.setText("123456"); // Đặt mặc định
+        formPanel.add(new JLabel("PIN User mới (cố định 123456):"), gbc);
+        txtPinUserNew = new JTextField(20);
+        txtPinUserNew.setText("123456"); // Cố định
+        txtPinUserNew.setEditable(false); // Không cho sửa
+        txtPinUserNew.setBackground(new Color(240, 240, 240)); // Màu xám
         gbc.gridx = 1;
         formPanel.add(txtPinUserNew, gbc);
 
@@ -197,7 +199,7 @@ public class ResetPinPanel extends JPanel {
                 return;
             }
 
-            String pinUserNew = new String(txtPinUserNew.getPassword());
+            String pinUserNew = txtPinUserNew.getText().trim();
             if (pinUserNew.isEmpty()) {
                 pinUserNew = "123456";
                 txtPinUserNew.setText("123456");

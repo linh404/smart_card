@@ -35,7 +35,8 @@ public class CardIssuePanel extends JPanel {
     private APDUCommands apduCommands;
 
     private JTextField txtHoTen, txtIdBenhNhan, txtNgaySinh, txtQueQuan, txtMaBHYT, txtBalance;
-    private JPasswordField txtPinUserDefault;
+    private JComboBox<String> cboGioiTinh;
+    private JTextField txtPinUserDefault; // V5: Đổi từ JPasswordField sang JTextField
     private JButton btnPhatHanh;
 
     // V4: Thông tin y tế khẩn cấp
@@ -70,16 +71,10 @@ public class CardIssuePanel extends JPanel {
         gbc.gridx = 1;
         formPanel.add(txtHoTen, gbc);
 
-        // ID bệnh nhân (chỉ xem, tự động tăng từ database)
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        formPanel.add(new JLabel("ID bệnh nhân:"), gbc);
-        txtIdBenhNhan = new JTextField(15);
-        txtIdBenhNhan.setEditable(false); // Chỉ đọc, không cho phép nhập
-        txtIdBenhNhan.setBackground(new Color(240, 240, 240)); // Màu xám để thể hiện là chỉ đọc
-        gbc.gridx = 1;
-        formPanel.add(txtIdBenhNhan, gbc);
+        // ID bệnh nhân - ẨN (tự động tạo, không hiển thị)
+        // Giữ field để logic hoạt động
+        txtIdBenhNhan = new JTextField(30);
+        txtIdBenhNhan.setVisible(false); // Ẩn field
 
         // Ngày sinh
         row++;
@@ -98,6 +93,16 @@ public class CardIssuePanel extends JPanel {
         txtQueQuan = new JTextField(20);
         gbc.gridx = 1;
         formPanel.add(txtQueQuan, gbc);
+
+        // Giới tính
+        row++;
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        formPanel.add(new JLabel("Giới tính:"), gbc);
+        cboGioiTinh = new JComboBox<>(new String[] { "Nam", "Nữ", "Khác" });
+        cboGioiTinh.setSelectedIndex(0); // Mặc định: Nam
+        gbc.gridx = 1;
+        formPanel.add(cboGioiTinh, gbc);
 
         // Mã BHYT
         row++;
@@ -118,13 +123,15 @@ public class CardIssuePanel extends JPanel {
         gbc.gridx = 1;
         formPanel.add(txtBalance, gbc);
 
-        // PIN User mặc định
+        // PIN User mặc định (cố định 123456, không cho sửa)
         row++;
         gbc.gridx = 0;
         gbc.gridy = row;
         formPanel.add(new JLabel("PIN User mặc định:"), gbc);
-        txtPinUserDefault = new JPasswordField(20);
-        txtPinUserDefault.setText("123456"); // PIN mặc định
+        txtPinUserDefault = new JTextField(20);
+        txtPinUserDefault.setText("123456"); // Cố định
+        txtPinUserDefault.setEditable(false); // Không cho sửa
+        txtPinUserDefault.setBackground(new Color(240, 240, 240)); // Màu xám
         gbc.gridx = 1;
         formPanel.add(txtPinUserDefault, gbc);
 
@@ -228,7 +235,7 @@ public class CardIssuePanel extends JPanel {
         String ngaySinh = txtNgaySinh.getText().trim();
         String queQuan = txtQueQuan.getText().trim();
         String maBHYT = txtMaBHYT.getText().trim();
-        String pinUserDefault = new String(txtPinUserDefault.getPassword());
+        String pinUserDefault = txtPinUserDefault.getText().trim();
 
         // Kiểm tra các trường bắt buộc
         if (hoTen.isEmpty()) {
@@ -403,6 +410,16 @@ public class CardIssuePanel extends JPanel {
             userData.setQueQuan(txtQueQuan.getText().trim());
             userData.setMaBHYT(txtMaBHYT.getText().trim());
 
+            // V5: Set gender trước khi gửi xuống thẻ
+            String gioiTinhSelected = (String) cboGioiTinh.getSelectedItem();
+            int genderValue = 1; // Mặc định: Nam
+            if ("Nữ".equals(gioiTinhSelected)) {
+                genderValue = 2;
+            } else if ("Khác".equals(gioiTinhSelected)) {
+                genderValue = 3;
+            }
+            userData.setGender(genderValue);
+
             // V4: Thông tin y tế khẩn cấp
             userData.setNhomMau(cboNhomMau.getSelectedIndex());
             userData.setDiUng(txtDiUng.getText().trim());
@@ -411,7 +428,7 @@ public class CardIssuePanel extends JPanel {
             long initialBalance = Long.parseLong(txtBalance.getText().trim());
             userData.setBalance(initialBalance);
 
-            String pinUserDefault = new String(txtPinUserDefault.getPassword());
+            String pinUserDefault = txtPinUserDefault.getText().trim();
 
             System.out.println("[CardIssuePanel] issueCard: Thông tin bệnh nhân:");
             System.out.println("  - Họ tên: " + userData.getHoTen());
@@ -650,12 +667,17 @@ public class CardIssuePanel extends JPanel {
 
             // 7.1. Lưu thông tin bệnh nhân vào bảng patients trước
             System.out.println("[CardIssuePanel] issueCard: Lưu thông tin bệnh nhân vào bảng patients...");
+
+            // Lấy gender đã set vào userData
+            int gender = userData.getGender();
+
             if (!DatabaseConnection.savePatient(
                     userData.getIdBenhNhan(),
                     userData.getHoTen(),
                     userData.getNgaySinh(),
                     userData.getQueQuan(),
-                    userData.getMaBHYT())) {
+                    userData.getMaBHYT(),
+                    gender)) {
                 System.err.println("[CardIssuePanel] issueCard: Lưu thông tin bệnh nhân thất bại");
                 JOptionPane.showMessageDialog(this,
                         "Phát hành thẻ thành công nhưng lưu thông tin bệnh nhân thất bại!\n" +
@@ -777,6 +799,7 @@ public class CardIssuePanel extends JPanel {
         txtHoTen.setText("");
         txtNgaySinh.setText("");
         txtQueQuan.setText("");
+        cboGioiTinh.setSelectedIndex(0); // Reset về "Nam"
         txtMaBHYT.setText("");
         txtBalance.setText("0");
         txtPinUserDefault.setText("");

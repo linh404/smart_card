@@ -24,7 +24,7 @@ public class UserInfoPanel extends JPanel {
 
     // Visual components
     private SmartCardVisual cardVisual;
-    private JLabel lblBirthDate, lblAddress;
+    private JLabel lblBirthDate, lblAddress, lblGioiTinh; // V5: Thêm giới tính
     // V4: Thông tin y tế khẩn cấp
     private JLabel lblNhomMau, lblDiUng, lblBenhNen;
     private ModernUITheme.RoundedButton btnRefresh;
@@ -83,6 +83,11 @@ public class UserInfoPanel extends JPanel {
 
         infoCard.add(createInfoRow("📍 Địa chỉ", "---"));
         lblAddress = (JLabel) ((JPanel) infoCard.getComponent(infoCard.getComponentCount() - 1)).getComponent(1);
+        infoCard.add(Box.createVerticalStrut(8));
+
+        // V5: Giới tính
+        infoCard.add(createInfoRow("👤 Giới tính", "---"));
+        lblGioiTinh = (JLabel) ((JPanel) infoCard.getComponent(infoCard.getComponentCount() - 1)).getComponent(1);
         infoCard.add(Box.createVerticalStrut(15));
 
         // Separator
@@ -191,6 +196,7 @@ public class UserInfoPanel extends JPanel {
                 cardVisual.setBhytCode("");
                 lblBirthDate.setText("---");
                 lblAddress.setText("---");
+                lblGioiTinh.setText("---"); // V5
                 // V4: Clear thông tin y tế
                 lblNhomMau.setText("---");
                 lblDiUng.setText("---");
@@ -211,6 +217,7 @@ public class UserInfoPanel extends JPanel {
             // Update info labels
             lblBirthDate.setText(userData.getNgaySinh() != null ? userData.getNgaySinh() : "---");
             lblAddress.setText(userData.getQueQuan() != null ? userData.getQueQuan() : "---");
+            lblGioiTinh.setText(userData.getGenderLabel()); // V5: Hiển thị giới tính
 
             // V4: Update thông tin y tế khẩn cấp
             lblNhomMau.setText(userData.getNhomMauLabel());

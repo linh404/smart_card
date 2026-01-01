@@ -20,6 +20,9 @@ public class UserData implements Serializable {
     private String diUng; // Dị ứng (text tự do)
     private String benhNen; // Bệnh nền (text tự do)
 
+    // V5: Giới tính
+    private int gender; // 1=Nam, 2=Nữ, 3=Khác, 0=Không rõ
+
     /**
      * Nhãn nhóm máu để hiển thị trên UI (JComboBox)
      * Index 0 = Chưa xác định, 1-8 = các nhóm máu
@@ -112,13 +115,40 @@ public class UserData implements Serializable {
         return BLOOD_TYPE_LABELS[0]; // Chưa xác định
     }
 
+    // V5: Getter/Setter cho giới tính
+    public int getGender() {
+        return gender;
+    }
+
+    public void setGender(int gender) {
+        this.gender = gender;
+    }
+
+    /**
+     * Lấy nhãn giới tính từ int
+     */
+    public String getGenderLabel() {
+        switch (gender) {
+            case 1:
+                return "Nam";
+            case 2:
+                return "Nữ";
+            case 3:
+                return "Khác";
+            default:
+                return "Không rõ";
+        }
+    }
+
     /**
      * Chuyển UserData thành byte[] để gửi xuống thẻ
      * Note: Balance KHÔNG được bao gồm vì balance được lưu riêng biệt trên thẻ
-     * V4 Format: hoTen|idBenhNhan|ngaySinh|queQuan|maBHYT|nhomMau|diUng|benhNen
+     * V5 Format:
+     * hoTen|idBenhNhan|ngaySinh|queQuan|maBHYT|nhomMau|diUng|benhNen|gender
      */
     public byte[] toBytes() {
-        // Format V4: hoTen|idBenhNhan|ngaySinh|queQuan|maBHYT|nhomMau|diUng|benhNen
+        // Format V5:
+        // hoTen|idBenhNhan|ngaySinh|queQuan|maBHYT|nhomMau|diUng|benhNen|gender
         // Balance KHÔNG được bao gồm - balance được lưu riêng và mã hóa bằng MK_user
         // trên thẻ
         StringBuilder sb = new StringBuilder();
@@ -129,7 +159,8 @@ public class UserData implements Serializable {
         sb.append(maBHYT).append("|");
         sb.append(nhomMau).append("|");
         sb.append(diUng != null ? diUng : "").append("|");
-        sb.append(benhNen != null ? benhNen : "");
+        sb.append(benhNen != null ? benhNen : "").append("|");
+        sb.append(gender); // V5: Thêm gender
 
         byte[] textBytes = sb.toString().getBytes(StandardCharsets.UTF_8);
         byte[] result = new byte[textBytes.length + 4];
@@ -142,9 +173,9 @@ public class UserData implements Serializable {
      * Parse byte[] thành UserData
      * Format: [patient_data_length (4 bytes)] [patient_data (text)] [balance (4
      * bytes, optional)]
-     * Patient data format V4:
-     * hoTen|idBenhNhan|ngaySinh|queQuan|maBHYT|nhomMau|diUng|benhNen
-     * Backward compatible với format cũ (5 fields)
+     * Patient data format V5:
+     * hoTen|idBenhNhan|ngaySinh|queQuan|maBHYT|nhomMau|diUng|benhNen|gender
+     * Backward compatible với format cũ (V4: 8 fields, V3: 5 fields)
      */
     public static UserData fromBytes(byte[] data) {
         if (data == null || data.length < 4)
@@ -181,6 +212,18 @@ public class UserData implements Serializable {
             ud.setNhomMau(0);
             ud.setDiUng("");
             ud.setBenhNen("");
+        }
+
+        // V5: Parse gender (backward compatible)
+        if (parts.length >= 9) {
+            try {
+                ud.setGender(Integer.parseInt(parts[8]));
+            } catch (NumberFormatException e) {
+                ud.setGender(0); // Không rõ
+            }
+        } else {
+            // Thẻ cũ không có gender
+            ud.setGender(0);
         }
 
         // Parse balance from end of data (4 bytes after patient_data)
