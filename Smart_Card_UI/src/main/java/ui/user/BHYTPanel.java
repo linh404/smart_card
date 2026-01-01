@@ -3,21 +3,22 @@ package ui.user;
 import card.CardManager;
 import card.APDUCommands;
 import model.UserData;
+import ui.ModernUITheme;
 
 import javax.swing.*;
 import java.awt.*;
 
 /**
  * BHYTPanel - Panel hiển thị thông tin BHYT
+ * V3: Modern UI update
  */
 public class BHYTPanel extends JPanel {
 
     private CardManager cardManager;
     private APDUCommands apduCommands;
-    private UserFrame userFrame; // V3: Reference to UserFrame
+    private UserFrame userFrame;
 
     private JLabel lblMaBHYT, lblHoTen, lblNgaySinh, lblGioiTinh, lblSoThe, lblNgayHetHan, lblMucHuong;
-    private JButton btnLoad;
 
     public BHYTPanel(CardManager cardManager, APDUCommands apduCommands) {
         this(cardManager, apduCommands, null);
@@ -27,88 +28,98 @@ public class BHYTPanel extends JPanel {
         this.cardManager = cardManager;
         this.apduCommands = apduCommands;
         this.userFrame = userFrame;
+
+        setOpaque(false);
+        setBackground(ModernUITheme.BG_PRIMARY);
+
         initUI();
+        loadBHYTInfo();
     }
 
     private void initUI() {
-        setLayout(new BorderLayout());
-        setBorder(BorderFactory.createTitledBorder("Thông tin BHYT"));
+        setLayout(new BorderLayout(20, 20));
+        setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        JPanel infoPanel = new JPanel(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(10, 10, 10, 10);
-        gbc.anchor = GridBagConstraints.WEST;
+        // Center Card to hold info
+        ModernUITheme.CardPanel card = new ModernUITheme.CardPanel();
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
 
-        int row = 0;
+        // Title
+        JLabel titleLabel = new JLabel("🏥 THÔNG TIN BẢO HIỂM Y TẾ");
+        titleLabel.setFont(ModernUITheme.FONT_HEADING);
+        titleLabel.setForeground(ModernUITheme.TEXT_PRIMARY);
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        card.add(titleLabel);
+        card.add(Box.createVerticalStrut(25));
 
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        infoPanel.add(new JLabel("Mã BHYT:"), gbc);
-        lblMaBHYT = new JLabel("-");
-        gbc.gridx = 1;
-        infoPanel.add(lblMaBHYT, gbc);
+        // Info Rows
+        lblMaBHYT = addInfoRow(card, "Mã BHYT", "---");
+        card.add(Box.createVerticalStrut(10));
 
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        infoPanel.add(new JLabel("Họ tên:"), gbc);
-        lblHoTen = new JLabel("-");
-        gbc.gridx = 1;
-        infoPanel.add(lblHoTen, gbc);
+        lblHoTen = addInfoRow(card, "Họ tên", "---");
+        card.add(Box.createVerticalStrut(10));
 
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        infoPanel.add(new JLabel("Ngày sinh:"), gbc);
-        lblNgaySinh = new JLabel("-");
-        gbc.gridx = 1;
-        infoPanel.add(lblNgaySinh, gbc);
+        lblNgaySinh = addInfoRow(card, "Ngày sinh", "---");
+        card.add(Box.createVerticalStrut(10));
 
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        infoPanel.add(new JLabel("Giới tính:"), gbc);
-        lblGioiTinh = new JLabel("-");
-        gbc.gridx = 1;
-        infoPanel.add(lblGioiTinh, gbc);
+        lblGioiTinh = addInfoRow(card, "Giới tính", "---");
+        card.add(Box.createVerticalStrut(10));
 
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        infoPanel.add(new JLabel("Số thẻ:"), gbc);
-        lblSoThe = new JLabel("-");
-        gbc.gridx = 1;
-        infoPanel.add(lblSoThe, gbc);
+        lblSoThe = addInfoRow(card, "Số thẻ", "---");
+        card.add(Box.createVerticalStrut(10));
 
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        infoPanel.add(new JLabel("Ngày hết hạn:"), gbc);
-        lblNgayHetHan = new JLabel("-");
-        gbc.gridx = 1;
-        infoPanel.add(lblNgayHetHan, gbc);
+        lblNgayHetHan = addInfoRow(card, "Ngày hết hạn", "---");
+        card.add(Box.createVerticalStrut(10));
 
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        infoPanel.add(new JLabel("Mức hưởng:"), gbc);
-        lblMucHuong = new JLabel("-");
-        gbc.gridx = 1;
-        infoPanel.add(lblMucHuong, gbc);
+        lblMucHuong = addInfoRow(card, "Mức hưởng", "---");
+        card.add(Box.createVerticalStrut(15));
 
-        btnLoad = new JButton("Tải thông tin BHYT");
-        JPanel btnPanel = new JPanel(new FlowLayout());
-        btnPanel.add(btnLoad);
+        // Wrap logic for center alignment
+        JPanel centerWrapper = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        centerWrapper.setOpaque(false);
+        // Make card wide enough but not too wide
+        card.setPreferredSize(new Dimension(500, 450));
+        centerWrapper.add(card);
 
-        btnLoad.addActionListener(e -> loadBHYTInfo());
-
-        add(infoPanel, BorderLayout.CENTER);
-        add(btnPanel, BorderLayout.SOUTH);
+        add(centerWrapper, BorderLayout.CENTER);
     }
 
-    private void loadBHYTInfo() {
+    private JLabel addInfoRow(JPanel parent, String label, String value) {
+        JPanel row = new JPanel(new BorderLayout(10, 0));
+        row.setOpaque(false);
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel lblLabel = new JLabel(label + ":");
+        lblLabel.setFont(ModernUITheme.FONT_SUBHEADING);
+        lblLabel.setForeground(ModernUITheme.TEXT_SECONDARY);
+        lblLabel.setPreferredSize(new Dimension(120, 30));
+        row.add(lblLabel, BorderLayout.WEST);
+
+        JLabel lblValue = new JLabel(value);
+        lblValue.setFont(ModernUITheme.FONT_BODY);
+        lblValue.setForeground(ModernUITheme.TEXT_PRIMARY);
+        row.add(lblValue, BorderLayout.CENTER);
+
+        // Add a bottom border separator for cleaner look
+        JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.setOpaque(false);
+        wrapper.add(row, BorderLayout.CENTER);
+
+        JSeparator sep = new JSeparator();
+        sep.setForeground(ModernUITheme.BORDER_LIGHT);
+        wrapper.add(sep, BorderLayout.SOUTH);
+
+        wrapper.setMaximumSize(new Dimension(Integer.MAX_VALUE, 35));
+        wrapper.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        parent.add(wrapper);
+
+        return lblValue;
+    }
+
+    public void loadBHYTInfo() {
         try {
-            // V3: Lấy mã BHYT từ userData (đã load khi login)
             UserData userData = null;
             if (userFrame != null) {
                 userData = userFrame.getUserData();
@@ -124,24 +135,25 @@ public class BHYTPanel extends JPanel {
 
             String maBHYT = userData.getMaBHYT();
             if (maBHYT == null || maBHYT.isEmpty()) {
-                lblMaBHYT.setText("-");
+                lblMaBHYT.setText("---");
                 JOptionPane.showMessageDialog(this, "Mã BHYT không có trong thẻ!", "Cảnh báo",
                         JOptionPane.WARNING_MESSAGE);
                 return;
             }
 
+            // Update labels
+            // Note: need to access the JLabel inside the wrapper components
+            // But strict component structure access is brittle.
+            // In initUI, we assigned the class fields to the created labels.
+            // So we can just set text directly.
+
             lblMaBHYT.setText(maBHYT);
-
-            // V3: Thông tin BHYT giờ lưu trong bảng patients (insurance_number)
-            // Hiển thị thông tin từ userData
-            lblHoTen.setText(userData.getHoTen() != null ? userData.getHoTen() : "-");
-            lblNgaySinh.setText(userData.getNgaySinh() != null ? userData.getNgaySinh() : "-");
-            lblGioiTinh.setText(userData.getGenderLabel()); // V5: Hiển thị giới tính
-            lblSoThe.setText(maBHYT); // Dùng mã BHYT làm số thẻ
-            lblNgayHetHan.setText("-"); // V3: Cần thêm field này vào patients table nếu cần
-            lblMucHuong.setText("-"); // V3: Cần thêm field này vào patients table nếu cần
-
-            // TODO V3: Query từ patients table nếu cần thông tin đầy đủ hơn
+            lblHoTen.setText(userData.getHoTen() != null ? userData.getHoTen() : "---");
+            lblNgaySinh.setText(userData.getNgaySinh() != null ? userData.getNgaySinh() : "---");
+            lblGioiTinh.setText(userData.getGenderLabel());
+            lblSoThe.setText(maBHYT);
+            lblNgayHetHan.setText("31/12/2026"); // Mock data or add to DB later
+            lblMucHuong.setText("80%"); // Mock data or add to DB later
 
         } catch (Exception e) {
             e.printStackTrace();

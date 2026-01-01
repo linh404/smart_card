@@ -30,10 +30,6 @@ public class SmartCardVisual extends JPanel {
     private Color gradientEnd;
     private Color accentColor;
 
-    // Animation
-    private float rotationAngle = 0;
-    private Timer rotationTimer;
-
     // Currency formatter
     private NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
 
@@ -65,40 +61,21 @@ public class SmartCardVisual extends JPanel {
     private void setupHoverAnimation() {
         addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
-            public void mouseEntered(java.awt.event.MouseEvent e) {
-                startRotationAnimation(true);
-            }
-
-            @Override
-            public void mouseExited(java.awt.event.MouseEvent e) {
-                startRotationAnimation(false);
-            }
-
-            @Override
             public void mouseClicked(java.awt.event.MouseEvent e) {
                 isFlipped = !isFlipped;
                 repaint();
             }
-        });
-    }
 
-    private void startRotationAnimation(boolean hover) {
-        if (rotationTimer != null) {
-            rotationTimer.stop();
-        }
-
-        float targetAngle = hover ? 5f : 0f;
-        rotationTimer = new Timer(16, e -> {
-            float diff = targetAngle - rotationAngle;
-            if (Math.abs(diff) < 0.5f) {
-                rotationAngle = targetAngle;
-                ((Timer) e.getSource()).stop();
-            } else {
-                rotationAngle += diff * 0.15f;
+            @Override
+            public void mouseEntered(java.awt.event.MouseEvent e) {
+                setCursor(new Cursor(Cursor.HAND_CURSOR));
             }
-            repaint();
+
+            @Override
+            public void mouseExited(java.awt.event.MouseEvent e) {
+                setCursor(new Cursor(Cursor.DEFAULT_CURSOR));
+            }
         });
-        rotationTimer.start();
     }
 
     @Override
@@ -114,15 +91,8 @@ public class SmartCardVisual extends JPanel {
         int centerX = getWidth() / 2;
         int centerY = getHeight() / 2;
 
-        // Apply 3D perspective transform
-        AffineTransform original = g2.getTransform();
+        // Apply translation to center
         g2.translate(centerX, centerY);
-
-        // Subtle 3D rotation effect
-        double skewX = Math.toRadians(rotationAngle * 0.3);
-        double skewY = Math.toRadians(rotationAngle * 0.5);
-        g2.shear(skewX, skewY);
-
         g2.translate(-CARD_WIDTH / 2, -CARD_HEIGHT / 2);
 
         if (!isFlipped) {
@@ -131,7 +101,6 @@ public class SmartCardVisual extends JPanel {
             drawCardBack(g2);
         }
 
-        g2.setTransform(original);
         g2.dispose();
     }
 
@@ -364,7 +333,6 @@ public class SmartCardVisual extends JPanel {
         infoCard.setPreferredSize(new Dimension(300, 240));
 
         JLabel tipLabel = new JLabel("<html><b>💡 Mẹo:</b><br>" +
-                "• Di chuột vào thẻ để xem hiệu ứng 3D<br>" +
                 "• Click vào thẻ để xem mặt sau<br>" +
                 "• Thẻ hiển thị thông tin trực tiếp từ chip</html>");
         tipLabel.setFont(ModernUITheme.FONT_SMALL);

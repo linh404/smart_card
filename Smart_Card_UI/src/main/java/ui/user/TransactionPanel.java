@@ -14,6 +14,7 @@ import java.awt.geom.RoundRectangle2D;
 import java.text.NumberFormat;
 import java.util.Locale;
 import java.util.Date;
+import java.nio.charset.StandardCharsets;
 
 /**
  * TransactionPanel - Panel nạp tiền và thanh toán
@@ -351,7 +352,7 @@ public class TransactionPanel extends JPanel {
         return btn;
     }
 
-    private void updateBalance() {
+    public void updateBalance() {
         if (userFrame == null) {
             lblBalance.setText("N/A");
             return;
@@ -396,44 +397,41 @@ public class TransactionPanel extends JPanel {
         }
 
         long currentBalance = userData.getBalance();
-        long newBalance;
 
-        if (rbCredit.isSelected()) {
-            newBalance = currentBalance + amount;
-
-            int confirm = JOptionPane.showConfirmDialog(this,
-                    String.format("Xác nhận nạp %s vào thẻ?\n\nSố dư hiện tại: %s\nSố dư sau nạp: %s",
-                            currencyFormat.format(amount),
-                            currencyFormat.format(currentBalance),
-                            currencyFormat.format(newBalance)),
-                    "Xác nhận nạp tiền",
-                    JOptionPane.YES_NO_OPTION,
-                    JOptionPane.QUESTION_MESSAGE);
-
-            if (confirm != JOptionPane.YES_OPTION) {
-                return;
-            }
-        } else {
+        if (!rbCredit.isSelected()) {
             if (amount > currentBalance) {
                 showError(String.format("Số dư không đủ!\n\nSố dư hiện tại: %s\nSố tiền cần thanh toán: %s",
                         currencyFormat.format(currentBalance), currencyFormat.format(amount)));
                 return;
             }
+        }
 
-            newBalance = currentBalance - amount;
+        // --- Xác thực PIN ---
+        String actionType = rbCredit.isSelected() ? "Nạp tiền" : "Thanh toán";
+        String dialogTitle = "Xác thực " + actionType;
+        String dialogMsg = String.format("<html>Thực hiện %s: <b>%s</b><br>Vui lòng nhập PIN để xác nhận:</html>",
+                actionType.toLowerCase(), currencyFormat.format(amount));
 
-            int confirm = JOptionPane.showConfirmDialog(this,
-                    String.format("Xác nhận thanh toán %s?\n\nSố dư hiện tại: %s\nSố dư sau thanh toán: %s",
-                            currencyFormat.format(amount),
-                            currencyFormat.format(currentBalance),
-                            currencyFormat.format(newBalance)),
-                    "Xác nhận thanh toán",
-                    JOptionPane.YES_NO_OPTION,
-                    JOptionPane.QUESTION_MESSAGE);
+        String pin = showPinDialog(dialogTitle, dialogMsg);
+        if (pin == null) {
+            return; // User cancelled
+        }
+        if (pin.isEmpty()) {
+            showError("Vui lòng nhập mã PIN!");
+            return;
+        }
 
-            if (confirm != JOptionPane.YES_OPTION) {
+        // Verify PIN with card
+        try {
+            byte[] verifyData = apduCommands.verifyPinAndReadData(pin.getBytes(StandardCharsets.UTF_8));
+            if (verifyData == null) {
+                showError("Mã PIN không đúng! Giao dịch bị hủy.");
                 return;
             }
+        } catch (Exception e) {
+            showError("Lỗi xác thực PIN: " + e.getMessage());
+            e.printStackTrace();
+            return;
         }
 
         try {
@@ -494,5 +492,37 @@ public class TransactionPanel extends JPanel {
 
     private void showSuccess(String message) {
         JOptionPane.showMessageDialog(this, message, "Thành công", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private String showPinDialog(String title, String message) {
+        JPanel panel = new JPanel(new BorderLayout(5, 5));
+        JLabel label = new JLabel(message);
+        label.setFont(ModernUITheme.FONT_BODY);
+        panel.add(label, BorderLayout.NORTH);
+
+        JPasswordField pass = new JPasswordField(10);
+        pass.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        panel.add(pass, BorderLayout.CENTER);
+
+        // Auto focus password field
+        pass.addAncestorListener(new javax.swing.event.AncestorListener() {
+            public void ancestorAdded(javax.swing.event.AncestorEvent event) {
+                pass.requestFocusInWindow();
+            }
+
+            public void ancestorRemoved(javax.swing.event.AncestorEvent event) {
+            }
+
+            public void ancestorMoved(javax.swing.event.AncestorEvent event) {
+            }
+        });
+
+        int result = JOptionPane.showConfirmDialog(this, panel, title,
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+
+        if (result == JOptionPane.OK_OPTION) {
+            return new String(pass.getPassword());
+        }
+        return null;
     }
 }

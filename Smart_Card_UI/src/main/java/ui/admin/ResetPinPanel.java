@@ -4,6 +4,7 @@ import card.CardManager;
 import card.APDUCommands;
 import util.AdminPinDerivation;
 import util.EnvFileLoader;
+import ui.ModernUITheme;
 
 import javax.swing.*;
 import java.awt.*;
@@ -20,10 +21,10 @@ public class ResetPinPanel extends JPanel {
     private CardManager cardManager;
     private APDUCommands apduCommands;
 
-    private JTextField txtCardIdUser;
-    private JTextField txtPinUserNew; // V5: Đổi từ JPasswordField sang JTextField
-    private JButton btnResetPin;
-    private JButton btnLoadCard;
+    private ModernUITheme.RoundedTextField txtCardIdUser;
+    private ModernUITheme.RoundedTextField txtPinUserNew; // V5: Đổi từ JPasswordField sang JTextField
+    private ModernUITheme.RoundedButton btnResetPin;
+    private ModernUITheme.RoundedButton btnLoadCard;
     private JTextArea txtLog;
 
     public ResetPinPanel(CardManager cardManager, APDUCommands apduCommands) {
@@ -36,27 +37,35 @@ public class ResetPinPanel extends JPanel {
 
     private void initUI() {
         setLayout(new BorderLayout());
-        setBorder(BorderFactory.createTitledBorder("Reset PIN User"));
+        setBackground(ModernUITheme.BG_PRIMARY);
 
-        JPanel formPanel = new JPanel(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5);
-        gbc.anchor = GridBagConstraints.WEST;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
+        // Center wrapper
+        JPanel centerPanel = new JPanel(new GridBagLayout());
+        centerPanel.setOpaque(false);
 
-        int row = 0;
+        // Card content
+        JPanel card = new ModernUITheme.CardPanel();
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setPreferredSize(new Dimension(500, 350));
 
-        // Card ID User
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        formPanel.add(new JLabel("Card ID User:"), gbc);
-        JPanel cardIdPanel = new JPanel(new BorderLayout());
-        txtCardIdUser = new JTextField(35);
+        addHeader(card, "🔐 RESET CLOUD PIN"); // Title
+
+        // Card ID Section
+        addLabel(card, "Card ID User:");
+        JPanel cardIdPanel = new JPanel(new BorderLayout(10, 0));
+        cardIdPanel.setOpaque(false);
+        cardIdPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        cardIdPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        txtCardIdUser = new ModernUITheme.RoundedTextField(20);
         txtCardIdUser.setEditable(false);
-        txtCardIdUser.setBackground(new Color(240, 240, 240));
+        txtCardIdUser.setBackground(new Color(245, 245, 245));
         cardIdPanel.add(txtCardIdUser, BorderLayout.CENTER);
 
-        btnLoadCard = new JButton("Đọc thông tin thẻ");
+        btnLoadCard = new ModernUITheme.RoundedButton("Đọc thẻ", ModernUITheme.INFO,
+                ModernUITheme.darken(ModernUITheme.INFO, 0.1f), Color.WHITE);
+        btnLoadCard.setPreferredSize(new Dimension(100, 40));
+        btnLoadCard.setFont(ModernUITheme.FONT_SMALL);
         btnLoadCard.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -64,37 +73,54 @@ public class ResetPinPanel extends JPanel {
             }
         });
         cardIdPanel.add(btnLoadCard, BorderLayout.EAST);
-        gbc.gridx = 1;
-        formPanel.add(cardIdPanel, gbc);
 
-        // PIN User mới (mặc định = 123456)
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        formPanel.add(new JLabel("PIN User mới (cố định 123456):"), gbc);
-        txtPinUserNew = new JTextField(20);
+        card.add(cardIdPanel);
+        card.add(Box.createVerticalStrut(20));
+
+        // PIN User mới
+        addLabel(card, "PIN User mới (cố định):");
+        txtPinUserNew = new ModernUITheme.RoundedTextField(20);
         txtPinUserNew.setText("123456"); // Cố định
         txtPinUserNew.setEditable(false); // Không cho sửa
-        txtPinUserNew.setBackground(new Color(240, 240, 240)); // Màu xám
-        gbc.gridx = 1;
-        formPanel.add(txtPinUserNew, gbc);
+        txtPinUserNew.setBackground(new Color(245, 245, 245)); // Màu xám
+        txtPinUserNew.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        txtPinUserNew.setAlignmentX(Component.LEFT_ALIGNMENT);
+        card.add(txtPinUserNew);
+        card.add(Box.createVerticalStrut(30));
 
-        // Buttons
-        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        // Reset Button
+        btnResetPin = new ModernUITheme.RoundedButton("Xác nhận Reset PIN",
+                new Color(220, 38, 38), // Red color for critical action
+                new Color(185, 28, 28),
+                Color.WHITE);
+        btnResetPin.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        btnResetPin.setPreferredSize(new Dimension(200, 45));
+        btnResetPin.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        btnResetPin = new JButton("Reset PIN");
-        btnResetPin.setBackground(new Color(0, 153, 102));
-        btnResetPin.setForeground(Color.WHITE);
-        btnResetPin.setFont(new Font("Arial", Font.BOLD, 16));
-        btnResetPin.setPreferredSize(new Dimension(150, 40));
-        btnPanel.add(btnResetPin);
+        JPanel btnWrapper = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        btnWrapper.setOpaque(false);
+        btnWrapper.add(btnResetPin);
 
-        // Log area
-        txtLog = new JTextArea(10, 50);
+        card.add(btnWrapper);
+
+        centerPanel.add(card);
+
+        // Wrap centerPanel in ScrollPane
+        JScrollPane mainScroll = new JScrollPane(centerPanel);
+        mainScroll.setBorder(BorderFactory.createEmptyBorder());
+        mainScroll.getViewport().setBackground(ModernUITheme.BG_PRIMARY);
+        mainScroll.getVerticalScrollBar().setUnitIncrement(16);
+
+        // Log area at bottom
+        txtLog = new JTextArea(8, 50);
         txtLog.setEditable(false);
-        txtLog.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        txtLog.setFont(new Font("Consolas", Font.PLAIN, 12));
         JScrollPane scrollLog = new JScrollPane(txtLog);
-        scrollLog.setBorder(BorderFactory.createTitledBorder("Log"));
+        scrollLog.setBorder(BorderFactory.createTitledBorder("Log Process"));
+        scrollLog.setPreferredSize(new Dimension(0, 150));
+
+        add(mainScroll, BorderLayout.CENTER);
+        add(scrollLog, BorderLayout.SOUTH);
 
         // Event handlers
         btnResetPin.addActionListener(new ActionListener() {
@@ -103,10 +129,24 @@ public class ResetPinPanel extends JPanel {
                 resetPin();
             }
         });
+    }
 
-        add(formPanel, BorderLayout.NORTH);
-        add(btnPanel, BorderLayout.CENTER);
-        add(scrollLog, BorderLayout.SOUTH);
+    private void addHeader(JPanel panel, String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(ModernUITheme.FONT_HEADING);
+        label.setForeground(ModernUITheme.ADMIN_PRIMARY);
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(label);
+        panel.add(Box.createVerticalStrut(20));
+    }
+
+    private void addLabel(JPanel panel, String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(ModernUITheme.FONT_SUBHEADING);
+        label.setForeground(ModernUITheme.TEXT_PRIMARY);
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(label);
+        panel.add(Box.createVerticalStrut(5));
     }
 
     /**
@@ -211,6 +251,19 @@ public class ResetPinPanel extends JPanel {
                 JOptionPane.showMessageDialog(this,
                         "PIN User mới phải là 6 chữ số!",
                         "Lỗi", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            // --- Xác nhận Reset PIN ---
+            int confirm = JOptionPane.showConfirmDialog(this,
+                    String.format("Bạn có chắc chắn muốn Reset PIN cho thẻ này không?\n\nCard ID: %s\nPIN Mới: %s",
+                            cardIdHex, pinUserNew),
+                    "Xác nhận Reset PIN",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE);
+
+            if (confirm != JOptionPane.YES_OPTION) {
+                log("Đã hủy Reset PIN.");
                 return;
             }
 

@@ -35,6 +35,7 @@ public class AdminFrame extends JFrame {
         setTitle("Quản Trị Hệ Thống");
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setSize(1100, 750);
+        setExtendedState(JFrame.MAXIMIZED_BOTH); // Mặc định phóng to
         setLocationRelativeTo(null);
         setBackground(ModernUITheme.BG_PRIMARY);
 
@@ -124,12 +125,13 @@ public class AdminFrame extends JFrame {
         }
 
         // Logout button
-        ModernUITheme.OutlineButton btnLogout = new ModernUITheme.OutlineButton(
+        ModernUITheme.RoundedButton btnLogout = new ModernUITheme.RoundedButton(
                 "Đăng xuất",
-                new Color(255, 255, 255, 80),
-                new Color(255, 255, 255, 20),
-                Color.WHITE);
+                Color.WHITE,
+                new Color(240, 240, 240),
+                new Color(220, 38, 38)); // Red text
         btnLogout.setPreferredSize(new Dimension(100, 34));
+        btnLogout.setFont(ModernUITheme.FONT_SMALL);
         btnLogout.addActionListener(e -> {
             int confirm = JOptionPane.showConfirmDialog(
                     AdminFrame.this,
@@ -138,10 +140,6 @@ public class AdminFrame extends JFrame {
                     JOptionPane.YES_NO_OPTION);
             if (confirm == JOptionPane.YES_OPTION) {
                 LoginFrame.clearCurrentAdminUser();
-                // Không disconnect thẻ để giữ kết nối cho lần đăng nhập sau hoặc User App
-                // if (cardManager != null && cardManager.isConnected()) {
-                // cardManager.disconnect();
-                // }
                 dispose();
                 new LoginFrame().setVisible(true);
             }
@@ -157,10 +155,10 @@ public class AdminFrame extends JFrame {
         cardManagePanel = new CardManagePanel(cardManager, apduCommands);
         resetPinPanel = new ResetPinPanel(cardManager, apduCommands);
 
-        // Wrap panels in scroll panes with modern styling
-        tabs.addTab("📝 Phát hành thẻ User", wrapInScrollPane(cardIssuePanel));
-        tabs.addTab("🔧 Quản lý thông tin thẻ", wrapInScrollPane(cardManagePanel));
-        tabs.addTab("🔑 Reset PIN User", wrapInScrollPane(resetPinPanel));
+        // Add tabs directly (panels handle their own scrolling)
+        tabs.addTab("📝 Phát hành thẻ User", cardIssuePanel);
+        tabs.addTab("🔧 Quản lý thông tin thẻ", cardManagePanel);
+        tabs.addTab("🔑 Reset PIN User", resetPinPanel);
 
         // Tab change listener
         tabs.addChangeListener(e -> {

@@ -37,7 +37,7 @@ public class ForceChangePinDialog extends JDialog {
     }
 
     private void initUI() {
-        setSize(420, 480);
+        setSize(520, 530); // Tăng kích thước dialog
         setLocationRelativeTo(getParent());
         setResizable(false);
 
@@ -105,9 +105,9 @@ public class ForceChangePinDialog extends JDialog {
         formPanel.add(Box.createVerticalStrut(5));
 
         txtNewPin = new JPasswordField(20);
-        txtNewPin.setMaximumSize(new Dimension(250, 38));
+        txtNewPin.setMaximumSize(new Dimension(300, 45)); // Tăng chiều rộng và cao
         txtNewPin.setAlignmentX(Component.LEFT_ALIGNMENT);
-        txtNewPin.setFont(new Font("Consolas", Font.BOLD, 16));
+        txtNewPin.setFont(new Font("Consolas", Font.BOLD, 18)); // Tăng font size
         formPanel.add(txtNewPin);
         formPanel.add(Box.createVerticalStrut(15));
 
@@ -120,9 +120,9 @@ public class ForceChangePinDialog extends JDialog {
         formPanel.add(Box.createVerticalStrut(5));
 
         txtConfirmPin = new JPasswordField(20);
-        txtConfirmPin.setMaximumSize(new Dimension(250, 38));
+        txtConfirmPin.setMaximumSize(new Dimension(300, 45)); // Tăng chiều rộng và cao
         txtConfirmPin.setAlignmentX(Component.LEFT_ALIGNMENT);
-        txtConfirmPin.setFont(new Font("Consolas", Font.BOLD, 16));
+        txtConfirmPin.setFont(new Font("Consolas", Font.BOLD, 18)); // Tăng font size
         formPanel.add(txtConfirmPin);
 
         // Center form
@@ -130,10 +130,10 @@ public class ForceChangePinDialog extends JDialog {
         formWrapper.setOpaque(false);
         formWrapper.add(formPanel);
         card.add(formWrapper);
-        card.add(Box.createVerticalStrut(25));
+        card.add(Box.createVerticalStrut(30)); // Tăng khoảng cách
 
         // Buttons
-        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 0));
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 0)); // Tăng khoảng cách nút
         btnPanel.setOpaque(false);
 
         btnChange = new ModernUITheme.RoundedButton(
@@ -141,7 +141,7 @@ public class ForceChangePinDialog extends JDialog {
                 ModernUITheme.SUCCESS,
                 new Color(25, 135, 84),
                 ModernUITheme.TEXT_WHITE);
-        btnChange.setPreferredSize(new Dimension(120, 42));
+        btnChange.setPreferredSize(new Dimension(140, 48)); // Nút to hơn
         btnChange.addActionListener(e -> changePin());
         btnPanel.add(btnChange);
 
@@ -150,7 +150,7 @@ public class ForceChangePinDialog extends JDialog {
                 ModernUITheme.TEXT_SECONDARY,
                 ModernUITheme.BG_SECONDARY,
                 ModernUITheme.TEXT_SECONDARY);
-        btnExit.setPreferredSize(new Dimension(100, 42));
+        btnExit.setPreferredSize(new Dimension(120, 48)); // Nút to hơn
         btnExit.addActionListener(e -> handleExit());
         btnPanel.add(btnExit);
 

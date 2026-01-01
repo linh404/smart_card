@@ -45,7 +45,7 @@ public class LoginFrame extends JFrame {
     private void initUI() {
         setTitle("Đăng nhập Admin");
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        setSize(480, 420);
+        setSize(900, 650);
         setLocationRelativeTo(null);
 
         // Main container with gradient background
@@ -68,7 +68,7 @@ public class LoginFrame extends JFrame {
         // Center card
         ModernUITheme.CardPanel card = new ModernUITheme.CardPanel();
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
-        card.setPreferredSize(new Dimension(380, 340));
+        card.setPreferredSize(new Dimension(420, 450));
 
         // Header with icon
         JPanel headerPanel = new JPanel();
@@ -199,6 +199,7 @@ public class LoginFrame extends JFrame {
         // Event handlers
         btnLogin.addActionListener(e -> handleLogin());
         btnCancel.addActionListener(e -> dispose());
+        txtUsername.addActionListener(e -> txtPassword.requestFocus()); // Enter ở username -> nhảy xuống password
         txtPassword.addActionListener(e -> handleLogin());
     }
 
@@ -236,9 +237,9 @@ public class LoginFrame extends JFrame {
 
             System.out.println("[Admin Login] Đăng nhập thành công: " + adminUser.username);
 
-            // Đăng nhập thành công
-            showSuccess("Đăng nhập thành công!\nChào mừng: " +
-                    (adminUser.fullName != null ? adminUser.fullName : adminUser.username));
+            // Đăng nhập thành công - Vào thẳng giao diện chính
+            // showSuccess("Đăng nhập thành công!\nChào mừng: " + (adminUser.fullName !=
+            // null ? adminUser.fullName : adminUser.username));
 
             // Khởi tạo CardManager (cần cho các panel khác)
             CardManager cardManager = CardManager.getInstance();

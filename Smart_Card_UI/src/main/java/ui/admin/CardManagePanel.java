@@ -2,6 +2,7 @@ package ui.admin;
 
 import card.CardManager;
 import card.APDUCommands;
+import ui.ModernUITheme;
 import db.DatabaseConnection;
 import model.UserData;
 import model.UserCardSnapshot;
@@ -25,11 +26,12 @@ public class CardManagePanel extends JPanel {
     private CardManager cardManager;
     private APDUCommands apduCommands;
 
-    private JTextField txtCardId, txtHoTen, txtIdBenhNhan, txtNgaySinh, txtQueQuan, txtMaBHYT, txtBalance;
+    private ModernUITheme.RoundedTextField txtCardId, txtHoTen, txtIdBenhNhan, txtNgaySinh, txtQueQuan, txtMaBHYT,
+            txtBalance;
     private JLabel lblGioiTinh; // V5: Hiển thị giới tính (read-only)
-    private JPasswordField txtPinUserDefault;
-    private JPasswordField txtPinUserForLoad; // PIN User để load data từ thẻ
-    private JButton btnLoadFromCard, btnUpdate, btnLoadToCard;
+    private ModernUITheme.RoundedPasswordField txtPinUserDefault;
+    private ModernUITheme.RoundedPasswordField txtPinUserForLoad; // PIN User để load data từ thẻ
+    private ModernUITheme.RoundedButton btnLoadFromCard, btnUpdate, btnLoadToCard;
     private JLabel lblAdminPinStatus; // Hiển thị trạng thái Admin PIN
 
     // V4: Thông tin y tế khẩn cấp
@@ -45,186 +47,161 @@ public class CardManagePanel extends JPanel {
 
     private void initUI() {
         setLayout(new BorderLayout());
-        setBorder(BorderFactory.createTitledBorder("Quản lý thông tin thẻ"));
+        setBackground(ModernUITheme.BG_PRIMARY);
+        // setBorder(BorderFactory.createTitledBorder("Quản lý thông tin thẻ"));
 
-        JPanel formPanel = new JPanel(new GridBagLayout());
+        // Main content wrapper
+        JPanel contentPanel = new JPanel(new GridBagLayout());
+        contentPanel.setOpaque(false);
+        contentPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5);
-        gbc.anchor = GridBagConstraints.WEST;
+        gbc.insets = new Insets(10, 10, 10, 10);
+        gbc.fill = GridBagConstraints.BOTH;
+        gbc.weightx = 0.5;
 
-        int row = 0;
+        // --- LEFT COLUMN: PERSONAL INFO ---
+        JPanel pnlPersonal = new ModernUITheme.CardPanel();
+        pnlPersonal.setLayout(new BoxLayout(pnlPersonal, BoxLayout.Y_AXIS));
+        pnlPersonal.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        // Card ID (hiển thị từ thẻ)
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        formPanel.add(new JLabel("Card ID (hex):"), gbc);
-        txtCardId = new JTextField(40);
+        addHeader(pnlPersonal, "👤 Thông tin thẻ & Cá nhân");
+
+        // Card ID Section
+        addLabel(pnlPersonal, "Card ID (hex):");
+        JPanel cardIdPanel = new JPanel(new BorderLayout(10, 0));
+        cardIdPanel.setOpaque(false);
+        cardIdPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        cardIdPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        txtCardId = new ModernUITheme.RoundedTextField(20);
         txtCardId.setEditable(false);
-        txtCardId.setBackground(new Color(240, 240, 240));
-        gbc.gridx = 1;
-        formPanel.add(txtCardId, gbc);
+        txtCardId.setBackground(new Color(245, 245, 245));
+        cardIdPanel.add(txtCardId, BorderLayout.CENTER);
 
-        // Button để load thông tin từ thẻ
-        row++;
-        btnLoadFromCard = new JButton("Load từ thẻ User");
-        btnLoadFromCard.setFont(new Font("Arial", Font.BOLD, 12));
-        btnLoadFromCard.setPreferredSize(new Dimension(200, 35));
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        gbc.gridwidth = 2;
-        gbc.anchor = GridBagConstraints.CENTER;
-        formPanel.add(btnLoadFromCard, gbc);
-        gbc.gridwidth = 1;
-        gbc.anchor = GridBagConstraints.WEST;
+        btnLoadFromCard = new ModernUITheme.RoundedButton("Load từ thẻ", ModernUITheme.INFO,
+                ModernUITheme.darken(ModernUITheme.INFO, 0.1f), Color.WHITE);
+        btnLoadFromCard.setPreferredSize(new Dimension(120, 40));
+        btnLoadFromCard.setFont(ModernUITheme.FONT_SMALL);
+        cardIdPanel.add(btnLoadFromCard, BorderLayout.EAST);
 
-        // Các trường thông tin
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        formPanel.add(new JLabel("Họ tên:"), gbc);
-        txtHoTen = new JTextField(30);
-        gbc.gridx = 1;
-        formPanel.add(txtHoTen, gbc);
+        pnlPersonal.add(cardIdPanel);
+        pnlPersonal.add(Box.createVerticalStrut(15));
 
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        formPanel.add(new JLabel("ID bệnh nhân:"), gbc);
-        txtIdBenhNhan = new JTextField(30);
-        gbc.gridx = 1;
-        formPanel.add(txtIdBenhNhan, gbc);
+        txtHoTen = addLabeledField(pnlPersonal, "Họ tên:", 25);
+        txtIdBenhNhan = addLabeledField(pnlPersonal, "ID bệnh nhân:", 25);
+        txtNgaySinh = addLabeledField(pnlPersonal, "Ngày sinh:", 25);
+        txtQueQuan = addLabeledField(pnlPersonal, "Quê quán:", 25);
 
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        formPanel.add(new JLabel("Ngày sinh:"), gbc);
-        txtNgaySinh = new JTextField(30);
-        gbc.gridx = 1;
-        formPanel.add(txtNgaySinh, gbc);
-
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        formPanel.add(new JLabel("Quê quán:"), gbc);
-        txtQueQuan = new JTextField(30);
-        gbc.gridx = 1;
-        formPanel.add(txtQueQuan, gbc);
-
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        formPanel.add(new JLabel("Mã BHYT:"), gbc);
-        txtMaBHYT = new JTextField(30);
-        gbc.gridx = 1;
-        formPanel.add(txtMaBHYT, gbc);
-
-        // V5: Giới tính (read-only)
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        formPanel.add(new JLabel("Giới tính:"), gbc);
+        addLabel(pnlPersonal, "Giới tính:");
         lblGioiTinh = new JLabel("-");
-        lblGioiTinh.setFont(new Font("Arial", Font.PLAIN, 12));
-        gbc.gridx = 1;
-        formPanel.add(lblGioiTinh, gbc);
+        lblGioiTinh.setFont(ModernUITheme.FONT_BODY);
+        lblGioiTinh.setAlignmentX(Component.LEFT_ALIGNMENT);
+        pnlPersonal.add(lblGioiTinh);
+        pnlPersonal.add(Box.createVerticalStrut(15));
 
-        // Số dư
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        formPanel.add(new JLabel("Số dư (VNĐ):"), gbc);
-        txtBalance = new JTextField(30);
-        gbc.gridx = 1;
-        formPanel.add(txtBalance, gbc);
+        txtMaBHYT = addLabeledField(pnlPersonal, "Mã BHYT:", 25);
 
-        // PIN User để load data từ thẻ
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        formPanel.add(new JLabel("PIN User (để load data):"), gbc);
-        txtPinUserForLoad = new JPasswordField(20);
-        txtPinUserForLoad.setToolTipText("Nhập PIN User để xác thực và load dữ liệu từ thẻ");
-        gbc.gridx = 1;
-        formPanel.add(txtPinUserForLoad, gbc);
+        // --- RIGHT COLUMN: MEDICAL & ACCOUNT ---
+        JPanel pnlMedical = new ModernUITheme.CardPanel();
+        pnlMedical.setLayout(new BoxLayout(pnlMedical, BoxLayout.Y_AXIS));
+        pnlMedical.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        // PIN User Default (để demo)
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        formPanel.add(new JLabel("PIN User mặc định:"), gbc);
-        txtPinUserDefault = new JPasswordField(20);
-        txtPinUserDefault.setToolTipText("PIN User mặc định dùng khi phát hành thẻ mới");
-        gbc.gridx = 1;
-        formPanel.add(txtPinUserDefault, gbc);
+        addHeader(pnlMedical, "🏥 Thông tin y tế & Bảo mật");
 
-        // Admin PIN Status (tự động lấy từ database)
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        formPanel.add(new JLabel("Admin PIN:"), gbc);
-        lblAdminPinStatus = new JLabel("Chưa load thẻ");
-        lblAdminPinStatus.setForeground(new Color(100, 100, 100));
-        lblAdminPinStatus.setFont(new Font("Arial", Font.ITALIC, 11));
-        gbc.gridx = 1;
-        formPanel.add(lblAdminPinStatus, gbc);
-
-        // ===== V4: THÔNG TIN Y TẾ KHẨN CẤP =====
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        gbc.gridwidth = 2;
-        JLabel lblEmergency = new JLabel("🏥 THÔNG TIN Y TẾ KHẨN CẤP");
-        lblEmergency.setFont(new Font("Arial", Font.BOLD, 12));
-        lblEmergency.setForeground(new Color(220, 53, 69));
-        formPanel.add(lblEmergency, gbc);
-        gbc.gridwidth = 1;
-
-        // Nhóm máu (JComboBox)
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        formPanel.add(new JLabel("🩸 Nhóm máu:"), gbc);
+        // Nhóm máu
+        addLabel(pnlMedical, "🩸 Nhóm máu:");
         cboNhomMau = new JComboBox<>(UserData.BLOOD_TYPE_LABELS);
-        cboNhomMau.setSelectedIndex(0);
-        gbc.gridx = 1;
-        formPanel.add(cboNhomMau, gbc);
+        cboNhomMau.setFont(ModernUITheme.FONT_BODY);
+        cboNhomMau.setPreferredSize(new Dimension(200, 40));
+        cboNhomMau.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        alignLeft(cboNhomMau);
+        pnlMedical.add(cboNhomMau);
+        pnlMedical.add(Box.createVerticalStrut(15));
 
-        // Dị ứng (JTextArea)
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        gbc.anchor = GridBagConstraints.NORTHWEST;
-        formPanel.add(new JLabel("⚠️ Dị ứng:"), gbc);
-        txtDiUng = new JTextArea(2, 25);
+        // Dị ứng
+        addLabel(pnlMedical, "⚠️ Dị ứng:");
+        txtDiUng = new JTextArea(3, 20);
         txtDiUng.setLineWrap(true);
         txtDiUng.setWrapStyleWord(true);
+        txtDiUng.setFont(ModernUITheme.FONT_BODY);
         JScrollPane scrollDiUng = new JScrollPane(txtDiUng);
-        scrollDiUng.setPreferredSize(new Dimension(250, 50));
-        gbc.gridx = 1;
-        formPanel.add(scrollDiUng, gbc);
-        gbc.anchor = GridBagConstraints.WEST;
+        scrollDiUng.setBorder(BorderFactory.createLineBorder(ModernUITheme.BORDER_LIGHT));
+        scrollDiUng.setAlignmentX(Component.LEFT_ALIGNMENT);
+        pnlMedical.add(scrollDiUng);
+        pnlMedical.add(Box.createVerticalStrut(15));
 
-        // Bệnh nền (JTextArea)
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        gbc.anchor = GridBagConstraints.NORTHWEST;
-        formPanel.add(new JLabel("🏥 Bệnh nền:"), gbc);
-        txtBenhNen = new JTextArea(2, 25);
+        // Bệnh nền
+        addLabel(pnlMedical, "🏥 Bệnh nền:");
+        txtBenhNen = new JTextArea(3, 20);
         txtBenhNen.setLineWrap(true);
         txtBenhNen.setWrapStyleWord(true);
+        txtBenhNen.setFont(ModernUITheme.FONT_BODY);
         JScrollPane scrollBenhNen = new JScrollPane(txtBenhNen);
-        scrollBenhNen.setPreferredSize(new Dimension(250, 50));
-        gbc.gridx = 1;
-        formPanel.add(scrollBenhNen, gbc);
-        gbc.anchor = GridBagConstraints.WEST;
+        scrollBenhNen.setBorder(BorderFactory.createLineBorder(ModernUITheme.BORDER_LIGHT));
+        scrollBenhNen.setAlignmentX(Component.LEFT_ALIGNMENT);
+        pnlMedical.add(scrollBenhNen);
+        pnlMedical.add(Box.createVerticalStrut(15));
 
-        // Buttons
-        btnLoadToCard = new JButton("Nạp vào thẻ (ISSUE_CARD/UPDATE)");
-        btnUpdate = new JButton("Lưu Snapshot");
-        JPanel btnPanel = new JPanel(new FlowLayout());
+        // Account Section
+        JSeparator sep = new JSeparator();
+        sep.setMaximumSize(new Dimension(Integer.MAX_VALUE, 2));
+        pnlMedical.add(sep);
+        pnlMedical.add(Box.createVerticalStrut(15));
+
+        txtBalance = addLabeledField(pnlMedical, "Số dư (VNĐ):", 25);
+
+        // Security Inputs
+        addLabel(pnlMedical, "PIN User (để load data):");
+        txtPinUserForLoad = new ModernUITheme.RoundedPasswordField(20);
+        txtPinUserForLoad.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        alignLeft(txtPinUserForLoad);
+        pnlMedical.add(txtPinUserForLoad);
+        pnlMedical.add(Box.createVerticalStrut(15));
+
+        addLabel(pnlMedical, "PIN User mặc định (cấp mới):");
+        txtPinUserDefault = new ModernUITheme.RoundedPasswordField(20);
+        txtPinUserDefault.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        alignLeft(txtPinUserDefault);
+        pnlMedical.add(txtPinUserDefault);
+        pnlMedical.add(Box.createVerticalStrut(15));
+
+        // Admin PIN Status
+        addLabel(pnlMedical, "Admin PIN status:");
+        lblAdminPinStatus = new JLabel("Chưa load thẻ");
+        lblAdminPinStatus.setFont(ModernUITheme.FONT_SMALL);
+        lblAdminPinStatus.setForeground(ModernUITheme.TEXT_SECONDARY);
+        alignLeft(lblAdminPinStatus);
+        pnlMedical.add(lblAdminPinStatus);
+
+        // Add columns to GridBag
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.weighty = 1.0;
+        contentPanel.add(pnlPersonal, gbc);
+
+        gbc.gridx = 1;
+        gbc.gridy = 0;
+        contentPanel.add(pnlMedical, gbc);
+
+        // --- BUTTON SECTION ---
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 0));
+        btnPanel.setOpaque(false);
+        btnPanel.setBorder(BorderFactory.createEmptyBorder(20, 0, 20, 0));
+
+        btnLoadToCard = new ModernUITheme.RoundedButton("Nạp vào thẻ", ModernUITheme.ADMIN_PRIMARY,
+                ModernUITheme.ADMIN_PRIMARY_HOVER, Color.WHITE);
+        btnUpdate = new ModernUITheme.RoundedButton("Lưu Snapshot", ModernUITheme.WARNING,
+                ModernUITheme.darken(ModernUITheme.WARNING, 0.1f), Color.WHITE);
+
         btnPanel.add(btnLoadToCard);
         btnPanel.add(btnUpdate);
+
+        // Add to main panel
+        JScrollPane scrollPane = new JScrollPane(contentPanel);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        add(scrollPane, BorderLayout.CENTER);
+        add(btnPanel, BorderLayout.SOUTH);
 
         // Event handlers
         btnLoadFromCard.addActionListener(new ActionListener() {
@@ -247,9 +224,39 @@ public class CardManagePanel extends JPanel {
                 saveSnapshotOnly();
             }
         });
+    }
 
-        add(formPanel, BorderLayout.CENTER);
-        add(btnPanel, BorderLayout.SOUTH);
+    // Helper methods
+    private void addHeader(JPanel panel, String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(ModernUITheme.FONT_HEADING);
+        label.setForeground(ModernUITheme.ADMIN_PRIMARY);
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(label);
+        panel.add(Box.createVerticalStrut(20));
+    }
+
+    private void addLabel(JPanel panel, String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(ModernUITheme.FONT_SUBHEADING);
+        label.setForeground(ModernUITheme.TEXT_PRIMARY);
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(label);
+        panel.add(Box.createVerticalStrut(5));
+    }
+
+    private ModernUITheme.RoundedTextField addLabeledField(JPanel panel, String labelText, int columns) {
+        addLabel(panel, labelText);
+        ModernUITheme.RoundedTextField field = new ModernUITheme.RoundedTextField(columns);
+        field.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        alignLeft(field);
+        panel.add(field);
+        panel.add(Box.createVerticalStrut(15));
+        return field;
+    }
+
+    private void alignLeft(JComponent c) {
+        c.setAlignmentX(Component.LEFT_ALIGNMENT);
     }
 
     /**

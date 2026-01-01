@@ -33,7 +33,7 @@ public class UserLoginFrame extends JFrame {
     private void initUI() {
         setTitle("Đăng nhập User");
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        setSize(450, 420);
+        setExtendedState(JFrame.MAXIMIZED_BOTH);
         setLocationRelativeTo(null);
 
         // Main container with gradient background
@@ -56,7 +56,7 @@ public class UserLoginFrame extends JFrame {
         // Center card
         ModernUITheme.CardPanel card = new ModernUITheme.CardPanel();
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
-        card.setPreferredSize(new Dimension(360, 340));
+        card.setPreferredSize(new Dimension(420, 450));
 
         // Header with icon
         JPanel headerPanel = new JPanel();

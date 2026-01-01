@@ -57,7 +57,6 @@ ui\admin\ResetPinPanel$1.class
 ui\tool\DatabaseMigrationTool$7.class
 ui\tool\LoadSnapshotTool$4.class
 ui\user\TransactionPanel$2.class
-ui\user\ChangePinPanel$1.class
 ui\user\BHYTPanel.class
 model\Transaction.class
 ui\tool\DatabaseMigrationTool$4.class
@@ -71,6 +70,7 @@ ui\tool\CreateAdminUserTool$4.class
 ui\admin\CardIssuePanel.class
 card\APDUCommands$TransactionStatus.class
 util\AdminPinEncryption.class
+ui\user\TransactionPanel$5.class
 util\UserDemoSnapshotManager$1.class
 ui\user\UserFrame$2.class
 ui\admin\CardManagePanel$2.class

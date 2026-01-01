@@ -27,7 +27,6 @@ public class UserInfoPanel extends JPanel {
     private JLabel lblBirthDate, lblAddress, lblGioiTinh; // V5: Thêm giới tính
     // V4: Thông tin y tế khẩn cấp
     private JLabel lblNhomMau, lblDiUng, lblBenhNen;
-    private ModernUITheme.RoundedButton btnRefresh;
     private NumberFormat currencyFormat;
 
     public UserInfoPanel(CardManager cardManager, APDUCommands apduCommands) {
@@ -139,21 +138,6 @@ public class UserInfoPanel extends JPanel {
         cardSection.add(infoCard, BorderLayout.CENTER);
 
         add(cardSection, BorderLayout.CENTER);
-
-        // ===== BOTTOM: Refresh Button =====
-        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        btnPanel.setOpaque(false);
-
-        btnRefresh = new ModernUITheme.RoundedButton(
-                "🔄 Làm mới thông tin",
-                ModernUITheme.USER_PRIMARY,
-                ModernUITheme.USER_PRIMARY_HOVER,
-                ModernUITheme.TEXT_WHITE);
-        btnRefresh.setPreferredSize(new Dimension(180, 44));
-        btnRefresh.addActionListener(e -> loadInfo());
-        btnPanel.add(btnRefresh);
-
-        add(btnPanel, BorderLayout.SOUTH);
     }
 
     private JPanel createInfoRow(String label, String value) {
@@ -176,7 +160,7 @@ public class UserInfoPanel extends JPanel {
         return row;
     }
 
-    private void loadInfo() {
+    public void loadInfo() {
         try {
             UserData userData = null;
             if (userFrame != null) {

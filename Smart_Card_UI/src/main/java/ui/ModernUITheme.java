@@ -221,6 +221,7 @@ public class ModernUITheme {
             setBorderPainted(false);
             setCursor(new Cursor(Cursor.HAND_CURSOR));
             setPreferredSize(new Dimension(140, 42));
+            setBackground(BG_CARD); // Default background
 
             addMouseListener(new MouseAdapter() {
                 @Override
@@ -243,7 +244,7 @@ public class ModernUITheme {
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
             // Background
-            g2.setColor(isHovered ? hoverBgColor : BG_CARD);
+            g2.setColor(isHovered ? hoverBgColor : getBackground());
             g2.fill(new RoundRectangle2D.Float(1, 1, getWidth() - 3, getHeight() - 3, radius, radius));
 
             // Border

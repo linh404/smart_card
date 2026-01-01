@@ -2,6 +2,7 @@ package ui.admin;
 
 import card.CardManager;
 import card.APDUCommands;
+import ui.ModernUITheme;
 import db.DatabaseConnection;
 import model.UserData;
 import model.UserCardSnapshot;
@@ -34,10 +35,10 @@ public class CardIssuePanel extends JPanel {
     private CardManager cardManager;
     private APDUCommands apduCommands;
 
-    private JTextField txtHoTen, txtIdBenhNhan, txtNgaySinh, txtQueQuan, txtMaBHYT, txtBalance;
+    private ModernUITheme.RoundedTextField txtHoTen, txtIdBenhNhan, txtNgaySinh, txtQueQuan, txtMaBHYT, txtBalance;
     private JComboBox<String> cboGioiTinh;
-    private JTextField txtPinUserDefault; // V5: Đổi từ JPasswordField sang JTextField
-    private JButton btnPhatHanh;
+    private ModernUITheme.RoundedTextField txtPinUserDefault; // V5: Đổi từ JPasswordField sang JTextField
+    private ModernUITheme.RoundedButton btnPhatHanh;
 
     // V4: Thông tin y tế khẩn cấp
     private JComboBox<String> cboNhomMau;
@@ -54,145 +55,137 @@ public class CardIssuePanel extends JPanel {
 
     private void initUI() {
         setLayout(new BorderLayout());
-        setBorder(BorderFactory.createTitledBorder("Phát hành thẻ User mới"));
+        setBackground(ModernUITheme.BG_PRIMARY);
+        // setBorder(BorderFactory.createTitledBorder("Phát hành thẻ User mới")); // Bỏ
+        // border cũ
 
-        JPanel formPanel = new JPanel(new GridBagLayout());
+        // Main content wrapper with padding
+        JPanel contentPanel = new JPanel(new GridBagLayout());
+        contentPanel.setOpaque(false);
+        contentPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5);
-        gbc.anchor = GridBagConstraints.WEST;
+        gbc.insets = new Insets(10, 10, 10, 10);
+        gbc.fill = GridBagConstraints.BOTH;
+        gbc.weightx = 0.5;
 
-        int row = 0;
+        // --- LEFT COLUMN: PERSONAL INFO ---
+        JPanel pnlPersonal = new ModernUITheme.CardPanel();
+        pnlPersonal.setLayout(new BoxLayout(pnlPersonal, BoxLayout.Y_AXIS));
+        pnlPersonal.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        // Họ tên
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        formPanel.add(new JLabel("Họ tên:"), gbc);
-        txtHoTen = new JTextField(20);
-        gbc.gridx = 1;
-        formPanel.add(txtHoTen, gbc);
+        addHeader(pnlPersonal, "👤 Thông tin cá nhân");
 
-        // ID bệnh nhân - ẨN (tự động tạo, không hiển thị)
-        // Giữ field để logic hoạt động
-        txtIdBenhNhan = new JTextField(30);
-        txtIdBenhNhan.setVisible(false); // Ẩn field
+        txtHoTen = addLabeledField(pnlPersonal, "Họ tên:", 25);
 
-        // Ngày sinh
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        formPanel.add(new JLabel("Ngày sinh:"), gbc);
-        txtNgaySinh = new JTextField(20);
-        gbc.gridx = 1;
-        formPanel.add(txtNgaySinh, gbc);
+        // ID Bệnh nhân (Hidden but kept for logic)
+        txtIdBenhNhan = new ModernUITheme.RoundedTextField(25);
+        txtIdBenhNhan.setVisible(false);
 
-        // Quê quán
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        formPanel.add(new JLabel("Quê quán:"), gbc);
-        txtQueQuan = new JTextField(20);
-        gbc.gridx = 1;
-        formPanel.add(txtQueQuan, gbc);
+        txtNgaySinh = addLabeledField(pnlPersonal, "Ngày sinh (DD/MM/YYYY):", 25);
+        txtQueQuan = addLabeledField(pnlPersonal, "Quê quán:", 25);
 
         // Giới tính
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        formPanel.add(new JLabel("Giới tính:"), gbc);
+        addLabel(pnlPersonal, "Giới tính:");
         cboGioiTinh = new JComboBox<>(new String[] { "Nam", "Nữ", "Khác" });
-        cboGioiTinh.setSelectedIndex(0); // Mặc định: Nam
-        gbc.gridx = 1;
-        formPanel.add(cboGioiTinh, gbc);
+        cboGioiTinh.setFont(ModernUITheme.FONT_BODY);
+        cboGioiTinh.setPreferredSize(new Dimension(200, 40));
+        cboGioiTinh.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        alignLeft(cboGioiTinh);
+        pnlPersonal.add(cboGioiTinh);
+        pnlPersonal.add(Box.createVerticalStrut(15));
 
-        // Mã BHYT
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        formPanel.add(new JLabel("Mã BHYT:"), gbc);
-        txtMaBHYT = new JTextField(20);
-        gbc.gridx = 1;
-        formPanel.add(txtMaBHYT, gbc);
+        txtMaBHYT = addLabeledField(pnlPersonal, "Mã BHYT:", 25);
 
-        // Số dư ban đầu
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        formPanel.add(new JLabel("Số dư ban đầu (VNĐ):"), gbc);
-        txtBalance = new JTextField(20);
-        txtBalance.setText("0"); // Mặc định là 0
-        gbc.gridx = 1;
-        formPanel.add(txtBalance, gbc);
+        // --- RIGHT COLUMN: MEDICAL & ACCOUNT INFO ---
+        JPanel pnlMedical = new ModernUITheme.CardPanel();
+        pnlMedical.setLayout(new BoxLayout(pnlMedical, BoxLayout.Y_AXIS));
+        pnlMedical.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        // PIN User mặc định (cố định 123456, không cho sửa)
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        formPanel.add(new JLabel("PIN User mặc định:"), gbc);
-        txtPinUserDefault = new JTextField(20);
-        txtPinUserDefault.setText("123456"); // Cố định
-        txtPinUserDefault.setEditable(false); // Không cho sửa
-        txtPinUserDefault.setBackground(new Color(240, 240, 240)); // Màu xám
-        gbc.gridx = 1;
-        formPanel.add(txtPinUserDefault, gbc);
+        addHeader(pnlMedical, "🏥 Thông tin y tế & Tài khoản");
 
-        // ===== V4: THÔNG TIN Y TẾ KHẨN CẤP =====
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        gbc.gridwidth = 2;
-        JLabel lblEmergency = new JLabel("🏥 THÔNG TIN Y TẾ KHẨN CẤP");
-        lblEmergency.setFont(new Font("Arial", Font.BOLD, 12));
-        lblEmergency.setForeground(new Color(220, 53, 69));
-        formPanel.add(lblEmergency, gbc);
-        gbc.gridwidth = 1;
-
-        // Nhóm máu (JComboBox)
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        formPanel.add(new JLabel("🩸 Nhóm máu:"), gbc);
+        // Nhóm máu
+        addLabel(pnlMedical, "🩸 Nhóm máu:");
         cboNhomMau = new JComboBox<>(UserData.BLOOD_TYPE_LABELS);
-        cboNhomMau.setSelectedIndex(0); // Mặc định: Chưa xác định
-        gbc.gridx = 1;
-        formPanel.add(cboNhomMau, gbc);
+        cboNhomMau.setFont(ModernUITheme.FONT_BODY);
+        cboNhomMau.setPreferredSize(new Dimension(200, 40));
+        cboNhomMau.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        alignLeft(cboNhomMau);
+        pnlMedical.add(cboNhomMau);
+        pnlMedical.add(Box.createVerticalStrut(15));
 
-        // Dị ứng (JTextArea)
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        gbc.anchor = GridBagConstraints.NORTHWEST;
-        formPanel.add(new JLabel("⚠️ Dị ứng:"), gbc);
-        txtDiUng = new JTextArea(2, 20);
+        // Dị ứng
+        addLabel(pnlMedical, "⚠️ Dị ứng:");
+        txtDiUng = new JTextArea(3, 20);
         txtDiUng.setLineWrap(true);
         txtDiUng.setWrapStyleWord(true);
+        txtDiUng.setFont(ModernUITheme.FONT_BODY);
         JScrollPane scrollDiUng = new JScrollPane(txtDiUng);
-        scrollDiUng.setPreferredSize(new Dimension(200, 50));
-        gbc.gridx = 1;
-        formPanel.add(scrollDiUng, gbc);
-        gbc.anchor = GridBagConstraints.WEST;
+        scrollDiUng.setBorder(BorderFactory.createLineBorder(ModernUITheme.BORDER_LIGHT));
+        scrollDiUng.setAlignmentX(Component.LEFT_ALIGNMENT);
+        pnlMedical.add(scrollDiUng);
+        pnlMedical.add(Box.createVerticalStrut(15));
 
-        // Bệnh nền (JTextArea)
-        row++;
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        gbc.anchor = GridBagConstraints.NORTHWEST;
-        formPanel.add(new JLabel("🏥 Bệnh nền:"), gbc);
-        txtBenhNen = new JTextArea(2, 20);
+        // Bệnh nền
+        addLabel(pnlMedical, "🏥 Bệnh nền:");
+        txtBenhNen = new JTextArea(3, 20);
         txtBenhNen.setLineWrap(true);
         txtBenhNen.setWrapStyleWord(true);
+        txtBenhNen.setFont(ModernUITheme.FONT_BODY);
         JScrollPane scrollBenhNen = new JScrollPane(txtBenhNen);
-        scrollBenhNen.setPreferredSize(new Dimension(200, 50));
+        scrollBenhNen.setBorder(BorderFactory.createLineBorder(ModernUITheme.BORDER_LIGHT));
+        scrollBenhNen.setAlignmentX(Component.LEFT_ALIGNMENT);
+        pnlMedical.add(scrollBenhNen);
+        pnlMedical.add(Box.createVerticalStrut(15));
+
+        // Tài khoản
+        JSeparator sep = new JSeparator();
+        sep.setMaximumSize(new Dimension(Integer.MAX_VALUE, 2));
+        pnlMedical.add(sep);
+        pnlMedical.add(Box.createVerticalStrut(15));
+
+        txtBalance = addLabeledField(pnlMedical, "Số dư ban đầu (VNĐ):", 25);
+        txtBalance.setText("0");
+
+        addLabel(pnlMedical, "PIN User mặc định:");
+        txtPinUserDefault = new ModernUITheme.RoundedTextField(25);
+        txtPinUserDefault.setText("123456");
+        txtPinUserDefault.setEditable(false);
+        txtPinUserDefault.setBackground(new Color(245, 245, 245));
+        txtPinUserDefault.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        alignLeft(txtPinUserDefault);
+        pnlMedical.add(txtPinUserDefault);
+
+        // Add columns to GridBag
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.weighty = 1.0; // Fill vertical space
+        contentPanel.add(pnlPersonal, gbc);
+
         gbc.gridx = 1;
-        formPanel.add(scrollBenhNen, gbc);
-        gbc.anchor = GridBagConstraints.WEST;
+        gbc.gridy = 0;
+        contentPanel.add(pnlMedical, gbc);
 
-        // Nút phát hành
-        btnPhatHanh = new JButton("Phát hành thẻ");
-        btnPhatHanh.setFont(new Font("Arial", Font.BOLD, 14));
-        btnPhatHanh.setPreferredSize(new Dimension(200, 40));
+        // --- BUTTON SECTION ---
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        btnPanel.setOpaque(false);
+        btnPanel.setBorder(BorderFactory.createEmptyBorder(20, 0, 20, 0));
 
-        JPanel btnPanel = new JPanel(new FlowLayout());
+        btnPhatHanh = new ModernUITheme.RoundedButton(
+                "Phát hành thẻ",
+                ModernUITheme.ADMIN_PRIMARY,
+                ModernUITheme.ADMIN_PRIMARY_HOVER,
+                ModernUITheme.TEXT_WHITE);
+        btnPhatHanh.setPreferredSize(new Dimension(220, 50));
+        btnPhatHanh.setFont(new Font("Segoe UI", Font.BOLD, 16));
+
         btnPanel.add(btnPhatHanh);
+
+        // Add Main Scroll Pane
+        JScrollPane scrollPane = new JScrollPane(contentPanel);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        add(scrollPane, BorderLayout.CENTER);
+        add(btnPanel, BorderLayout.SOUTH);
 
         // Event handlers
         btnPhatHanh.addActionListener(new ActionListener() {
@@ -202,11 +195,41 @@ public class CardIssuePanel extends JPanel {
             }
         });
 
-        add(formPanel, BorderLayout.CENTER);
-        add(btnPanel, BorderLayout.SOUTH);
-
         // Tự động tạo ID bệnh nhân khi khởi tạo form
         autoGeneratePatientId();
+    }
+
+    // Helper methods for UI construction
+    private void addHeader(JPanel panel, String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(ModernUITheme.FONT_HEADING);
+        label.setForeground(ModernUITheme.ADMIN_PRIMARY != null ? ModernUITheme.ADMIN_PRIMARY : new Color(79, 70, 229));
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(label);
+        panel.add(Box.createVerticalStrut(20));
+    }
+
+    private void addLabel(JPanel panel, String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(ModernUITheme.FONT_SUBHEADING);
+        label.setForeground(ModernUITheme.TEXT_PRIMARY);
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(label);
+        panel.add(Box.createVerticalStrut(5));
+    }
+
+    private ModernUITheme.RoundedTextField addLabeledField(JPanel panel, String labelText, int columns) {
+        addLabel(panel, labelText);
+        ModernUITheme.RoundedTextField field = new ModernUITheme.RoundedTextField(columns);
+        field.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        alignLeft(field);
+        panel.add(field);
+        panel.add(Box.createVerticalStrut(15));
+        return field;
+    }
+
+    private void alignLeft(JComponent c) {
+        c.setAlignmentX(Component.LEFT_ALIGNMENT);
     }
 
     /**

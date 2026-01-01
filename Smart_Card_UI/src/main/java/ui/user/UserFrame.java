@@ -70,7 +70,7 @@ public class UserFrame extends JFrame {
     private void initUI() {
         setTitle("Hệ Thống Thẻ Thông Minh - User");
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        setSize(1000, 700);
+        setExtendedState(JFrame.MAXIMIZED_BOTH);
         setLocationRelativeTo(null);
         setBackground(ModernUITheme.BG_PRIMARY);
 
@@ -146,6 +146,7 @@ public class UserFrame extends JFrame {
                 new Color(255, 255, 255, 40),
                 Color.WHITE);
         btnLogout.setPreferredSize(new Dimension(100, 34));
+        btnLogout.setBackground(new Color(0, 0, 0, 0)); // Transparent background for gradient header
         btnLogout.addActionListener(e -> {
             if (cardManager != null && cardManager.isConnected()) {
                 cardManager.disconnect();
@@ -171,6 +172,31 @@ public class UserFrame extends JFrame {
         tabs.addTab("🏥 Thông tin BHYT", wrapInScrollPane(bhytPanel));
         tabs.addTab("📜 Lịch sử giao dịch", wrapInScrollPane(historyPanel));
         tabs.addTab("🔐 Đổi PIN", wrapInScrollPane(changePinPanel));
+
+        // Auto-refresh data on tab change
+        tabs.addChangeListener(e -> {
+            int selectedIndex = tabs.getSelectedIndex();
+            switch (selectedIndex) {
+                case 0: // Thông tin thẻ
+                    if (userInfoPanel != null)
+                        userInfoPanel.loadInfo();
+                    break;
+                case 1: // Nạp tiền/Thanh toán
+                    if (transactionPanel != null)
+                        transactionPanel.updateBalance();
+                    break;
+                case 2: // BHYT
+                    if (bhytPanel != null)
+                        bhytPanel.loadBHYTInfo();
+                    break;
+                case 3: // Lịch sử
+                    if (historyPanel != null)
+                        historyPanel.loadHistory();
+                    break;
+                default:
+                    break;
+            }
+        });
 
         // Tab panel container
         JPanel tabContainer = new JPanel(new BorderLayout());
