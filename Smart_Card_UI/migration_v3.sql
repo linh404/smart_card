@@ -137,12 +137,6 @@ CREATE INDEX IF NOT EXISTS idx_card_status_history_created_at ON card_status_his
 CREATE INDEX IF NOT EXISTS idx_admin_username ON admin(username);
 CREATE INDEX IF NOT EXISTS idx_admin_is_active ON admin(is_active);
 
--- Indexes cho admin_audit_log
-CREATE INDEX IF NOT EXISTS idx_admin_audit_log_admin_user_id ON admin_audit_log(admin_user_id);
-CREATE INDEX IF NOT EXISTS idx_admin_audit_log_action ON admin_audit_log(action);
-CREATE INDEX IF NOT EXISTS idx_admin_audit_log_card_id ON admin_audit_log(card_id);
-CREATE INDEX IF NOT EXISTS idx_admin_audit_log_created_at ON admin_audit_log(created_at);
-
 -- Indexes cho system_logs
 CREATE INDEX IF NOT EXISTS idx_system_logs_card_id ON system_logs(card_id);
 CREATE INDEX IF NOT EXISTS idx_system_logs_action ON system_logs(action);

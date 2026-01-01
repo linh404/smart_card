@@ -764,6 +764,21 @@
       "nhomMau": 0,
       "createdAt": "2025-12-31 12:41:00",
       "updatedAt": "2025-12-31 12:41:00"
+    },
+    "B7E6703769BB816D75D1205BFB33CC35": {
+      "cardId": "B7E6703769BB816D75D1205BFB33CC35",
+      "hoTen": "123123",
+      "idBenhNhan": "52",
+      "ngaySinh": "12/03/1234",
+      "queQuan": "123123",
+      "maBHYT": "123123",
+      "balance": 0,
+      "pinUserDefault": "123456",
+      "pinAdminReset": "379317",
+      "pkUserBase64": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDOTUQ2tjtn5jm0DVMBWvAaNQgq/H2c0+oP0pmSmYh158EkETAH+VRIDE4Wpa3vz0cwKgcXBUwhTVUc3+j6RMEuetWbax+Z59j3vJ4NkM7HQXJVwejeHMz5QnEisRKzRmFGDJHT8RBqxo8dgcI5qTZo0o7b6gZWX+J6sB1wYPSSswIDAQAB",
+      "nhomMau": 0,
+      "createdAt": "2026-01-01 10:09:55",
+      "updatedAt": "2026-01-01 10:09:55"
     }
   }
 }

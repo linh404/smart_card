@@ -8,7 +8,6 @@ import ui.ModernUITheme;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.geom.RoundRectangle2D;
-import java.net.InetAddress;
 
 /**
  * LoginFrame - Màn hình đăng nhập Admin bằng username/password
@@ -234,22 +233,6 @@ public class LoginFrame extends JFrame {
 
             // Lưu current admin user
             currentAdminUser = adminUser;
-
-            // Lấy IP address để log
-            String ipAddress = null;
-            try {
-                ipAddress = InetAddress.getLocalHost().getHostAddress();
-            } catch (Exception e) {
-                // Ignore
-            }
-
-            // Lưu audit log
-            DatabaseConnection.saveAdminAuditLog(
-                    adminUser.id,
-                    "LOGIN",
-                    null,
-                    "Login successful from " + username,
-                    ipAddress);
 
             System.out.println("[Admin Login] Đăng nhập thành công: " + adminUser.username);
 

@@ -736,13 +736,6 @@ public class CardIssuePanel extends JPanel {
                 System.err.println("[CardIssuePanel] issueCard: Lỗi khi lưu snapshot demo");
             }
 
-            // 9. Lưu audit log
-            if (adminUser != null) {
-                String details = String.format("Issue card: cardId=%s, patientId=%s, hoTen=%s",
-                        cardIdHex, userData.getIdBenhNhan(), userData.getHoTen());
-                DatabaseConnection.saveAdminAuditLog(adminUser.id, "ISSUE_CARD", cardIdUser, details, null);
-            }
-
             System.out.println("[CardIssuePanel] ========== PHÁT HÀNH THẺ THÀNH CÔNG ==========");
 
             String rsaKeysMsg = "RSA Keys:\n" +

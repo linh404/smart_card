@@ -1,898 +1,661 @@
+# HỆ THỐNG THẺ THÔNG MINH BỆNH VIỆN
 
+## Tổng Quan
 
-HỆ THỐNG THẺ THÔNG MINH BỆNH VIỆN – MÔ HÌNH 1 THẺ (LUỒNG MỚI VỚI K\_MASTER)
+Hệ thống sử dụng **một loại thẻ duy nhất** - **Thẻ Bệnh nhân** (User Card) để quản lý thông tin và giao dịch trong bệnh viện. Toàn bộ dữ liệu được mã hóa và lưu trữ an toàn trên thẻ thông minh.
 
+### Kiến Trúc Hệ Thống
 
-
-I. Mô hình tổng quan hệ thống thẻ thông minh trong bệnh viện
-
-
-
-Hệ thống sử dụng một loại thẻ duy nhất: Thẻ Bệnh nhân (Thẻ User). Toàn bộ mã hóa và xác thực dữ liệu bệnh nhân được thực hiện trực tiếp bên trong thẻ User. Hệ thống không dùng thẻ Admin riêng; quyền quản trị được kiểm soát bởi tài khoản Admin trên UI và cơ chế PIN\_admin\_reset được dẫn xuất từ khóa gốc của bệnh viện.
-
-
-
-1\. Cấu trúc logic mỗi thẻ bệnh nhân:
-
-
-
-\- PIN\_user: bệnh nhân dùng để đăng nhập, xem thông tin, thanh toán, nạp tiền.
-
-\- PIN\_admin\_reset: mã “quản trị” riêng cho đúng thẻ đó, dùng để reset PIN\_user / mở khóa thẻ khi bệnh nhân quên PIN.
-
-\- PIN\_admin\_reset của từng thẻ là khác nhau.
-
-\- PIN\_admin\_reset không được lưu trong CSDL; mỗi khi cần, hệ thống backend sẽ tính lại từ:
-
-PIN\_admin\_reset = F(K\_master, cardId\_user)
-
-trong đó K\_master là master key của bệnh viện, chỉ backend/HSM biết.
-
-\- MK\_user: khóa đối xứng (master key) do thẻ sinh ra, dùng để mã hóa/giải mã dữ liệu trên thẻ.
-
-
-
-2\. Vai trò của các thành phần:
-
-
-
-\- Thẻ User:
-
-\- Lưu trữ và bảo vệ MK\_user, PIN\_user (dạng hash), PIN\_admin\_reset (dạng hash) và dữ liệu bệnh nhân đã mã hóa.
-
-\- Thực hiện toàn bộ thao tác mã hóa/giải mã, reset PIN, khóa/mở khóa thẻ.
-
-
-
-\- UI + Backend (Java Swing + server):
-
-\- Điều khiển đầu đọc thẻ, gửi/nhận APDU.
-
-\- Quản lý tài khoản Admin, mapping thẻ ↔ bệnh nhân, trạng thái thẻ.
-
-\- Từ cardId\_user và K\_master, derive động PIN\_admin\_reset khi cần reset/mở khóa.
-
-
-
-\- Supabase (CSDL hệ thống):
-
-\- Lưu ánh xạ cardId\_user ↔ hồ sơ bệnh nhân.
-
-\- Lưu trạng thái thẻ (ACTIVE, LOST, REVOKED, EXPIRED, …) và log hệ thống.
-
-\- Tùy chọn lưu ciphertext backup (Enc\_patient) do thẻ trả ra.
-
-\- Không lưu PIN\_user, PIN\_admin\_reset, MK\_user, hoặc K\_master ở dạng rõ.
-
-
-
-II. Các thành phần chính
-
-
-
-1\. Thẻ Bệnh nhân (Applet User – thẻ duy nhất)
-
-
-
-1.1. Dữ liệu và khóa lưu trên thẻ User
-
-
-
-Trên mỗi thẻ User lưu các dữ liệu bảo mật sau (trong EEPROM):
-
-
-
-\- cardId\_user: định danh duy nhất của thẻ bệnh nhân (ID thẻ).
-
-\- MK\_user: khóa đối xứng (master key) dùng để mã hóa/giải mã dữ liệu trên thẻ.
-
-\- Chỉ tồn tại dạng rõ trong RAM khi xử lý.
-
-\- Khi lưu trên EEPROM, MK\_user luôn được bọc/mã hóa.
-
-
-
-Bọc MK\_user theo PIN\_user:
-
-\- K\_user  = KDF(PIN\_user)
-
-\- Enc\_user = AES\_Encrypt(K\_user, MK\_user)
-
-→ Được dùng khi bệnh nhân đăng nhập bằng PIN\_user. Nếu PIN đúng, thẻ dùng K\_user để mở MK\_user.
-
-
-
-Bọc MK\_user theo PIN\_admin\_reset (của chính thẻ này):
-
-\- K\_admin  = KDF(PIN\_admin\_reset)
-
-\- Enc\_admin = AES\_Encrypt(K\_admin, MK\_user)
-
-→ Được dùng khi thực hiện reset PIN\_user / mở khóa thẻ bằng quyền Admin trên hệ thống. Thẻ chỉ biết PIN\_admin\_reset dạng hash tại thời điểm triển khai, còn giá trị PIN\_admin\_reset thống nhất được derive từ K\_master + cardId\_user trên backend.
-
-
-
-Dữ liệu bệnh nhân và giao dịch (mã hóa bằng MK\_user):
-
-\- UserData\_enc = AES\_Encrypt(MK\_user, UserData\_plain)
-
-Trong đó UserData\_plain gồm: họ tên, ID bệnh nhân, ngày sinh, quê quán, mã BHYT, ảnh đã resize, …
-
-\- balance\_enc = AES\_Encrypt(MK\_user, balance) – số dư tài khoản thanh toán.
-
-\- logs\_enc = AES\_Encrypt(MK\_user, logs) – lịch sử giao dịch.
-
-
-
-Dữ liệu PIN và trạng thái:
-
-\- PIN\_user\_hash        = Hash(PIN\_user)        – dùng để kiểm tra PIN\_user khi đăng nhập.
-
-\- PIN\_admin\_reset\_hash = Hash(PIN\_admin\_reset) – dùng để kiểm tra quyền reset/mở khóa.
-
-\- pin\_retry\_counter: bộ đếm số lần nhập sai PIN\_user.
-
-\- blocked\_flag: cờ trạng thái thẻ bị khóa do nhập sai PIN\_user quá số lần cho phép.
-
-
-
-Khóa công khai của User (tùy chọn, nếu dùng RSA cho challenge–response):
-
-\- SK\_user, PK\_user: cặp khóa RSA của thẻ User.
-
-\- PK\_user có thể lưu trên Supabase; SK\_user chỉ lưu trong thẻ.
-
-\- Dùng để ký challenge từ UI, giúp hệ thống xác thực thẻ thật (tùy chọn, không liên quan tới K\_master).
-
-
-
-1.2. Chức năng chính của Applet User
-
-
-
-\- Xác thực bệnh nhân bằng PIN\_user (và tùy chọn thêm chữ ký RSA).
-
-\- Quản lý trạng thái khóa/mở khóa thẻ bằng pin\_retry\_counter và blocked\_flag.
-
-\- Xác thực quyền reset/mở khóa bằng PIN\_admin\_reset (được derive từ K\_master + cardId\_user ở phía hệ thống).
-
-\- Giải mã và cung cấp dữ liệu cần thiết cho UI: thông tin bệnh nhân, mã BHYT, số dư, lịch sử giao dịch…
-
-\- Thực hiện giao dịch: nạp tiền, thanh toán, cập nhật số dư và log.
-
-\- Cho phép bệnh nhân tự đổi PIN\_user khi biết PIN cũ.
-
-\- Cho phép reset PIN\_user và mở khóa thẻ bằng PIN\_admin\_reset, khi có yêu cầu từ hệ thống (role Admin trên phần mềm).
-
-
-
-2\. UI và Supabase
-
-
-
-2.1. UI (ứng dụng Java Swing + backend)
-
-
-
-\- Giao tiếp với đầu đọc thẻ (PC/SC), gửi/nhận APDU tới Applet User.
-
-\- Cung cấp các màn hình:
-
-\- Đăng nhập Admin (tài khoản phần mềm),
-
-\- Phát hành thẻ mới,
-
-\- Quản lý/sửa thông tin thẻ,
-
-\- Reset/mở khóa PIN\_user cho bệnh nhân,
-
-\- Đăng nhập User, hiển thị thông tin, thanh toán, nạp tiền, lịch sử giao dịch, đổi PIN\_user.
-
-\- Khi cần xác thực thẻ thật (nếu dùng RSA):
-
-\- Lấy PK\_user từ Supabase để kiểm tra chữ ký RSA của thẻ (challenge–response).
-
-\- Khi reset/mở khóa PIN\_user:
-
-\- Không đọc PIN\_admin\_reset từ DB.
-
-\- Thay vào đó, backend dùng K\_master và cardId\_user để derive động PIN\_admin\_reset cho đúng thẻ.
-
-
-
-2.2. Supabase (CSDL hệ thống)
-
-
-
-\- Lưu ánh xạ:
-
-\- cardId\_user ↔ hồ sơ bệnh nhân (patient\_id, thông tin logic khác).
-
-\- (Tùy chọn) cardId\_user ↔ PK\_user nếu dùng RSA.
-
-\- Lưu dữ liệu bệnh viện:
-
-\- Hồ sơ bệnh án, thông tin BHYT đầy đủ, log hệ thống.
-
-\- Lưu trạng thái thẻ ở mức hệ thống:
-
-\- status: ACTIVE, LOST, REVOKED, EXPIRED, …
-
-\- Lịch sử thay đổi trạng thái thẻ (card\_status\_history) và log hành động admin (admin\_audit\_log).
-
-\- Tùy chọn lưu ciphertext backup:
-
-\- encrypted\_patient\_data\_backup = bản sao Enc\_patient do thẻ trả về (DB không có khả năng giải mã nếu không có MK\_user).
-
-\- Không lưu:
-
-\- PIN\_user (kể cả hash),
-
-\- PIN\_admin\_reset,
-
-\- MK\_user,
-
-\- K\_master.
-
-
-
-III. Luồng nghiệp vụ phía Admin (trên hệ thống, dùng duy nhất thẻ User)
-
-
-
-1\. Đăng nhập Admin trên hệ thống
-
-
-
-1.1. Trên UI
-
-
-
-\- Quản trị viên mở ứng dụng Java Swing.
-
-\- UI hiển thị form đăng nhập:
-
-\- Tài khoản (username),
-
-\- Mật khẩu (password).
-
-\- UI gửi thông tin lên server/Supabase để kiểm tra:
-
-\- Nếu hợp lệ và có role Admin:
-
-\- Cho phép truy cập giao diện quản trị (phát hành thẻ, reset/mở khóa PIN, sửa thông tin).
-
-\- Nếu không:
-
-\- Từ chối truy cập các chức năng quản trị.
-
-
-
-2\. Phát hành thẻ User (cấp thẻ cho bệnh nhân)
-
-
-
-2.1. Trên UI / Backend
-
-
-
-\- Admin đã đăng nhập hệ thống với role Admin.
-
-\- Admin nhập thông tin bệnh nhân ở dạng plaintext:
-
-\- Họ tên, ID bệnh nhân, ngày sinh, quê quán, mã BHYT, …
-
-\- Ảnh bệnh nhân đã resize.
-
-\- Admin nhập PIN\_user\_default (PIN mặc định cho bệnh nhân) hoặc để hệ thống sinh.
-
-\- Admin cắm thẻ User trắng vào đầu đọc (Select sang Applet User).
-
-\- UI/Backend thực hiện:
-
-\- Đọc cardId\_user từ thẻ.
-
-\- Từ K\_master và cardId\_user, derive:
-
-PIN\_admin\_reset = F(K\_master, cardId\_user)
-
-
-
-\- UI gửi toàn bộ dữ liệu plaintext xuống thẻ User:
-
-\- Thông tin bệnh nhân,
-
-\- Ảnh đã xử lý,
-
-\- PIN\_user\_default,
-
-\- PIN\_admin\_reset (vừa derive từ K\_master + cardId\_user).
-
-
-
-\- Sau khi xử lý, Applet User trả về:
-
-\- cardId\_user,
-
-\- PK\_user (nếu dùng RSA).
-
-
-
-\- UI lưu lên Supabase:
-
-\- cardId\_user, patient\_id, trạng thái status = ACTIVE,
-
-\- Thông tin mapping với hồ sơ bệnh nhân,
-
-\- (Tùy chọn) PK\_user,
-
-\- (Tùy chọn) encrypted\_patient\_data\_backup nếu thẻ trả ciphertext.
-
-
-
-2.2. Trong thẻ User – sinh khóa và mã hóa dữ liệu
-
-
-
-\- Sinh:
-
-\- MK\_user = random\_AES\_key() – master key mã hóa dữ liệu trên thẻ.
-
-\- (SK\_user, PK\_user) = RSA\_keypair\_generate() – nếu dùng RSA cho challenge–response.
-
-
-
-\- Nhận UserData dạng plaintext từ UI:
-
-\- { hoTen, ID\_BN, ngaySinh, queQuan, maBHYT, anh\_xu\_ly, … }
-
-
-
-\- Mã hóa dữ liệu:
-
-\- UserData\_enc = AES\_Encrypt(MK\_user, UserData)
-
-\- balance\_enc = AES\_Encrypt(MK\_user, balance\_0)
-
-\- logs\_enc = AES\_Encrypt(MK\_user, logs\_0 hoặc rỗng)
-
-
-
-\- Thiết lập PIN:
-
-\- Nhận PIN\_user\_default, PIN\_admin\_reset từ UI.
-
-\- Tạo hash:
-
-\- PIN\_user\_hash        = Hash(PIN\_user\_default)
-
-\- PIN\_admin\_reset\_hash = Hash(PIN\_admin\_reset)
-
-\- Bọc MK\_user theo PIN\_user:
-
-\- K\_user  = KDF(PIN\_user\_default)
-
-\- Enc\_user = AES\_Encrypt(K\_user, MK\_user)
-
-\- Bọc MK\_user theo PIN\_admin\_reset:
-
-\- K\_admin  = KDF(PIN\_admin\_reset)
-
-\- Enc\_admin = AES\_Encrypt(K\_admin, MK\_user)
-
-
-
-\- Lưu trên EEPROM thẻ:
-
-\- UserData\_enc, balance\_enc, logs\_enc,
-
-\- PIN\_user\_hash, PIN\_admin\_reset\_hash,
-
-\- Enc\_user, Enc\_admin,
-
-\- PK\_user (nếu dùng), cardId\_user,
-
-\- pin\_retry\_counter (MAX\_RETRY), blocked\_flag = 0.
-
-
-
-3\. Quản lý / sửa thông tin thẻ User
-
-
-
-3.1. Trên UI
-
-
-
-\- Admin đăng nhập hệ thống (role Admin).
-
-\- Admin chọn bệnh nhân/thẻ cần chỉnh sửa theo cardId\_user (tra từ CSDL).
-
-\- Yêu cầu bệnh nhân cắm thẻ User tương ứng vào đầu đọc.
-
-\- UI:
-
-\- Đọc cardId\_user từ thẻ và kiểm tra khớp với card đã chọn.
-
-\- Yêu cầu bệnh nhân đăng nhập bằng PIN\_user.
-
-
-
-\- UI gửi PIN\_user xuống thẻ để xác thực:
-
-\- Nếu thẻ báo PIN sai, hiển thị số lần còn lại (nếu có) hoặc báo thẻ đã bị khóa.
-
-\- Nếu PIN đúng và thẻ chưa bị blocked\_flag, thẻ sẽ giải mã MK\_user và cho phép đọc/ghi dữ liệu.
-
-
-
-\- Sau khi thẻ cho phép truy cập dữ liệu:
-
-\- UI gửi APDU yêu cầu thẻ trả về dữ liệu bệnh nhân dạng plaintext (họ tên, mã BHYT, …).
-
-\- UI hiển thị form chỉnh sửa dữ liệu plaintext.
-
-\- Admin sửa thông tin và gửi dữ liệu mới xuống thẻ qua APDU UPDATE\_PATIENT\_DATA.
-
-
-
-\- Thẻ trả về status OK/FAIL.
-
-\- Sau khi cập nhật thành công trên thẻ:
-
-\- UI cập nhật bản sao thông tin logic trên Supabase (nếu cần đồng bộ).
-
-
-
-3.2. Trong thẻ User
-
-
-
-\- Kiểm tra:
-
-\- Người dùng đã được xác thực qua PIN\_user (pin\_retry\_counter > 0, blocked\_flag == 0).
-
-
-
-\- Mở MK\_user bằng PIN\_user:
-
-\- K\_user  = KDF(PIN\_user)
-
-\- MK\_user = AES\_Decrypt(K\_user, Enc\_user)
-
-
-
-\- Giải mã dữ liệu cũ:
-
-\- UserData = AES\_Decrypt(MK\_user, UserData\_enc)
-
-
-
-\- Áp dụng thay đổi từ UI → tạo UserData\_moi.
-
-
-
-\- Mã hóa lại:
-
-\- UserData\_enc\_new = AES\_Encrypt(MK\_user, UserData\_moi)
-
-
-
-\- Ghi đè:
-
-\- UserData\_enc ← UserData\_enc\_new.
-
-
-
-\- Xóa MK\_user, K\_user khỏi RAM khi hoàn thành.
-
-
-
-4\. Reset PIN\_user và mở khóa thẻ bằng quyền Admin (dùng K\_master)
-
-
-
-4.1. Trên UI / Backend (Admin hệ thống)
-
-
-
-\- Admin đăng nhập hệ thống (role Admin).
-
-\- Chọn bệnh nhân cần reset/mở khóa PIN\_user, xác định cardId\_user (từ DB).
-
-\- Yêu cầu bệnh nhân cắm đúng thẻ User; UI đọc cardId\_user trên thẻ và kiểm tra khớp.
-
-
-
-\- Backend:
-
-\- Lấy cardId\_user,
-
-\- Từ K\_master và cardId\_user derive:
-
-PIN\_admin\_reset = F(K\_master, cardId\_user)
-
-
-
-\- Admin nhập PIN\_user\_new (PIN mới cho bệnh nhân) trên UI.
-
-
-
-\- UI gửi APDU RESET\_PIN\_BY\_ADMIN xuống thẻ User, kèm:
-
-\- PIN\_admin\_reset,
-
-\- PIN\_user\_new.
-
-
-
-4.2. Trong thẻ User
-
-
-
-\- Nhận PIN\_admin\_reset và PIN\_user\_new qua APDU RESET\_PIN\_BY\_ADMIN.
-
-
-
-\- Xác thực PIN\_admin\_reset:
-
-\- PIN\_admin\_reset\_hash' = Hash(PIN\_admin\_reset)
-
-\- So sánh với PIN\_admin\_reset\_hash.
-
-\- Nếu sai:
-
-\- Trả lỗi “Admin PIN sai”, không mở MK\_user, không thay đổi gì.
-
-
-
-\- Nếu đúng:
-
-\- K\_admin  = KDF(PIN\_admin\_reset)
-
-\- MK\_user  = AES\_Decrypt(K\_admin, Enc\_admin)
-
-
-
-\- Tính toán dữ liệu mới cho PIN\_user:
-
-\- PIN\_user\_hash\_new = Hash(PIN\_user\_new)
-
-\- K\_user\_new        = KDF(PIN\_user\_new)
-
-\- Enc\_user\_new      = AES\_Encrypt(K\_user\_new, MK\_user)
-
-
-
-\- Cập nhật trên thẻ:
-
-\- PIN\_user\_hash ← PIN\_user\_hash\_new
-
-\- Enc\_user      ← Enc\_user\_new
-
-\- pin\_retry\_counter ← MAX\_RETRY
-
-\- blocked\_flag      ← 0  (mở khóa thẻ nếu đang bị khóa)
-
-
-
-\- Xóa MK\_user, K\_admin, K\_user\_new khỏi RAM.
-
-\- Trả status “Reset PIN thành công / thẻ đã được mở khóa” cho UI.
-
-
-
-IV. Luồng nghiệp vụ phía User (bệnh nhân dùng thẻ User)
-
-
-
-1\. Đăng nhập User và hiển thị thông tin thẻ
-
-
-
-1.1. Trên UI
-
-
-
-\- Bệnh nhân cắm thẻ User (Select Applet User).
-
-\- UI đọc cardId\_user, có thể truy vấn Supabase để lấy thông tin logic nếu cần.
-
-\- UI hiển thị form:
-
-\- Nhập ID bệnh nhân (hoặc mã định danh),
-
-\- Nhập PIN\_user.
-
-
-
-\- UI gửi PIN\_user xuống thẻ User.
-
-\- Nếu thẻ báo PIN đúng và chưa bị khóa:
-
-\- (Tùy chọn) UI sinh challenge\_user và gửi xuống thẻ.
-
-\- Thẻ ký: signature\_user = RSA\_Sign(SK\_user, challenge\_user) và trả về.
-
-\- UI dùng PK\_user để verify signature\_user.
-
-\- Nếu hợp lệ → cho phép vào giao diện User.
-
-
-
-\- Sau khi đăng nhập thành công:
-
-\- UI gửi lệnh yêu cầu thẻ trả dữ liệu hiển thị (họ tên, ID BN, ảnh, số dư…).
-
-\- UI hiển thị dữ liệu plaintext nhận được từ thẻ.
-
-
-
-1.2. Trong thẻ User – xác thực và giải mã
-
-
-
-a) Xác thực PIN\_user
-
-
-
-\- Nhận PIN\_user từ UI.
-
-\- Tính PIN\_user\_hash' = Hash(PIN\_user) và so sánh với PIN\_user\_hash.
-
-\- Nếu sai:
-
-\- Giảm pin\_retry\_counter.
-
-\- Nếu pin\_retry\_counter == 0 → blocked\_flag = 1 (thẻ bị khóa).
-
-\- Trả status lỗi, cho UI biết số lần còn lại (nếu còn).
-
-\- Nếu đúng:
-
-\- Đặt cờ “User đã xác thực” trong RAM.
-
-\- Reset pin\_retry\_counter = MAX\_RETRY.
-
-\- Khi cần, mở MK\_user:
-
-\- K\_user  = KDF(PIN\_user)
-
-\- MK\_user = AES\_Decrypt(K\_user, Enc\_user)
-
-
-
-b) Xác thực RSA User (tùy chọn)
-
-
-
-\- Nhận challenge\_user từ UI.
-
-\- Ký: signature\_user = RSA\_Sign(SK\_user, challenge\_user).
-
-\- Trả signature\_user cho UI để kiểm tra bằng PK\_user.
-
-
-
-c) Giải mã dữ liệu để hiển thị
-
-
-
-\- Khi UI yêu cầu:
-
-\- UserData = AES\_Decrypt(MK\_user, UserData\_enc)
-
-\- balance  = AES\_Decrypt(MK\_user, balance\_enc) (nếu cần)
-
-
-
-\- Trả họ tên, ID BN, ảnh, số dư… dạng plaintext cho UI.
-
-
-
-2\. Nạp tiền / Thanh toán
-
-
-
-2.1. Trên UI
-
-
-
-\- Chỉ cho phép truy cập màn hình nạp/chi sau khi User đã đăng nhập thành công.
-
-\- User nhập số tiền và chọn loại giao dịch (nạp hoặc thanh toán).
-
-\- UI gửi yêu cầu {loai\_giao\_dich, so\_tien} xuống thẻ User.
-
-\- Nhận kết quả:
-
-\- Thành công / thất bại,
-
-\- Số dư mới balance\_new.
-
-\- UI hiển thị kết quả và số dư mới.
-
-
-
-2.2. Trong thẻ User
-
-
-
-\- Kiểm tra cờ “User đã xác thực” và trạng thái thẻ (blocked\_flag == 0).
-
-\- Dùng MK\_user giải mã số dư hiện tại:
-
-\- balance = AES\_Decrypt(MK\_user, balance\_enc)
-
-\- Tính toán:
-
-\- balance\_new = balance + delta
-
-\- delta > 0: nạp tiền.
-
-\- delta < 0: thanh toán.
-
-\- Kiểm tra điều kiện (không âm, hạn mức…).
-
-\- Mã hóa lại:
-
-\- balance\_enc\_new = AES\_Encrypt(MK\_user, balance\_new)
-
-\- Cập nhật log giao dịch:
-
-\- logs     = AES\_Decrypt(MK\_user, logs\_enc)
-
-\- logs\_new = logs + \[giao\_dich\_moi]
-
-\- logs\_enc\_new = AES\_Encrypt(MK\_user, logs\_new)
-
-\- Lưu balance\_enc\_new, logs\_enc\_new và trả balance\_new (plaintext) cho UI.
-
-
-
-3\. Kiểm tra thông tin BHYT
-
-
-
-3.1. Trên UI
-
-
-
-\- Sau khi user đăng nhập, chọn chức năng “Thông tin BHYT”.
-
-\- UI gửi lệnh yêu cầu mã BHYT xuống thẻ User.
-
-\- UI nhận maBHYT từ thẻ, sử dụng Supabase/API server để truy vấn thông tin BHYT đầy đủ.
-
-\- Hiển thị kết quả tra cứu cho bệnh nhân.
-
-
-
-3.2. Trong thẻ User
-
-
-
-\- Dùng MK\_user giải mã:
-
-\- UserData = AES\_Decrypt(MK\_user, UserData\_enc)
-
-\- Lấy maBHYT từ UserData và gửi ra cho UI.
-
-
-
-4\. Kiểm tra lịch sử giao dịch
-
-
-
-4.1. Trên UI
-
-
-
-\- Sau khi đăng nhập, user chọn “Lịch sử giao dịch”.
-
-\- UI gửi lệnh yêu cầu log xuống thẻ.
-
-\- Nhận danh sách log (plaintext) và hiển thị.
-
-
-
-4.2. Trong thẻ User
-
-
-
-\- Dùng MK\_user giải mã:
-
-\- logs = AES\_Decrypt(MK\_user, logs\_enc)
-
-\- Gửi logs (đã giải mã) ra UI.
-
-
-
-5\. Đổi PIN\_user (User tự thực hiện)
-
-
-
-5.1. Trên UI
-
-
-
-\- Yêu cầu người dùng nhập:
-
-\- PIN\_cu,
-
-\- PIN\_moi.
-
-\- Gửi cả hai xuống thẻ User.
-
-\- Nhận kết quả:
-
-\- Đổi PIN thành công,
-
-\- Sai PIN cũ,
-
-\- PIN mới trùng PIN cũ,
-
-\- Các mã lỗi khác (nếu có).
-
-\- Hiển thị thông báo tương ứng.
-
-
-
-5.2. Trong thẻ User
-
-
-
-a) Xác thực và kiểm tra
-
-
-
-\- Nhận PIN\_cu, PIN\_moi.
-
-\- Kiểm tra PIN\_cu:
-
-\- PIN\_hash\_cu' = Hash(PIN\_cu) so sánh với PIN\_user\_hash.
-
-\- Nếu sai → từ chối, giảm pin\_retry\_counter, có thể khóa thẻ nếu vượt ngưỡng.
-
-
-
-\- Kiểm tra PIN\_moi ≠ PIN\_cu:
-
-\- Nếu trùng → từ chối (không cho sử dụng lại PIN cũ).
-
-
-
-b) Mã hóa lại MK\_user với PIN mới
-
-
-
-\- Mở MK\_user bằng PIN\_cu:
-
-\- K\_user\_old = KDF(PIN\_cu)
-
-\- MK\_user    = AES\_Decrypt(K\_user\_old, Enc\_user)
-
-
-
-\- Tạo hash và khóa mới:
-
-\- PIN\_user\_hash\_new = Hash(PIN\_moi)
-
-\- K\_user\_new        = KDF(PIN\_moi)
-
-\- Enc\_user\_new      = AES\_Encrypt(K\_user\_new, MK\_user)
-
-
-
-\- Ghi đè:
-
-\- PIN\_user\_hash ← PIN\_user\_hash\_new
-
-\- Enc\_user      ← Enc\_user\_new
-
-\- Reset pin\_retry\_counter, giữ blocked\_flag = 0.
-
-
-
-
-
+```
+┌─────────────────┐      ┌──────────────────┐      ┌─────────────┐
+│   Thẻ User      │ ←──→ │  UI (Java Swing) │ ←──→ │  Supabase   │
+│   (JavaCard)    │      │  + Backend       │      │  Database   │
+└─────────────────┘      └──────────────────┘      └─────────────┘
+```
+
+### Các Thành Phần Chính
+
+1. **Thẻ User (JavaCard Applet)**
+   - Lưu trữ dữ liệu bệnh nhân đã mã hóa
+   - Quản lý PIN và xác thực
+   - Xử lý giao dịch (nạp tiền, thanh toán)
+   - Mã hóa/giải mã dữ liệu bằng MK_user
+
+2. **UI + Backend (Java Swing)**
+   - Giao diện quản trị và người dùng
+   - Giao tiếp với thẻ qua PC/SC
+   - Quản lý tài khoản Admin
+   - Tích hợp với database
+
+3. **Supabase Database**
+   - Lưu ánh xạ thẻ ↔ bệnh nhân
+   - Quản lý trạng thái thẻ
+   - Lưu log hệ thống
+   - **KHÔNG** lưu dữ liệu nhạy cảm (PIN, MK_user, K_master)
+
+---
+
+## Cơ Chế Bảo Mật
+
+### Dữ Liệu Trên Thẻ
+
+| Dữ liệu | Mô tả | Trạng thái |
+|---------|-------|------------|
+| `cardId_user` | ID định danh thẻ | Plaintext |
+| `MK_user` | Master key mã hóa dữ liệu | Encrypted |
+| `PIN_user_hash` | Hash của PIN người dùng | Hashed |
+| `PIN_admin_reset_hash` | Hash của PIN quản trị | Hashed |
+| `UserData_enc` | Thông tin bệnh nhân | Encrypted |
+| `balance_enc` | Số dư tài khoản | Encrypted |
+| `logs_enc` | Lịch sử giao dịch | Encrypted |
+
+### Cơ Chế Bọc Khóa (Key Wrapping)
+
+**MK_user** được bọc bằng 2 cách:
+
+1. **Enc_user** = AES_Encrypt(KDF(PIN_user), MK_user)
+   - Dùng cho đăng nhập bệnh nhân
+
+2. **Enc_admin** = AES_Encrypt(KDF(PIN_admin_reset), MK_user)
+   - Dùng cho reset PIN bởi Admin
+
+**PIN_admin_reset** được derive động:
+```
+PIN_admin_reset = HMAC-SHA256(K_master, cardId_user)
+```
+- K_master: Khóa bí mật để tạo PIN admin (lưu trong env)
+- Mỗi thẻ có PIN_admin_reset riêng biệt
+- KHÔNG lưu trong database
+
+---
+
+## CHỨC NĂNG CHÍNH
+
+## 🔐 A. CHỨC NĂNG ADMIN
+
+### A1. Đăng Nhập Admin
+
+**Luồng xử lý:**
+```
+1. Admin nhập username/password trên UI
+2. UI xác thực với Supabase
+3. Kiểm tra role = Admin
+4. Cho phép truy cập các chức năng quản trị
+```
+
+**Dữ liệu:** Tài khoản Admin lưu trong Supabase
+
+---
+
+### A2. Phát Hành Thẻ Mới
+
+**Luồng xử lý:**
+
+```
+[UI/Admin]
+  1. Nhập thông tin bệnh nhân (họ tên, ngày sinh, mã BHYT, ảnh...)
+  2. Nhập PIN_user_default (hoặc tự động sinh)
+  3. Cắm thẻ trắng vào đầu đọc
+  4. Đọc cardId_user từ thẻ
+  5. Derive PIN_admin_reset = HMAC(K_master, cardId_user)
+  6. Gửi dữ liệu xuống thẻ
+     
+[Thẻ User]
+  7. Sinh MK_user (AES key)
+  8. Sinh cặp khóa RSA (SK_user, PK_user) [tùy chọn]
+  9. Mã hóa dữ liệu:
+     - UserData_enc = AES(MK_user, UserData)
+     - balance_enc = AES(MK_user, 0)
+     - logs_enc = AES(MK_user, [])
+  10. Hash PIN:
+     - PIN_user_hash = Hash(PIN_user_default)
+     - PIN_admin_reset_hash = Hash(PIN_admin_reset)
+  11. Bọc MK_user:
+     - Enc_user = AES(KDF(PIN_user_default), MK_user)
+     - Enc_admin = AES(KDF(PIN_admin_reset), MK_user)
+  12. Lưu tất cả vào EEPROM
+  13. Trả PK_user cho UI
+     
+[UI/Backend]
+  14. Lưu vào Supabase:
+      - cardId_user ↔ patient_id
+      - PK_user (nếu dùng RSA)
+      - status = ACTIVE
+      - Thông tin mapping
+```
+
+**Kết quả:** Thẻ sẵn sàng sử dụng với dữ liệu đã mã hóa
+
+---
+
+### A3. Sửa Thông Tin Thẻ
+
+**Luồng xử lý:**
+
+```
+[UI/Admin]
+  1. Chọn bệnh nhân cần sửa (từ DB)
+  2. Yêu cầu bệnh nhân cắm thẻ
+  3. Kiểm tra cardId_user khớp
+  4. Yêu cầu bệnh nhân nhập PIN_user
+     
+[Thẻ User]
+  5. Xác thực PIN_user
+  6. Mở MK_user = AES_Decrypt(KDF(PIN_user), Enc_user)
+  7. Giải mã UserData_enc → UserData (plaintext)
+  8. Trả UserData cho UI
+     
+[UI/Admin]
+  9. Hiển thị form chỉnh sửa
+  10. Admin cập nhật thông tin
+  11. Gửi UserData_new xuống thẻ
+     
+[Thẻ User]
+  12. Mã hóa: UserData_enc_new = AES(MK_user, UserData_new)
+  13. Ghi đè UserData_enc
+  14. Trả status OK
+     
+[UI/Backend]
+  15. Đồng bộ thông tin lên Supabase (nếu cần)
+```
+
+**Yêu cầu:** Bệnh nhân phải biết PIN_user
+
+---
+
+### A4. Reset PIN / Mở Khóa Thẻ
+
+**Luồng xử lý:**
+
+```
+[UI/Admin]
+  1. Chọn bệnh nhân cần reset PIN
+  2. Lấy cardId_user từ DB
+  3. Yêu cầu bệnh nhân cắm thẻ
+  4. Kiểm tra cardId_user khớp
+  5. Backend derive: PIN_admin_reset = HMAC(K_master, cardId_user)
+  6. Admin nhập PIN_user_new
+  7. Gửi APDU: {PIN_admin_reset, PIN_user_new}
+     
+[Thẻ User]
+  8. Xác thực PIN_admin_reset:
+     - Hash(PIN_admin_reset) == PIN_admin_reset_hash?
+     - Nếu SAI → Trả lỗi, DỪNG
+  9. Mở MK_user = AES_Decrypt(KDF(PIN_admin_reset), Enc_admin)
+  10. Tính toán dữ liệu mới:
+     - PIN_user_hash_new = Hash(PIN_user_new)
+     - Enc_user_new = AES(KDF(PIN_user_new), MK_user)
+  11. Cập nhật:
+     - PIN_user_hash ← PIN_user_hash_new
+     - Enc_user ← Enc_user_new
+     - pin_retry_counter ← MAX_RETRY (3)
+     - blocked_flag ← 0 (mở khóa)
+  12. Xóa MK_user khỏi RAM
+  13. Trả status SUCCESS
+```
+
+**Kết quả:** 
+- PIN_user được đặt lại
+- Thẻ được mở khóa (nếu bị khóa)
+- Bệnh nhân có thể đăng nhập bằng PIN mới
+
+**Bảo mật:** Chỉ Admin có K_master mới derive được PIN_admin_reset đúng
+
+---
+
+## 👤 B. CHỨC NĂNG USER (BỆNH NHÂN)
+
+### B1. Đăng Nhập User
+
+**Luồng xử lý:**
+
+```
+[UI/User]
+  1. Bệnh nhân cắm thẻ
+  2. Đọc cardId_user
+  3. Nhập ID bệnh nhân + PIN_user
+  4. Gửi PIN_user xuống thẻ
+     
+[Thẻ User]
+  5. Xác thực PIN:
+     - Hash(PIN_user) == PIN_user_hash?
+     - Nếu SAI:
+       → Giảm pin_retry_counter
+       → Nếu = 0: blocked_flag = 1 (khóa thẻ)
+       → Trả lỗi + số lần còn lại
+     - Nếu ĐÚNG:
+       → Đặt cờ "authenticated" trong RAM
+       → Reset pin_retry_counter = MAX_RETRY
+  6. [Tùy chọn] Xác thực RSA:
+     - Sinh signature = RSA_Sign(SK_user, challenge)
+     - Trả signature cho UI
+     
+[UI]
+  7. Verify signature bằng PK_user (từ DB)
+  8. Nếu hợp lệ → Cho phép truy cập giao diện User
+```
+
+**Bảo mật:**
+- Sau 3 lần nhập sai → Thẻ bị khóa
+- Cần Admin reset để mở khóa
+
+---
+
+### B2. Xem Thông Tin Thẻ
+
+**Luồng xử lý:**
+
+```
+[UI] Gửi lệnh GET_USER_DATA
+     ↓
+[Thẻ User]
+  1. Kiểm tra đã authenticated?
+  2. Mở MK_user = AES_Decrypt(KDF(PIN_user), Enc_user)
+  3. Giải mã:
+     - UserData = AES_Decrypt(MK_user, UserData_enc)
+     - balance = AES_Decrypt(MK_user, balance_enc)
+  4. Trả plaintext: {họ tên, ngày sinh, mã BHYT, ảnh, số dư...}
+     ↓
+[UI] Hiển thị thông tin cho bệnh nhân
+```
+
+**Dữ liệu hiển thị:**
+- Họ tên, ID bệnh nhân
+- Ngày sinh, quê quán
+- Mã BHYT
+- Ảnh bệnh nhân
+- Số dư tài khoản
+
+---
+
+### B3. Nạp Tiền / Thanh Toán
+
+**Luồng xử lý:**
+
+```
+[UI/User]
+  1. Chọn loại giao dịch: NAP_TIEN / THANH_TOAN
+  2. Nhập số tiền
+  3. Gửi {type, amount} xuống thẻ
+     
+[Thẻ User]
+  4. Kiểm tra authenticated?
+  5. Giải mã số dư: balance = AES_Decrypt(MK_user, balance_enc)
+  6. Tính toán:
+     - Nếu NAP_TIEN: balance_new = balance + amount
+     - Nếu THANH_TOAN: balance_new = balance - amount
+  7. Kiểm tra điều kiện:
+     - balance_new >= 0?
+     - Nằm trong hạn mức?
+  8. Nếu hợp lệ:
+     - Mã hóa: balance_enc_new = AES(MK_user, balance_new)
+     - Cập nhật log:
+       logs = AES_Decrypt(MK_user, logs_enc)
+       logs_new = logs + [{timestamp, type, amount, balance_new}]
+       logs_enc_new = AES(MK_user, logs_new)
+     - Ghi vào EEPROM
+  9. Trả {status, balance_new}
+     
+[UI] Hiển thị kết quả + số dư mới
+```
+
+**Kiểm tra:**
+- Không cho phép số dư âm
+- Kiểm tra hạn mức giao dịch
+- Log đầy đủ lịch sử
+
+---
+
+### B4. Xem Lịch Sử Giao Dịch
+
+**Luồng xử lý:**
+
+```
+[UI] Gửi lệnh GET_TRANSACTION_LOGS
+     ↓
+[Thẻ User]
+  1. Kiểm tra authenticated?
+  2. Giải mã: logs = AES_Decrypt(MK_user, logs_enc)
+  3. Trả danh sách giao dịch
+     ↓
+[UI] Hiển thị bảng lịch sử:
+     - Thời gian
+     - Loại giao dịch
+     - Số tiền
+     - Số dư sau giao dịch
+```
+
+---
+
+### B5. Tra Cứu Thông Tin BHYT
+
+**Luồng xử lý:**
+
+```
+[UI] Gửi lệnh GET_BHYT_CODE
+     ↓
+[Thẻ User]
+  1. Giải mã: UserData = AES_Decrypt(MK_user, UserData_enc)
+  2. Trích xuất maBHYT
+  3. Trả maBHYT
+     ↓
+[UI/Backend]
+  4. Truy vấn API/Supabase với maBHYT
+  5. Lấy thông tin BHYT đầy đủ
+     ↓
+[UI] Hiển thị:
+     - Thời hạn thẻ BHYT
+     - Nơi đăng ký KCB
+     - Mức hưởng
+     - ...
+```
+
+---
+
+### B6. Đổi PIN (Tự Thực Hiện)
+
+**Luồng xử lý:**
+
+```
+[UI/User]
+  1. Nhập PIN_cu (PIN cũ)
+  2. Nhập PIN_moi (PIN mới)
+  3. Gửi {PIN_cu, PIN_moi} xuống thẻ
+     
+[Thẻ User]
+  4. Xác thực PIN cũ:
+     - Hash(PIN_cu) == PIN_user_hash?
+     - Nếu SAI → Giảm retry_counter, trả lỗi
+  5. Kiểm tra PIN_moi ≠ PIN_cu (không cho trùng)
+  6. Mở MK_user = AES_Decrypt(KDF(PIN_cu), Enc_user)
+  7. Tính toán dữ liệu mới:
+     - PIN_user_hash_new = Hash(PIN_moi)
+     - Enc_user_new = AES(KDF(PIN_moi), MK_user)
+  8. Cập nhật:
+     - PIN_user_hash ← PIN_user_hash_new
+     - Enc_user ← Enc_user_new
+     - Reset pin_retry_counter = MAX_RETRY
+  9. Xóa MK_user khỏi RAM
+  10. Trả status SUCCESS
+     
+[UI] Hiển thị "Đổi PIN thành công"
+```
+
+**Yêu cầu:**
+- Phải biết PIN cũ
+- PIN mới phải khác PIN cũ
+
+---
+
+## 📊 CẤU TRÚC DỮ LIỆU
+
+### Thông Tin Bệnh Nhân (UserData)
+
+```json
+{
+  "hoTen": "Nguyễn Văn A",
+  "idBenhNhan": "BN123456",
+  "ngaySinh": "1990-01-01",
+  "queQuan": "Hà Nội",
+  "maBHYT": "DN123456789012345",
+  "anhDaiDien": "<base64_encoded_image>",
+  "gioiTinh": "Nam",
+  "soDienThoai": "0123456789"
+}
+```
+
+### Log Giao Dịch (Transaction Log)
+
+```json
+[
+  {
+    "timestamp": "2026-01-01T10:30:00",
+    "type": "NAP_TIEN",
+    "amount": 500000,
+    "balance_after": 500000,
+    "location": "Quầy thu ngân 1"
+  },
+  {
+    "timestamp": "2026-01-01T14:15:00",
+    "type": "THANH_TOAN",
+    "amount": 150000,
+    "balance_after": 350000,
+    "service": "Khám nội khoa"
+  }
+]
+```
+
+### Trạng Thái Thẻ (Card Status)
+
+| Status | Ý nghĩa | Có thể sử dụng? |
+|--------|---------|-----------------|
+| ACTIVE | Thẻ đang hoạt động | ✅ Có |
+| BLOCKED | Thẻ bị khóa do sai PIN | ❌ Cần Admin mở khóa |
+| LOST | Thẻ bị mất | ❌ Cần cấp thẻ mới |
+| REVOKED | Thẻ bị thu hồi | ❌ Vĩnh viễn vô hiệu |
+| EXPIRED | Thẻ hết hạn | ❌ Cần gia hạn |
+
+---
+
+## 🔒 CƠ CHẾ BẢO MẬT
+
+### Nguyên Tắc Bảo Mật
+
+1. **Zero Trust Database**
+   - Database KHÔNG thể đọc dữ liệu bệnh nhân
+   - Không có PIN, MK_user trong DB
+   - Chỉ lưu metadata và ciphertext
+
+2. **PIN Phân Tầng**
+   - `PIN_user`: Bệnh nhân tự quản lý, có thể đổi
+   - `PIN_admin_reset`: Derive từ K_master, dùng để reset
+
+3. **Key Rotation**
+   - MK_user không đổi (trừ khi cấp thẻ mới)
+   - Enc_user thay đổi khi đổi PIN_user
+   - Enc_admin cố định (trừ khi đổi K_master toàn hệ thống)
+
+4. **Defense in Depth**
+   - Layer 1: PIN authentication
+   - Layer 2: RSA signature (tùy chọn)
+   - Layer 3: Encrypted data storage
+   - Layer 4: Card status check
+   - Layer 5: Audit logging
+
+### Xử Lý Khi Mất Thẻ
+
+```
+1. Bệnh nhân báo mất thẻ
+2. Admin đánh dấu status = LOST trong DB
+3. UI từ chối mọi giao dịch với thẻ đó
+4. Cấp thẻ mới:
+   - Sinh MK_user mới
+   - Sinh PIN_admin_reset mới (dựa vào cardId_user mới)
+   - Copy dữ liệu bệnh nhân từ DB hoặc nhập lại
+5. Thẻ cũ vô hiệu hóa vĩnh viễn
+```
+
+---
+
+## 🛠️ CÔNG NGHỆ SỬ DỤNG
+
+### JavaCard Applet (Smart_Card_JCIDE)
+
+- **Platform:** JavaCard 3.0.4
+- **Crypto:** 
+  - AES-128/256 (mã hóa dữ liệu)
+  - SHA-256 (hash PIN)
+  - HMAC-SHA256 (derive PIN_admin_reset)
+  - RSA-2048 (xác thực thẻ - tùy chọn)
+- **Storage:** EEPROM persistent
+
+**Cấu trúc modules:**
+- `UserApplet.java`: Xử lý APDU, điều phối
+- `CryptoHelper.java`: Mã hóa/giải mã, KDF
+- `PINHelper.java`: Quản lý PIN, retry counter
+- `DataHelper.java`: Serialize/deserialize
+- `RSAHelper.java`: Chữ ký số RSA
+
+### Java Swing UI (Smart_Card_UI)
+
+- **Framework:** Java Swing + Maven
+- **Java Version:** 1.8
+- **Dependencies:**
+  - `javax.smartcardio`: Giao tiếp PC/SC
+  - `postgresql`: Kết nối Supabase
+  - `bcprov-jdk18on`: BouncyCastle crypto
+  - `gson`: JSON parsing
+  - `jbcrypt`: Password hashing
+  - `HikariCP`: Connection pooling
+
+**Cấu trúc packages:**
+- `ui.*`: Giao diện Swing
+- `card.*`: APDU commands
+- `db.*`: Database access
+- `model.*`: Data models
+- `util.*`: Utilities
+
+### Database (Supabase/PostgreSQL)
+
+**Tables chính:**
+- `users`: Tài khoản Admin
+- `cards`: Thông tin thẻ (cardId, status, patient_id)
+- `patients`: Hồ sơ bệnh nhân
+- `card_status_history`: Lịch sử thay đổi trạng thái
+- `admin_audit_log`: Log hành động Admin
+
+---
+
+## 📋 SƠ ĐỒ TỔNG QUAN
+
+### Vòng Đời Thẻ
+
+```
+┌─────────────┐
+│ Phát hành   │ → Admin cấp thẻ, sinh khóa, mã hóa dữ liệu
+└──────┬──────┘
+       ↓
+┌─────────────┐
+│   ACTIVE    │ → Bệnh nhân sử dụng bình thường
+└──────┬──────┘
+       ↓
+  ┌────┴────┐
+  │         │
+  ↓         ↓
+┌──────┐  ┌──────────┐
+│BLOCKED│  │  LOST    │ → Admin đánh dấu
+└───┬───┘  └────┬─────┘
+    │           │
+    ↓           ↓
+┌─────────┐  ┌──────────┐
+│ Mở khóa │  │ Cấp mới  │
+└────┬────┘  └────┬─────┘
+     │            │
+     └────→←──────┘
+          ↓
+      ┌──────────┐
+      │ REVOKED  │ → Vĩnh viễn vô hiệu
+      └──────────┘
+```
+
+### Luồng Dữ Liệu Mã Hóa
+
+```
+[Bệnh nhân nhập PIN_user]
+         ↓
+    ┌────────────┐
+    │ Thẻ hash   │ → Hash(PIN_user) == PIN_user_hash?
+    └─────┬──────┘
+          ↓ (ĐÚNG)
+    ┌─────────────┐
+    │ KDF(PIN)    │ → Sinh K_user
+    └─────┬───────┘
+          ↓
+    ┌──────────────────┐
+    │ AES_Decrypt      │ → MK_user = AES_Dec(K_user, Enc_user)
+    │ (Enc_user)       │
+    └─────┬────────────┘
+          ↓
+    ┌──────────────────┐
+    │ AES_Decrypt      │ → UserData = AES_Dec(MK_user, UserData_enc)
+    │ (UserData_enc)   │
+    └─────┬────────────┘
+          ↓
+    [Dữ liệu plaintext]
+```
+
+---
+
+## 🚀 HƯỚNG DẪN SỬ DỤNG
+
+### Khởi Động Hệ Thống
+
+1. **Cài đặt JavaCard Applet**
+   ```bash
+   cd Smart_Card_JCIDE
+   # Build .cap file
+   # Upload lên thẻ bằng JCIDE hoặc GPShell
+   ```
+
+2. **Khởi động UI**
+   ```bash
+   cd Smart_Card_UI
+   mvn clean install
+   mvn exec:java -Dexec.mainClass="ui.MainFrame"
+   ```
+
+3. **Cấu hình Database**
+   - Tạo file `.env`:
+     ```
+     SUPABASE_URL=https://xxx.supabase.co
+     SUPABASE_KEY=your_key_here
+     K_MASTER=your_master_key_hex
+     ```
+
+### Quy Trình Cấp Thẻ Mới
+
+1. Admin đăng nhập UI
+2. Chọn "Phát hành thẻ mới"
+3. Nhập thông tin bệnh nhân
+4. Cắm thẻ trắng
+5. Hệ thống tự động:
+   - Đọc cardId_user
+   - Sinh PIN_user_default
+   - Derive PIN_admin_reset
+   - Ghi dữ liệu lên thẻ
+   - Lưu metadata vào DB
+6. In thẻ và giao cho bệnh nhân
+
+### Xử Lý Sự Cố
+
+**Thẻ bị khóa (nhập sai PIN 3 lần)**
+```
+1. Admin đăng nhập
+2. Chọn "Reset PIN / Mở khóa thẻ"
+3. Tìm bệnh nhân theo ID
+4. Yêu cầu cắm thẻ
+5. Nhập PIN mới
+6. Hệ thống tự động mở khóa
+```
+
+**Thẻ bị mất**
+```
+1. Admin đánh dấu status = LOST
+2. Cấp thẻ mới với cardId khác
+3. Copy dữ liệu từ DB (nếu có backup)
+```
+
+---
+
+## 📞 HỖ TRỢ KỸ THUẬT
+
+- **Repository:** d:\Workspace\Smart_Card
+- **JavaCard Version:** 3.0.4
+- **Java Version:** 1.8
+- **Database:** Supabase (PostgreSQL 14+)
+
+**Tài liệu tham khảo:**
+- JavaCard API Specification
+- PC/SC Specification
+- NIST SP 800-108 (KDF)
+- FIPS 197 (AES)
