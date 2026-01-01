@@ -887,11 +887,8 @@ public class UserApplet extends Applet {
     }
 
     private short decryptDataAndBuildResponse(byte[] buf, short pinOffset, short pinLength, APDU apdu) {
-        // CRITICAL: Clear all reusable buffers first to prevent pollution from previous
-        // calls
+        // CRITICAL: Clear reusable PIN buffer first to prevent pollution
         Util.arrayFillNonAtomic(tempPinBuffer, (short) 0, (short) 6, (byte) 0);
-        Util.arrayFillNonAtomic(tempDecryptBuffer, (short) 0, (short) 20, (byte) 0); // At least first 20 bytes used for
-                                                                                     // hashing
 
         // Copy PIN to reusable buffer BEFORE any processing (buf might get overwritten)
         Util.arrayCopyNonAtomic(buf, pinOffset, tempPinBuffer, (short) 0, pinLength);
@@ -922,6 +919,7 @@ public class UserApplet extends Applet {
         }
 
         // Decrypt patient data - use reusable buffer
+        // IMPORTANT: Clear ENTIRE buffer to prevent garbage data in response
         Util.arrayFillNonAtomic(tempDecryptBuffer, (short) 0, MAX_PATIENT_DATA_LENGTH, (byte) 0);
 
         short decryptedLength = 0;

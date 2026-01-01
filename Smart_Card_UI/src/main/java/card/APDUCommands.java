@@ -722,40 +722,71 @@ public class APDUCommands {
                 byte[] data = resp.getData();
                 System.out.println("[APDUCommands] verifyPinAndReadData: [LOG] Response data length: "
                         + (data != null ? data.length : 0));
+
+                // DEBUG: Print first bytes
+                if (data != null && data.length > 0) {
+                    StringBuilder hex = new StringBuilder();
+                    for (int i = 0; i < Math.min(data.length, 50); i++) {
+                        hex.append(String.format("%02X ", data[i]));
+                    }
+                    System.out.println("[DEBUG] verifyPinAndReadData first 50 bytes: " + hex.toString());
+                }
+
                 if (data != null && data.length >= 7) {
                     // Parse: [status (1)] [length (2)] [patient_data] [balance (4)]
                     byte status = data[0];
                     System.out.println("[APDUCommands] verifyPinAndReadData: [LOG] Status byte: 0x"
                             + String.format("%02X", status));
                     if (status == 0x00) {
-                        short length = (short) (((data[1] & 0xFF) << 8) | (data[2] & 0xFF));
-                        System.out.println("[APDUCommands] verifyPinAndReadData: [LOG] Patient data length: " + length);
+                        // Response format:
+                        // [status(1)][totalDataLen(2)][encrypted_patient_data][balance(4)]
+                        // Encrypted patient data format: [length_prefix(4)][text_data]
+
+                        short totalDataLen = (short) (((data[1] & 0xFF) << 8) | (data[2] & 0xFF));
+                        System.out.println("[APDUCommands] verifyPinAndReadData: [LOG] Total encrypted data length: "
+                                + totalDataLen);
+
                         // Check if we have patient_data + balance (4 bytes)
-                        if (length > 0 && data.length >= 3 + length + 4) {
-                            // Format: [patient_data_length (4 bytes)] [patient_data] [balance (4 bytes)]
-                            // This matches UserData.fromBytes() format
-                            byte[] patientData = new byte[4 + length + 4]; // 4 (length) + length (data) + 4 (balance)
-                            // Prepend length (4 bytes, big-endian int)
-                            patientData[0] = (byte) (length >> 24);
-                            patientData[1] = (byte) (length >> 16);
-                            patientData[2] = (byte) (length >> 8);
-                            patientData[3] = (byte) (length & 0xFF);
-                            // Copy patient_data
-                            System.arraycopy(data, 3, patientData, 4, length);
+                        if (totalDataLen > 4 && data.length >= 3 + totalDataLen + 4) {
+                            // Extract the 4-byte length prefix from encrypted data
+                            int encryptedLengthPrefix = ((data[3] & 0xFF) << 24) |
+                                    ((data[4] & 0xFF) << 16) |
+                                    ((data[5] & 0xFF) << 8) |
+                                    (data[6] & 0xFF);
+
+                            short actualTextLen = (short) encryptedLengthPrefix;
+                            System.out.println(
+                                    "[APDUCommands] verifyPinAndReadData: [LOG] Actual text length (from prefix): "
+                                            + actualTextLen);
+
+                            // Build correct format for UserData.fromBytes()
+                            // Format: [length(4)][text_data][balance(4)]
+                            byte[] patientData = new byte[4 + actualTextLen + 4];
+
+                            // Write 4-byte length
+                            patientData[0] = (byte) (actualTextLen >> 24);
+                            patientData[1] = (byte) (actualTextLen >> 16);
+                            patientData[2] = (byte) (actualTextLen >> 8);
+                            patientData[3] = (byte) (actualTextLen & 0xFF);
+
+                            // Copy actual text data (skip 4-byte prefix from encrypted data)
+                            System.arraycopy(data, 7, patientData, 4, actualTextLen);
+
                             // Append balance (4 bytes) at the end
-                            System.arraycopy(data, 3 + length, patientData, 4 + length, 4);
+                            System.arraycopy(data, 3 + totalDataLen, patientData, 4 + actualTextLen, 4);
+
                             System.out.println(
                                     "[APDUCommands] verifyPinAndReadData: [LOG] Successfully parsed patient data with balance");
                             return patientData;
-                        } else if (length > 0 && data.length >= 3 + length) {
-                            // Backward compatibility: no balance in response
-                            // Format: [patient_data_length (4 bytes)] [patient_data]
-                            byte[] patientData = new byte[4 + length];
-                            patientData[0] = (byte) (length >> 24);
-                            patientData[1] = (byte) (length >> 16);
-                            patientData[2] = (byte) (length >> 8);
-                            patientData[3] = (byte) (length & 0xFF);
-                            System.arraycopy(data, 3, patientData, 4, length);
+                        } else if (totalDataLen > 0 && data.length >= 3 + totalDataLen) {
+                            // Backward compatibility: old format without 4-byte prefix
+                            // This shouldn't happen with current implementation but kept for safety
+                            byte[] patientData = new byte[4 + totalDataLen];
+                            patientData[0] = (byte) (totalDataLen >> 24);
+                            patientData[1] = (byte) (totalDataLen >> 16);
+                            patientData[2] = (byte) (totalDataLen >> 8);
+                            patientData[3] = (byte) (totalDataLen & 0xFF);
+                            System.arraycopy(data, 3, patientData, 4, totalDataLen);
                             return patientData;
                         }
                     }
@@ -816,18 +847,58 @@ public class APDUCommands {
             if (sw == 0x9000) {
                 // Success
                 byte[] data = resp.getData();
+
+                // DEBUG: Print raw response data
+                System.out.println("[DEBUG] Response data length: " + (data != null ? data.length : 0));
+                if (data != null && data.length > 0) {
+                    StringBuilder hex = new StringBuilder();
+                    for (int i = 0; i < Math.min(data.length, 50); i++) {
+                        hex.append(String.format("%02X ", data[i]));
+                    }
+                    System.out.println("[DEBUG] First 50 bytes (hex): " + hex.toString());
+                }
+
                 if (data != null && data.length >= 7) {
                     byte status = data[0];
+                    System.out.println("[DEBUG] Status byte: " + String.format("0x%02X", status));
+
                     if (status == 0x00) {
-                        short length = (short) (((data[1] & 0xFF) << 8) | (data[2] & 0xFF));
-                        if (length > 0 && data.length >= 3 + length + 4) {
-                            byte[] patientData = new byte[4 + length + 4];
-                            patientData[0] = (byte) (length >> 24);
-                            patientData[1] = (byte) (length >> 16);
-                            patientData[2] = (byte) (length >> 8);
-                            patientData[3] = (byte) (length & 0xFF);
-                            System.arraycopy(data, 3, patientData, 4, length);
-                            System.arraycopy(data, 3 + length, patientData, 4 + length, 4);
+                        // Response format: [status(1)][dataLen(2)][patient_data][balance(4)]
+                        // Patient data format from card: [length_prefix(4)][text_data]
+                        // We need to extract [text_data] and prepend correct 4-byte length
+
+                        short totalDataLen = (short) (((data[1] & 0xFF) << 8) | (data[2] & 0xFF));
+                        System.out.println("[DEBUG] Total data length from response: " + totalDataLen);
+
+                        if (totalDataLen > 4 && data.length >= 3 + totalDataLen + 4) {
+                            // Skip the 4-byte length prefix that was encrypted with patient data
+                            // Extract actual text data length from encrypted data
+                            int encryptedLengthPrefix = ((data[3] & 0xFF) << 24) |
+                                    ((data[4] & 0xFF) << 16) |
+                                    ((data[5] & 0xFF) << 8) |
+                                    (data[6] & 0xFF);
+
+                            System.out.println("[DEBUG] Encrypted length prefix: " + encryptedLengthPrefix);
+
+                            short actualTextLen = (short) encryptedLengthPrefix;
+
+                            // Build correct format for UserData.fromBytes()
+                            // Format: [length(4)][text_data][balance(4)]
+                            byte[] patientData = new byte[4 + actualTextLen + 4];
+
+                            // Write 4-byte length
+                            patientData[0] = (byte) (actualTextLen >> 24);
+                            patientData[1] = (byte) (actualTextLen >> 16);
+                            patientData[2] = (byte) (actualTextLen >> 8);
+                            patientData[3] = (byte) (actualTextLen & 0xFF);
+
+                            // Copy actual text data (skip 4-byte prefix from encrypted data)
+                            System.arraycopy(data, 7, patientData, 4, actualTextLen);
+
+                            // Copy balance (4 bytes after patient data)
+                            System.arraycopy(data, 3 + totalDataLen, patientData, 4 + actualTextLen, 4);
+
+                            System.out.println("[DEBUG] Built patient data length: " + patientData.length);
 
                             VerifyPinResult result = new VerifyPinResult(VerifyPinResult.STATUS_SUCCESS);
                             result.patientData = patientData;
