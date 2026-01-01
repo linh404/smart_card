@@ -23,6 +23,9 @@ public class UserData implements Serializable {
     // V5: Giới tính
     private int gender; // 1=Nam, 2=Nữ, 3=Khác, 0=Không rõ
 
+    // V6: Ảnh đại diện
+    private String anhDaiDien; // Ảnh đại diện (Base64 encoded, resize ≤20KB)
+
     /**
      * Nhãn nhóm máu để hiển thị trên UI (JComboBox)
      * Index 0 = Chưa xác định, 1-8 = các nhóm máu
@@ -140,15 +143,24 @@ public class UserData implements Serializable {
         }
     }
 
+    // V6: Getter/Setter cho ảnh đại diện
+    public String getAnhDaiDien() {
+        return anhDaiDien;
+    }
+
+    public void setAnhDaiDien(String anhDaiDien) {
+        this.anhDaiDien = anhDaiDien;
+    }
+
     /**
      * Chuyển UserData thành byte[] để gửi xuống thẻ
      * Note: Balance KHÔNG được bao gồm vì balance được lưu riêng biệt trên thẻ
-     * V5 Format:
-     * hoTen|idBenhNhan|ngaySinh|queQuan|maBHYT|nhomMau|diUng|benhNen|gender
+     * V6 Format:
+     * hoTen|idBenhNhan|ngaySinh|queQuan|maBHYT|nhomMau|diUng|benhNen|gender|anhDaiDien
      */
     public byte[] toBytes() {
-        // Format V5:
-        // hoTen|idBenhNhan|ngaySinh|queQuan|maBHYT|nhomMau|diUng|benhNen|gender
+        // Format V6:
+        // hoTen|idBenhNhan|ngaySinh|queQuan|maBHYT|nhomMau|diUng|benhNen|gender|anhDaiDien
         // Balance KHÔNG được bao gồm - balance được lưu riêng và mã hóa bằng MK_user
         // trên thẻ
         StringBuilder sb = new StringBuilder();
@@ -160,7 +172,8 @@ public class UserData implements Serializable {
         sb.append(nhomMau).append("|");
         sb.append(diUng != null ? diUng : "").append("|");
         sb.append(benhNen != null ? benhNen : "").append("|");
-        sb.append(gender); // V5: Thêm gender
+        sb.append(gender).append("|"); // V5: Thêm gender
+        sb.append(anhDaiDien != null ? anhDaiDien : ""); // V6: Thêm ảnh đại diện
 
         byte[] textBytes = sb.toString().getBytes(StandardCharsets.UTF_8);
         byte[] result = new byte[textBytes.length + 4];
@@ -173,9 +186,9 @@ public class UserData implements Serializable {
      * Parse byte[] thành UserData
      * Format: [patient_data_length (4 bytes)] [patient_data (text)] [balance (4
      * bytes, optional)]
-     * Patient data format V5:
-     * hoTen|idBenhNhan|ngaySinh|queQuan|maBHYT|nhomMau|diUng|benhNen|gender
-     * Backward compatible với format cũ (V4: 8 fields, V3: 5 fields)
+     * Patient data format V6:
+     * hoTen|idBenhNhan|ngaySinh|queQuan|maBHYT|nhomMau|diUng|benhNen|gender|anhDaiDien
+     * Backward compatible với format cũ (V5: 9 fields, V4: 8 fields, V3: 5 fields)
      */
     public static UserData fromBytes(byte[] data) {
         if (data == null || data.length < 4)
@@ -224,6 +237,14 @@ public class UserData implements Serializable {
         } else {
             // Thẻ cũ không có gender
             ud.setGender(0);
+        }
+
+        // V6: Parse ảnh đại diện (backward compatible)
+        if (parts.length >= 10) {
+            ud.setAnhDaiDien(parts[9]);
+        } else {
+            // Thẻ cũ không có ảnh
+            ud.setAnhDaiDien("");
         }
 
         // Parse balance from end of data (4 bytes after patient_data)

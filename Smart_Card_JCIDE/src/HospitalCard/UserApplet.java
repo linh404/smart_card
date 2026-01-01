@@ -19,6 +19,8 @@ public class UserApplet extends Applet {
     private static final byte INS_CREDIT = (byte) 0x09;
     private static final byte INS_SIGN_CHALLENGE = (byte) 0x10;
     private static final byte INS_GET_PIN_CHANGE_STATUS = (byte) 0x11;
+    private static final byte INS_SET_PHOTO = (byte) 0x12;
+    private static final byte INS_GET_PHOTO = (byte) 0x13;
 
     private static final byte MAX_PIN_TRIES = 5;
     private static final short CARD_ID_LENGTH = 16;
@@ -26,6 +28,7 @@ public class UserApplet extends Applet {
     private static final short MK_USER_LENGTH = 16;
     private static final short MK_USER_ENC_LENGTH = 32;
     private static final short MAX_PATIENT_DATA_LENGTH = 256;
+    private static final short MAX_PHOTO_LENGTH = 20480; // 20KB for Base64 photo (20*1024)
     private static final short BALANCE_LENGTH = 4;
     private static final short BALANCE_ENC_LENGTH = 16;
     private static final short KDF_ITERATIONS = 1000;
@@ -45,6 +48,9 @@ public class UserApplet extends Applet {
 
     private byte[] encPatient;
     private short encPatientLength;
+
+    private byte[] encPhoto; // Encrypted photo (Base64), stored separately
+    private short encPhotoLength;
 
     private byte[] encBalance;
     private short txnCounter;
@@ -75,6 +81,7 @@ public class UserApplet extends Applet {
         encUser = new byte[MK_USER_ENC_LENGTH];
         encAdmin = new byte[MK_USER_ENC_LENGTH];
         encPatient = new byte[MAX_PATIENT_DATA_LENGTH];
+        encPhoto = new byte[MAX_PHOTO_LENGTH]; // Initialize photo storage
         encBalance = new byte[BALANCE_ENC_LENGTH];
         lastTxnHash = new byte[HASH_LENGTH];
 
@@ -91,6 +98,7 @@ public class UserApplet extends Applet {
         blockedFlag = 0;
         pinChangedFlag = 0;
         encPatientLength = 0;
+        encPhotoLength = 0; // Initialize photo length
         txnCounter = 0;
         Util.arrayFillNonAtomic(lastTxnHash, (short) 0, HASH_LENGTH, (byte) 0);
 
@@ -127,7 +135,7 @@ public class UserApplet extends Applet {
         if (ins == INS_ISSUE_CARD || ins == INS_VERIFY_PIN_AND_READ_DATA ||
                 ins == INS_UPDATE_PATIENT_DATA || ins == INS_ADMIN_RESET_PIN ||
                 ins == INS_CHANGE_PIN || ins == INS_CREDIT || ins == INS_DEBIT ||
-                ins == INS_SIGN_CHALLENGE) {
+                ins == INS_SIGN_CHALLENGE || ins == INS_SET_PHOTO) {
             apdu.setIncomingAndReceive();
         }
 
@@ -174,6 +182,14 @@ public class UserApplet extends Applet {
 
             case INS_GET_PIN_CHANGE_STATUS:
                 getPinChangeStatus(apdu);
+                break;
+
+            case INS_SET_PHOTO:
+                setPhoto(apdu);
+                break;
+
+            case INS_GET_PHOTO:
+                getPhoto(apdu);
                 break;
 
             default:
@@ -1065,5 +1081,162 @@ public class UserApplet extends Applet {
 
         // Clear master key
         Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
+    }
+
+    /**
+     * Set photo data (chunked upload)
+     * Format: [chunkIndex (2 bytes)] [totalChunks (2 bytes)] [chunkData]
+     */
+    private void setPhoto(APDU apdu) {
+        if (initialized != 1) {
+            ISOException.throwIt((short) 0x6985);
+        }
+
+        if (!isMasterKeyValid()) {
+            ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+        }
+
+        byte[] buf = apdu.getBuffer();
+        short offset = ISO7816.OFFSET_CDATA;
+
+        try {
+            short chunkIndex = Util.getShort(buf, offset);
+            offset += 2;
+            short totalChunks = Util.getShort(buf, offset);
+            offset += 2;
+
+            short dataLen = (short) (buf[ISO7816.OFFSET_LC] & 0xFF);
+            short chunkDataLen = (short) (dataLen - 4);
+
+            if (chunkDataLen <= 0 || chunkDataLen > 200) {
+                ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+            }
+
+            if (chunkIndex == 0) {
+                encPhotoLength = 0;
+                Util.arrayFillNonAtomic(encPhoto, (short) 0, MAX_PHOTO_LENGTH, (byte) 0);
+            }
+
+            short destOffset = (short) (chunkIndex * 200);
+
+            if ((short) (destOffset + chunkDataLen) > MAX_PHOTO_LENGTH) {
+                ISOException.throwIt((short) 0x6A80);
+            }
+
+            Util.arrayCopyNonAtomic(buf, offset, encPhoto, destOffset, chunkDataLen);
+
+            if ((short) (destOffset + chunkDataLen) > encPhotoLength) {
+                encPhotoLength = (short) (destOffset + chunkDataLen);
+            }
+
+            if (chunkIndex == (short) (totalChunks - 1)) {
+                short paddedLength = (short) ((encPhotoLength + 15) / 16 * 16);
+
+                if (paddedLength > encPhotoLength) {
+                    Util.arrayFillNonAtomic(encPhoto, encPhotoLength,
+                            (short) (paddedLength - encPhotoLength), (byte) 0);
+                }
+
+                aesKey.setKey(mkUser, (short) 0);
+                aesCipher.init(aesKey, Cipher.MODE_ENCRYPT);
+
+                // Encrypt in-place (no temp array needed - save transient RAM)
+                encPhotoLength = aesCipher.doFinal(encPhoto, (short) 0, paddedLength, encPhoto, (short) 0);
+            }
+
+            buf[0] = (byte) 0x00;
+            apdu.setOutgoingAndSend((short) 0, (short) 1);
+
+        } catch (CryptoException e) {
+            ISOException.throwIt((short) (0x6F00 | e.getReason()));
+        } catch (Exception e) {
+            ISOException.throwIt((short) 0x6F00);
+        }
+    }
+
+    /**
+     * Get photo data (chunked response)
+     */
+    private void getPhoto(APDU apdu) {
+        if (initialized != 1) {
+            ISOException.throwIt((short) 0x6985);
+        }
+
+        if (!isMasterKeyValid()) {
+            ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+        }
+
+        byte[] buf = apdu.getBuffer();
+        byte chunkIndex = buf[ISO7816.OFFSET_P1]; // V6: Support chunked response
+
+        try {
+            if (encPhotoLength == 0) {
+                Util.setShort(buf, (short) 0, (short) 0);
+                apdu.setOutgoingAndSend((short) 0, (short) 2);
+                return;
+            }
+
+            aesKey.setKey(mkUser, (short) 0);
+            aesCipher.init(aesKey, Cipher.MODE_DECRYPT);
+
+            // Use a small temp buffer for decryption (only need to send first 250 bytes)
+            // Decrypt in-place to avoid 20KB transient allocation
+            short decLen = aesCipher.doFinal(encPhoto, (short) 0, encPhotoLength, encPhoto, (short) 0);
+
+            short actualLen = decLen;
+            for (short i = (short) (decLen - 1); i >= 0; i--) {
+                if (encPhoto[i] != 0) {
+                    actualLen = (short) (i + 1);
+                    break;
+                }
+            }
+
+            short offset = 0;
+
+            if (chunkIndex == 0) {
+                // First chunk: [actualLen(2)] + data(up to 250 bytes)
+                Util.setShort(buf, offset, actualLen);
+                offset += 2;
+
+                short copyLen = actualLen;
+                if (copyLen > 250) {
+                    copyLen = 250;
+                }
+
+                Util.arrayCopyNonAtomic(encPhoto, (short) 0, buf, offset, copyLen);
+                offset += copyLen;
+            } else {
+                // Subsequent chunks: data only (up to 252 bytes)
+                short startPos = (short) (250 + (chunkIndex - 1) * 252);
+
+                if (startPos >= actualLen) {
+                    // No more data
+                    apdu.setOutgoingAndSend((short) 0, (short) 0);
+                    return;
+                }
+
+                short remainingLen = (short) (actualLen - startPos);
+                short copyLen = remainingLen;
+                if (copyLen > 252) {
+                    copyLen = 252;
+                }
+
+                Util.arrayCopyNonAtomic(encPhoto, startPos, buf, offset, copyLen);
+                offset += copyLen;
+            }
+
+            apdu.setOutgoingAndSend((short) 0, offset);
+
+            // Re-encrypt back to preserve encrypted state
+            aesCipher.init(aesKey, Cipher.MODE_ENCRYPT);
+            short paddedLen = (short) ((actualLen + 15) / 16 * 16);
+            if (paddedLen > actualLen) {
+                Util.arrayFillNonAtomic(encPhoto, actualLen, (short) (paddedLen - actualLen), (byte) 0);
+            }
+            encPhotoLength = aesCipher.doFinal(encPhoto, (short) 0, paddedLen, encPhoto, (short) 0);
+
+        } catch (CryptoException e) {
+            ISOException.throwIt((short) (0x6F00 | e.getReason()));
+        }
     }
 }

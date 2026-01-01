@@ -9,6 +9,7 @@ import model.UserCardSnapshot;
 import util.AdminPinDerivation;
 import util.EnvFileLoader;
 import util.UserDemoSnapshotManager;
+import util.ImageHelper; // V6: Import ImageHelper cho upload ảnh
 
 import javax.swing.*;
 import java.awt.*;
@@ -24,6 +25,7 @@ import java.math.BigInteger;
 import java.security.KeyFactory;
 import java.security.spec.RSAPublicKeySpec;
 import java.security.spec.RSAPrivateKeySpec;
+import java.io.File; // V6: Import cho upload ảnh
 
 /**
  * CardIssuePanel - Panel phát hành thẻ User mới
@@ -44,6 +46,11 @@ public class CardIssuePanel extends JPanel {
     private JComboBox<String> cboNhomMau;
     private JTextArea txtDiUng;
     private JTextArea txtBenhNen;
+
+    // V6: Ảnh đại diện
+    private JLabel lblPhotoPreview;
+    private ModernUITheme.RoundedButton btnUploadPhoto;
+    private String photoBase64; // Lưu ảnh dạng Base64
 
     public CardIssuePanel(CardManager cardManager, APDUCommands apduCommands) {
         this.cardManager = cardManager;
@@ -93,6 +100,60 @@ public class CardIssuePanel extends JPanel {
         cboGioiTinh.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
         alignLeft(cboGioiTinh);
         pnlPersonal.add(cboGioiTinh);
+        pnlPersonal.add(Box.createVerticalStrut(15));
+
+        // V6: Ảnh đại diện
+        addLabel(pnlPersonal, "📷 Ảnh đại diện:");
+
+        // Photo panel with preview and upload button
+        JPanel photoPanel = new JPanel();
+        photoPanel.setLayout(new BoxLayout(photoPanel, BoxLayout.X_AXIS));
+        photoPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        photoPanel.setOpaque(false);
+
+        // Preview label
+        lblPhotoPreview = new JLabel("Chưa có ảnh", SwingConstants.CENTER);
+        lblPhotoPreview.setPreferredSize(new Dimension(120, 120));
+        lblPhotoPreview.setMaximumSize(new Dimension(120, 120));
+        lblPhotoPreview.setMinimumSize(new Dimension(120, 120));
+        lblPhotoPreview.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(ModernUITheme.BORDER_LIGHT, 2),
+                BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+        lblPhotoPreview.setBackground(new Color(250, 250, 250));
+        lblPhotoPreview.setOpaque(true);
+        lblPhotoPreview.setFont(new Font("Segoe UI", Font.ITALIC, 11));
+        lblPhotoPreview.setForeground(Color.GRAY);
+        photoPanel.add(lblPhotoPreview);
+
+        photoPanel.add(Box.createHorizontalStrut(10));
+
+        // Upload button
+        JPanel btnPanelPhoto = new JPanel();
+        btnPanelPhoto.setLayout(new BoxLayout(btnPanelPhoto, BoxLayout.Y_AXIS));
+        btnPanelPhoto.setOpaque(false);
+
+        btnUploadPhoto = new ModernUITheme.RoundedButton(
+                "Chọn ảnh",
+                ModernUITheme.ADMIN_PRIMARY,
+                ModernUITheme.ADMIN_PRIMARY_HOVER,
+                ModernUITheme.TEXT_WHITE);
+        btnUploadPhoto.setPreferredSize(new Dimension(100, 35));
+        btnUploadPhoto.setMaximumSize(new Dimension(100, 35));
+        btnUploadPhoto.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        btnUploadPhoto.setAlignmentX(Component.LEFT_ALIGNMENT);
+        btnPanelPhoto.add(btnUploadPhoto);
+
+        btnPanelPhoto.add(Box.createVerticalStrut(5));
+
+        JLabel lblPhotoHint = new JLabel("<html><i>Ảnh sẽ được<br/>resize xuống<br/>≤ 20KB</i></html>");
+        lblPhotoHint.setFont(new Font("Segoe UI", Font.PLAIN, 9));
+        lblPhotoHint.setForeground(Color.GRAY);
+        lblPhotoHint.setAlignmentX(Component.LEFT_ALIGNMENT);
+        btnPanelPhoto.add(lblPhotoHint);
+
+        photoPanel.add(btnPanelPhoto);
+
+        pnlPersonal.add(photoPanel);
         pnlPersonal.add(Box.createVerticalStrut(15));
 
         txtMaBHYT = addLabeledField(pnlPersonal, "Mã BHYT:", 25);
@@ -192,6 +253,14 @@ public class CardIssuePanel extends JPanel {
             @Override
             public void actionPerformed(ActionEvent e) {
                 issueCard();
+            }
+        });
+
+        // V6: Event handler cho upload ảnh
+        btnUploadPhoto.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                uploadPhoto();
             }
         });
 
@@ -448,6 +517,11 @@ public class CardIssuePanel extends JPanel {
             userData.setDiUng(txtDiUng.getText().trim());
             userData.setBenhNen(txtBenhNen.getText().trim());
 
+            // V6: KHÔNG gửi ảnh trong ISSUE_CARD (vượt APDU limit 254 bytes)
+            // Lưu ảnh vào biến tạm, gửi riêng sau
+            String photoBase64Temp = photoBase64;
+            userData.setAnhDaiDien(""); // Xóa ảnh tạm thời
+
             long initialBalance = Long.parseLong(txtBalance.getText().trim());
             userData.setBalance(initialBalance);
 
@@ -681,6 +755,46 @@ public class CardIssuePanel extends JPanel {
                 System.out.println("[CardIssuePanel] issueCard: CardID khớp ✓");
             }
 
+            // V6: Upload ảnh đại diện (nếu có)
+            if (photoBase64Temp != null && !photoBase64Temp.isEmpty()) {
+                System.out.println("[CardIssuePanel] issueCard: Uploading photo to card...");
+
+                // MUST verify PIN first to load MK_user (needed for setPhoto encryption)
+                System.out.println("[CardIssuePanel] Verifying PIN user before photo upload...");
+                try {
+                    // Use pinUserDefault that was already read above
+                    byte[] pinUserBytesForPhoto = pinUserDefault.getBytes(StandardCharsets.UTF_8);
+                    byte[] verifyResult = apduCommands.verifyPinAndReadData(pinUserBytesForPhoto);
+                    if (verifyResult == null || verifyResult.length == 0) {
+                        System.err.println("[CardIssuePanel] ✗ PIN verification failed before photo upload!");
+                        JOptionPane.showMessageDialog(this,
+                                "Thẻ đã phát hành thành công nhưng không thể upload ảnh.\n\n" +
+                                        "Nguyên nhân: Không thể verify PIN user.\n" +
+                                        "Vui lòng thử upload ảnh lại sau.",
+                                "Cảnh báo", JOptionPane.WARNING_MESSAGE);
+                    } else {
+                        System.out.println("[CardIssuePanel] ✓ PIN verified, MK_user loaded");
+
+                        // Now upload photo
+                        boolean photoUploaded = apduCommands.setPhotoChunked(photoBase64Temp);
+                        if (photoUploaded) {
+                            System.out.println("[CardIssuePanel] ✓ Photo uploaded successfully!");
+                        } else {
+                            System.err.println("[CardIssuePanel] ✗ Photo upload failed!");
+                            JOptionPane.showMessageDialog(this,
+                                    "Thẻ đã phát hành thành công nhưng upload ảnh thất bại.\n\n" +
+                                            "Bạn có thể thử upload lại sau.",
+                                    "Cảnh báo", JOptionPane.WARNING_MESSAGE);
+                        }
+                    }
+                } catch (Exception photoEx) {
+                    System.err.println("[CardIssuePanel] Exception during photo upload: " + photoEx.getMessage());
+                    photoEx.printStackTrace();
+                }
+            } else {
+                System.out.println("[CardIssuePanel] issueCard: No photo to upload");
+            }
+
             // 7. Lưu vào Supabase
             System.out.println("[CardIssuePanel] issueCard: Lưu vào database...");
 
@@ -847,5 +961,103 @@ public class CardIssuePanel extends JPanel {
      */
     private short getShort(byte[] data, int offset) {
         return (short) (((data[offset] & 0xFF) << 8) | (data[offset + 1] & 0xFF));
+    }
+
+    /**
+     * V6: Upload và resize ảnh đại diện xuống ≤ 20KB
+     */
+    private void uploadPhoto() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Chọn ảnh đại diện bệnh nhân");
+        fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
+                "Ảnh (JPG, JPEG, PNG, GIF)", "jpg", "jpeg", "png", "gif"));
+
+        if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            File file = fileChooser.getSelectedFile();
+            System.out.println("[CardIssuePanel] Đã chọn file: " + file.getAbsolutePath());
+
+            // Hiển thị progress dialog
+            JDialog progressDialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this),
+                    "Đang xử lý ảnh...", true);
+            progressDialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+            progressDialog.setSize(350, 120);
+            progressDialog.setLocationRelativeTo(this);
+
+            JPanel contentPanel = new JPanel(new BorderLayout(10, 10));
+            contentPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+            JLabel lblProgress = new JLabel("Đang resize và nén ảnh xuống ≤ 20KB...", SwingConstants.CENTER);
+            lblProgress.setFont(ModernUITheme.FONT_BODY);
+            contentPanel.add(lblProgress, BorderLayout.CENTER);
+
+            JProgressBar progressBar = new JProgressBar();
+            progressBar.setIndeterminate(true);
+            contentPanel.add(progressBar, BorderLayout.SOUTH);
+
+            progressDialog.add(contentPanel);
+
+            // Xử lý ảnh trong background thread
+            SwingWorker<String, Void> worker = new SwingWorker<String, Void>() {
+                @Override
+                protected String doInBackground() throws Exception {
+                    // Resize và compress ảnh xuống ≤ 20KB
+                    return ImageHelper.resizeAndCompressToBase64(file);
+                }
+
+                @Override
+                protected void done() {
+                    try {
+                        photoBase64 = get(); // Lấy kết quả Base64
+
+                        // Hiển thị preview
+                        java.awt.image.BufferedImage previewImage = ImageHelper.decodeBase64ToImage(photoBase64);
+                        if (previewImage != null) {
+                            lblPhotoPreview.setIcon(ImageHelper.createScaledIcon(previewImage, 120, 120));
+                            lblPhotoPreview.setText(null);
+                        }
+
+                        progressDialog.dispose();
+
+                        // Tính kích thước Base64
+                        int sizeBytes = photoBase64.getBytes().length;
+                        int sizeKB = sizeBytes / 1024;
+
+                        JOptionPane.showMessageDialog(CardIssuePanel.this,
+                                "✓ Upload ảnh thành công!\n\n" +
+                                        "File: " + file.getName() + "\n" +
+                                        "Kích thước sau nén: " + sizeKB + " KB",
+                                "Thành công", JOptionPane.INFORMATION_MESSAGE);
+
+                        System.out.println("[CardIssuePanel] Upload ảnh thành công: " + sizeKB + " KB");
+
+                    } catch (Exception ex) {
+                        progressDialog.dispose();
+                        ex.printStackTrace();
+
+                        // Hiển thị error với hướng dẫn
+                        String errorMsg = "Lỗi khi xử lý ảnh: " + ex.getMessage() + "\n\n";
+
+                        if (ex.getMessage() != null && ex.getMessage().contains("không thể nén")) {
+                            errorMsg += "Khuyến nghị:\n" +
+                                    "• Chọn ảnh đơn giản hơn (ít màu sắc, ít chi tiết)\n" +
+                                    "• Chọn ảnh có kích thước gốc nhỏ hơn\n" +
+                                    "• Thử ảnh có nền trơn màu hoặc ảnh chụp passport";
+                        } else {
+                            errorMsg += "Vui lòng kiểm tra:\n" +
+                                    "• File ảnh có hợp lệ không?\n" +
+                                    "• File có bị hỏng không?\n" +
+                                    "• Định dạng file có đúng (JPG, PNG, GIF)?";
+                        }
+
+                        JOptionPane.showMessageDialog(CardIssuePanel.this,
+                                errorMsg,
+                                "Lỗi upload ảnh", JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+            };
+
+            worker.execute();
+            progressDialog.setVisible(true); // Block until worker completes
+        }
     }
 }

@@ -5,6 +5,7 @@ import card.APDUCommands;
 import model.UserData;
 import ui.ModernUITheme;
 import ui.SmartCardVisual;
+import util.ImageHelper; // V6: Import ImageHelper
 
 import javax.swing.*;
 import java.awt.*;
@@ -27,6 +28,7 @@ public class UserInfoPanel extends JPanel {
     private JLabel lblBirthDate, lblAddress, lblGioiTinh; // V5: Thêm giới tính
     // V4: Thông tin y tế khẩn cấp
     private JLabel lblNhomMau, lblDiUng, lblBenhNen;
+    private JLabel lblPhotoPreview; // V6: Ảnh đại diện
     private NumberFormat currencyFormat;
 
     public UserInfoPanel(CardManager cardManager, APDUCommands apduCommands) {
@@ -62,17 +64,52 @@ public class UserInfoPanel extends JPanel {
         cardWrapper.add(cardVisual);
         cardSection.add(cardWrapper, BorderLayout.WEST);
 
+        // V6: Photo preview will be in info card header (removed standalone panel)
+
         // Info card on the right
         ModernUITheme.CardPanel infoCard = new ModernUITheme.CardPanel();
         infoCard.setLayout(new BoxLayout(infoCard, BoxLayout.Y_AXIS));
-        infoCard.setPreferredSize(new Dimension(400, 350)); // Tăng chiều cao cho thông tin y tế
+        infoCard.setPreferredSize(new Dimension(500, 350)); // Tăng width cho ảnh
 
-        // Title
+        // V6: Header with title (left) and photo (right)
+        JPanel headerPanel = new JPanel(new BorderLayout(10, 0));
+        headerPanel.setOpaque(false);
+        headerPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 130));
+        headerPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        // Title on left
         JLabel titleLabel = new JLabel("📋 CHI TIẾT THÔNG TIN");
         titleLabel.setFont(ModernUITheme.FONT_SUBHEADING);
         titleLabel.setForeground(ModernUITheme.TEXT_PRIMARY);
-        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        infoCard.add(titleLabel);
+        headerPanel.add(titleLabel, BorderLayout.WEST);
+
+        // Photo on right
+        JPanel photoPanel = new JPanel();
+        photoPanel.setOpaque(false);
+        photoPanel.setLayout(new BoxLayout(photoPanel, BoxLayout.Y_AXIS));
+
+        JLabel lblPhotoLabel = new JLabel("Ảnh đại diện", SwingConstants.CENTER);
+        lblPhotoLabel.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+        lblPhotoLabel.setForeground(ModernUITheme.TEXT_SECONDARY);
+        lblPhotoLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        photoPanel.add(lblPhotoLabel);
+        photoPanel.add(Box.createVerticalStrut(3));
+
+        lblPhotoPreview = new JLabel("Chưa có ảnh", SwingConstants.CENTER);
+        lblPhotoPreview.setPreferredSize(new Dimension(100, 100));
+        lblPhotoPreview.setMinimumSize(new Dimension(100, 100));
+        lblPhotoPreview.setMaximumSize(new Dimension(100, 100));
+        lblPhotoPreview.setBorder(BorderFactory.createLineBorder(ModernUITheme.BORDER_LIGHT, 2));
+        lblPhotoPreview.setOpaque(true);
+        lblPhotoPreview.setBackground(new Color(250, 250, 250));
+        lblPhotoPreview.setForeground(ModernUITheme.TEXT_SECONDARY);
+        lblPhotoPreview.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+        lblPhotoPreview.setAlignmentX(Component.CENTER_ALIGNMENT);
+        photoPanel.add(lblPhotoPreview);
+
+        headerPanel.add(photoPanel, BorderLayout.EAST);
+
+        infoCard.add(headerPanel);
         infoCard.add(Box.createVerticalStrut(15));
 
         // Info rows
@@ -163,13 +200,15 @@ public class UserInfoPanel extends JPanel {
     public void loadInfo() {
         try {
             UserData userData = null;
-            if (userFrame != null) {
-                userData = userFrame.getUserData();
-            }
 
-            if (userData == null && userFrame != null && userFrame.getUserPin() != null) {
+            // V6: Always refresh to ensure PIN is verified (needed for getPhoto)
+            // MK_user is transient and cleared when card deselected
+            if (userFrame != null && userFrame.getUserPin() != null) {
+                System.out.println("[UserInfoPanel] Refreshing user data to verify PIN...");
                 if (userFrame.refreshUserData()) {
                     userData = userFrame.getUserData();
+                } else {
+                    System.err.println("[UserInfoPanel] Failed to refresh user data");
                 }
             }
 
@@ -211,6 +250,46 @@ public class UserInfoPanel extends JPanel {
 
             String benhNen = userData.getBenhNen();
             lblBenhNen.setText((benhNen != null && !benhNen.isEmpty()) ? benhNen : "Không có");
+
+            // V6: Load ảnh đại diện từ thẻ
+            try {
+                System.out.println("[UserInfoPanel] Loading photo from card...");
+                String photoBase64 = apduCommands.getPhoto();
+
+                if (photoBase64 != null && !photoBase64.isEmpty()) {
+                    System.out.println("[UserInfoPanel] Photo loaded, size: " + photoBase64.length() + " chars");
+                    java.awt.image.BufferedImage photoImage = ImageHelper.decodeBase64ToImage(photoBase64);
+
+                    if (photoImage != null) {
+                        ImageIcon photoIcon = ImageHelper.createScaledIcon(photoImage, 100, 100);
+                        lblPhotoPreview.setIcon(photoIcon);
+                        lblPhotoPreview.setText("");
+                        // Force UI refresh
+                        lblPhotoPreview.revalidate();
+                        lblPhotoPreview.repaint();
+                        System.out.println("[UserInfoPanel] ✓ Photo displayed successfully");
+                    } else {
+                        lblPhotoPreview.setIcon(null);
+                        lblPhotoPreview.setText("Lỗi ảnh");
+                        lblPhotoPreview.revalidate();
+                        lblPhotoPreview.repaint();
+                        System.err.println("[UserInfoPanel] Failed to decode photo");
+                    }
+                } else {
+                    lblPhotoPreview.setIcon(null);
+                    lblPhotoPreview.setText("Chưa có ảnh");
+                    lblPhotoPreview.revalidate();
+                    lblPhotoPreview.repaint();
+                    System.out.println("[UserInfoPanel] No photo on card");
+                }
+            } catch (Exception photoEx) {
+                System.err.println("[UserInfoPanel] Error loading photo: " + photoEx.getMessage());
+                photoEx.printStackTrace();
+                lblPhotoPreview.setIcon(null);
+                lblPhotoPreview.setText("Lỗi load ảnh");
+                lblPhotoPreview.revalidate();
+                lblPhotoPreview.repaint();
+            }
 
         } catch (Exception e) {
             e.printStackTrace();

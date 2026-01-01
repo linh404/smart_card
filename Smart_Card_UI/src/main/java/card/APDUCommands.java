@@ -28,6 +28,8 @@ public class APDUCommands {
     public static final byte INS_SIGN_CHALLENGE = (byte) 0x10; // V3: Sign challenge with SK_user (0x10 to avoid
                                                                // confusion with SW 0x6XXX)
     public static final byte INS_GET_PIN_CHANGE_STATUS = (byte) 0x11; // V4: Kiểm tra user đã đổi PIN mặc định chưa
+    private static final byte INS_SET_PHOTO = (byte) 0x12; // V6: Set photo (chunked)
+    private static final byte INS_GET_PHOTO = (byte) 0x13; // V6: Get photo
 
     // ================== AID CỦA CÁC APPLET ==================
     // Package chung: HospitalCard
@@ -1314,5 +1316,145 @@ public class APDUCommands {
     private void setShort(byte[] bArray, int bOff, short sValue) {
         bArray[bOff] = (byte) (sValue >> 8);
         bArray[bOff + 1] = (byte) sValue;
+    }
+
+    /**
+     * V6: Set photo data (chunked upload)
+     * 
+     * @param photoBase64 Base64 string of photo (max 20KB)
+     * @return true if success, false otherwise
+     */
+    public boolean setPhotoChunked(String photoBase64) {
+        try {
+            if (photoBase64 == null || photoBase64.isEmpty()) {
+                System.out.println("[APDUCommands] setPhotoChunked: No photo to upload");
+                return true;
+            }
+
+            byte[] photoBytes = photoBase64.getBytes(StandardCharsets.UTF_8);
+            int totalBytes = photoBytes.length;
+
+            System.out.println("[APDUCommands] setPhotoChunked: Total photo size = " + totalBytes + " bytes");
+
+            if (totalBytes > 20 * 1024) {
+                System.err.println("[APDUCommands] setPhotoChunked: Photo too large (> 20KB)");
+                return false;
+            }
+
+            final int CHUNK_SIZE = 200;
+            int totalChunks = (totalBytes + CHUNK_SIZE - 1) / CHUNK_SIZE;
+
+            System.out.println("[APDUCommands] setPhotoChunked: Sending in " + totalChunks + " chunks...");
+
+            for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+                int offset = chunkIndex * CHUNK_SIZE;
+                int chunkLen = Math.min(CHUNK_SIZE, totalBytes - offset);
+
+                byte[] data = new byte[4 + chunkLen];
+                data[0] = (byte) (chunkIndex >> 8);
+                data[1] = (byte) (chunkIndex & 0xFF);
+                data[2] = (byte) (totalChunks >> 8);
+                data[3] = (byte) (totalChunks & 0xFF);
+                System.arraycopy(photoBytes, offset, data, 4, chunkLen);
+
+                ResponseAPDU resp = send(INS_SET_PHOTO, (byte) 0, (byte) 0, data, 1);
+                int sw = resp.getSW();
+
+                if (sw != 0x9000) {
+                    System.err.println("[APDUCommands] setPhotoChunked: Chunk " + chunkIndex +
+                            " failed with SW: " + String.format("0x%04X", sw));
+                    return false;
+                }
+
+                if ((chunkIndex + 1) % 10 == 0 || chunkIndex == totalChunks - 1) {
+                    System.out.println("[APDUCommands] setPhotoChunked: Progress: " +
+                            (chunkIndex + 1) + "/" + totalChunks + " chunks");
+                }
+            }
+
+            System.out.println("[APDUCommands] setPhotoChunked: ✓ Photo uploaded successfully!");
+            return true;
+
+        } catch (Exception e) {
+            System.err.println("[APDUCommands] setPhotoChunked: Exception - " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
+     * V6: Get photo data from card
+     * 
+     * @return Base64 string of photo, or null if error/no photo
+     */
+    public String getPhoto() {
+        try {
+            System.out.println("[APDUCommands] getPhoto: Requesting photo from card...");
+
+            ResponseAPDU resp = send(INS_GET_PHOTO, (byte) 0, (byte) 0, null, 252);
+            int sw = resp.getSW();
+
+            if (sw != 0x9000) {
+                System.err.println("[APDUCommands] getPhoto: Failed with SW: " + String.format("0x%04X", sw));
+                return null;
+            }
+
+            byte[] data = resp.getData();
+            if (data == null || data.length < 2) {
+                System.out.println("[APDUCommands] getPhoto: No photo data returned");
+                return null;
+            }
+
+            int photoLen = ((data[0] & 0xFF) << 8) | (data[1] & 0xFF);
+
+            if (photoLen == 0) {
+                System.out.println("[APDUCommands] getPhoto: No photo stored on card");
+                return null;
+            }
+
+            System.out.println("[APDUCommands] getPhoto: Photo length = " + photoLen + " bytes");
+
+            // Collect all photo data (response contains first chunk after length)
+            byte[] photoData = new byte[photoLen];
+            int firstChunkLen = Math.min(photoLen, data.length - 2);
+            System.arraycopy(data, 2, photoData, 0, firstChunkLen);
+            int received = firstChunkLen;
+
+            // Request remaining chunks if photo > 250 bytes
+            int chunkIndex = 1;
+            while (received < photoLen) {
+                resp = send(INS_GET_PHOTO, (byte) chunkIndex, (byte) 0, null, 252);
+
+                if (resp.getSW() != 0x9000) {
+                    System.err.println("[APDUCommands] getPhoto: Chunk " + chunkIndex +
+                            " failed with SW: 0x" + Integer.toHexString(resp.getSW()));
+                    return null;
+                }
+
+                data = resp.getData();
+                if (data == null || data.length == 0)
+                    break;
+
+                int copyLen = Math.min(photoLen - received, data.length);
+                System.arraycopy(data, 0, photoData, received, copyLen);
+                received += copyLen;
+                chunkIndex++;
+            }
+
+            System.out.println("[APDUCommands] getPhoto: ✓ Retrieved " + received + "/" + photoLen + " bytes");
+
+            // Photo data from card is ALREADY Base64 string (uploaded as UTF-8), not raw
+            // JPEG
+            // Convert bytes back to String
+            String photoBase64 = new String(photoData, 0, received, StandardCharsets.UTF_8);
+            System.out.println("[APDUCommands] getPhoto: Base64 length = " + photoBase64.length() + " chars");
+
+            return photoBase64;
+
+        } catch (Exception e) {
+            System.err.println("[APDUCommands] getPhoto: Exception - " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
     }
 }

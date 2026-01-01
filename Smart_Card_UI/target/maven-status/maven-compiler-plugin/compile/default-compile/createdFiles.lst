@@ -8,6 +8,7 @@ ui\tool\DatabaseMigrationTool.class
 ui\user\UserFrame$1.class
 ui\admin\CardManagePanel$1.class
 ui\ModernUITheme$RoundedPasswordField$1.class
+ui\admin\CardIssuePanel$2.class
 ui\user\UserLoginFrame$1.class
 db\DatabaseConnection$CardInfo.class
 ui\tool\CreateAdminUserTool.class
@@ -74,6 +75,7 @@ ui\user\TransactionPanel$5.class
 util\UserDemoSnapshotManager$1.class
 ui\user\UserFrame$2.class
 ui\admin\CardManagePanel$2.class
+ui\admin\CardIssuePanel$3.class
 ui\ModernUITheme$RoundedTextField$1.class
 ui\tool\DatabaseMigrationTool$2.class
 ui\admin\CardManagePanel$3.class
@@ -88,6 +90,7 @@ ui\tool\CreateAdminUserTool$1.class
 util\AdminPinDerivation.class
 ui\user\TransactionPanel$4.class
 ui\tool\CreateAdminUserTool$2.class
+util\ImageHelper.class
 ui\tool\DatabaseMigrationTool$3.class
 model\UserData.class
 ui\admin\AdminFrame$2.class

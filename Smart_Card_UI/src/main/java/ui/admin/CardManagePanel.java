@@ -9,6 +9,7 @@ import model.UserCardSnapshot;
 import util.AdminPinDerivation;
 import util.EnvFileLoader;
 import util.UserDemoSnapshotManager;
+import util.ImageHelper; // V6
 
 import javax.smartcardio.CardException;
 import javax.swing.*;
@@ -38,6 +39,9 @@ public class CardManagePanel extends JPanel {
     private JComboBox<String> cboNhomMau;
     private JTextArea txtDiUng;
     private JTextArea txtBenhNen;
+
+    // V6: Ảnh đại diện
+    private JLabel lblPhotoPreview;
 
     public CardManagePanel(CardManager cardManager, APDUCommands apduCommands) {
         this.cardManager = cardManager;
@@ -101,6 +105,19 @@ public class CardManagePanel extends JPanel {
         pnlPersonal.add(Box.createVerticalStrut(15));
 
         txtMaBHYT = addLabeledField(pnlPersonal, "Mã BHYT:", 25);
+
+        // V6: Photo preview
+        addLabel(pnlPersonal, "Ảnh đại diện:");
+        lblPhotoPreview = new JLabel("Chưa có ảnh", SwingConstants.CENTER);
+        lblPhotoPreview.setPreferredSize(new Dimension(120, 120));
+        lblPhotoPreview.setMaximumSize(new Dimension(120, 120));
+        lblPhotoPreview.setBorder(BorderFactory.createLineBorder(ModernUITheme.BORDER_LIGHT, 2));
+        lblPhotoPreview.setOpaque(true);
+        lblPhotoPreview.setBackground(new Color(250, 250, 250));
+        lblPhotoPreview.setForeground(ModernUITheme.TEXT_SECONDARY);
+        lblPhotoPreview.setFont(ModernUITheme.FONT_SMALL);
+        lblPhotoPreview.setAlignmentX(Component.LEFT_ALIGNMENT);
+        pnlPersonal.add(lblPhotoPreview);
 
         // --- RIGHT COLUMN: MEDICAL & ACCOUNT ---
         JPanel pnlMedical = new ModernUITheme.CardPanel();
@@ -405,6 +422,35 @@ public class CardManagePanel extends JPanel {
                 txtDiUng.setText(userData.getDiUng() != null ? userData.getDiUng() : "");
                 txtBenhNen.setText(userData.getBenhNen() != null ? userData.getBenhNen() : "");
 
+                // V6: Load ảnh đại diện từ thẻ
+                try {
+                    System.out.println("[CardManagePanel] Loading photo from card...");
+                    String photoBase64 = apduCommands.getPhoto();
+
+                    if (photoBase64 != null && !photoBase64.isEmpty()) {
+                        System.out.println("[CardManagePanel] Photo loaded, decoding...");
+                        java.awt.image.BufferedImage photoImage = ImageHelper.decodeBase64ToImage(photoBase64);
+
+                        if (photoImage != null) {
+                            ImageIcon photoIcon = ImageHelper.createScaledIcon(photoImage, 120, 120);
+                            lblPhotoPreview.setIcon(photoIcon);
+                            lblPhotoPreview.setText("");
+                            System.out.println("[CardManagePanel] ✓ Photo displayed");
+                        } else {
+                            lblPhotoPreview.setIcon(null);
+                            lblPhotoPreview.setText("Lỗi ảnh");
+                        }
+                    } else {
+                        lblPhotoPreview.setIcon(null);
+                        lblPhotoPreview.setText("Chưa có ảnh");
+                        System.out.println("[CardManagePanel] No photo on card");
+                    }
+                } catch (Exception photoEx) {
+                    System.err.println("[CardManagePanel] Error loading photo: " + photoEx.getMessage());
+                    lblPhotoPreview.setIcon(null);
+                    lblPhotoPreview.setText("Lỗi load ảnh");
+                }
+
                 JOptionPane.showMessageDialog(this,
                         "Đã load thông tin từ thẻ User thành công!",
                         "Thành công", JOptionPane.INFORMATION_MESSAGE);
@@ -452,6 +498,11 @@ public class CardManagePanel extends JPanel {
         cboNhomMau.setSelectedIndex(0);
         txtDiUng.setText("");
         txtBenhNen.setText("");
+        // V6: Clear photo
+        if (lblPhotoPreview != null) {
+            lblPhotoPreview.setIcon(null);
+            lblPhotoPreview.setText("Chưa có ảnh");
+        }
         // Không xóa txtPinUserForLoad để giữ PIN cho lần load sau
         lblAdminPinStatus.setText("Chưa load thẻ");
         lblAdminPinStatus.setForeground(new Color(100, 100, 100));
