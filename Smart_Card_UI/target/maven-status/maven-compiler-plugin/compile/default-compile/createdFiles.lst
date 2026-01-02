@@ -15,6 +15,7 @@ ui\tool\CreateAdminUserTool.class
 ui\user\TransactionPanel$1.class
 ui\tool\LoadSnapshotTool$3.class
 ui\admin\ResetPinPanel$2.class
+ui\user\EditInfoPanel$1.class
 util\EnvFileLoader.class
 ui\MainFrame.class
 ui\ModernUITheme$RoundedButton$1.class
@@ -55,6 +56,7 @@ ui\tool\LoadSnapshotTool.class
 util\CryptoUtils.class
 ui\admin\AdminFrame$3.class
 ui\admin\ResetPinPanel$1.class
+ui\user\EditInfoPanel.class
 ui\tool\DatabaseMigrationTool$7.class
 ui\tool\LoadSnapshotTool$4.class
 ui\user\TransactionPanel$2.class

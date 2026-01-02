@@ -24,6 +24,7 @@ public class UserFrame extends JFrame {
     private UserData userData;
 
     private UserInfoPanel userInfoPanel;
+    private EditInfoPanel editInfoPanel;
     private TransactionPanel transactionPanel;
     private BHYTPanel bhytPanel;
     private HistoryPanel historyPanel;
@@ -162,12 +163,14 @@ public class UserFrame extends JFrame {
         JTabbedPane tabs = createModernUserTabbedPane();
 
         userInfoPanel = new UserInfoPanel(cardManager, apduCommands, this);
+        editInfoPanel = new EditInfoPanel(cardManager, apduCommands, this);
         transactionPanel = new TransactionPanel(cardManager, apduCommands, this);
         bhytPanel = new BHYTPanel(cardManager, apduCommands, this);
         historyPanel = new HistoryPanel(cardManager, apduCommands, this);
         changePinPanel = new ChangePinPanel(cardManager, apduCommands, this);
 
         tabs.addTab("📋 Thông tin thẻ", wrapInScrollPane(userInfoPanel));
+        tabs.addTab("✏️ Đổi thông tin", wrapInScrollPane(editInfoPanel));
         tabs.addTab("💳 Nạp tiền/Thanh toán", wrapInScrollPane(transactionPanel));
         tabs.addTab("🏥 Thông tin BHYT", wrapInScrollPane(bhytPanel));
         tabs.addTab("📜 Lịch sử giao dịch", wrapInScrollPane(historyPanel));
