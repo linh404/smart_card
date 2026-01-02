@@ -30,7 +30,6 @@ public class CardManagePanel extends JPanel {
     private ModernUITheme.RoundedTextField txtCardId, txtHoTen, txtIdBenhNhan, txtNgaySinh, txtQueQuan, txtMaBHYT,
             txtBalance;
     private JLabel lblGioiTinh; // V5: Hiển thị giới tính (read-only)
-    private ModernUITheme.RoundedPasswordField txtPinUserDefault;
     private ModernUITheme.RoundedPasswordField txtPinUserForLoad; // PIN User để load data từ thẻ
     private ModernUITheme.RoundedButton btnLoadFromCard, btnUpdate, btnLoadToCard;
     private JLabel lblAdminPinStatus; // Hiển thị trạng thái Admin PIN
@@ -42,6 +41,8 @@ public class CardManagePanel extends JPanel {
 
     // V6: Ảnh đại diện
     private JLabel lblPhotoPreview;
+    private ModernUITheme.RoundedButton btnUploadPhoto;
+    private String photoBase64; // Lưu ảnh dạng Base64
 
     public CardManagePanel(CardManager cardManager, APDUCommands apduCommands) {
         this.cardManager = cardManager;
@@ -106,18 +107,57 @@ public class CardManagePanel extends JPanel {
 
         txtMaBHYT = addLabeledField(pnlPersonal, "Mã BHYT:", 25);
 
-        // V6: Photo preview
-        addLabel(pnlPersonal, "Ảnh đại diện:");
+        // V6: Photo preview with upload button
+        addLabel(pnlPersonal, "📷 Ảnh đại diện:");
+
+        JPanel photoPanel = new JPanel();
+        photoPanel.setLayout(new BoxLayout(photoPanel, BoxLayout.X_AXIS));
+        photoPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        photoPanel.setOpaque(false);
+
         lblPhotoPreview = new JLabel("Chưa có ảnh", SwingConstants.CENTER);
         lblPhotoPreview.setPreferredSize(new Dimension(120, 120));
         lblPhotoPreview.setMaximumSize(new Dimension(120, 120));
-        lblPhotoPreview.setBorder(BorderFactory.createLineBorder(ModernUITheme.BORDER_LIGHT, 2));
+        lblPhotoPreview.setMinimumSize(new Dimension(120, 120));
+        lblPhotoPreview.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(ModernUITheme.BORDER_LIGHT, 2),
+                BorderFactory.createEmptyBorder(5, 5, 5, 5)));
         lblPhotoPreview.setOpaque(true);
         lblPhotoPreview.setBackground(new Color(250, 250, 250));
         lblPhotoPreview.setForeground(ModernUITheme.TEXT_SECONDARY);
         lblPhotoPreview.setFont(ModernUITheme.FONT_SMALL);
-        lblPhotoPreview.setAlignmentX(Component.LEFT_ALIGNMENT);
-        pnlPersonal.add(lblPhotoPreview);
+        photoPanel.add(lblPhotoPreview);
+
+        photoPanel.add(Box.createHorizontalStrut(10));
+
+        // Upload button panel
+        JPanel btnPanelPhoto = new JPanel();
+        btnPanelPhoto.setLayout(new BoxLayout(btnPanelPhoto, BoxLayout.Y_AXIS));
+        btnPanelPhoto.setOpaque(false);
+
+        btnUploadPhoto = new ModernUITheme.RoundedButton(
+                "Chọn ảnh",
+                ModernUITheme.ADMIN_PRIMARY,
+                ModernUITheme.ADMIN_PRIMARY_HOVER,
+                Color.WHITE);
+        btnUploadPhoto.setPreferredSize(new Dimension(100, 35));
+        btnUploadPhoto.setMaximumSize(new Dimension(100, 35));
+        btnUploadPhoto.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        btnUploadPhoto.setAlignmentX(Component.LEFT_ALIGNMENT);
+        btnPanelPhoto.add(btnUploadPhoto);
+
+        btnPanelPhoto.add(Box.createVerticalStrut(5));
+
+        JLabel lblPhotoHint = new JLabel("<html><i>Ảnh sẽ được<br/>resize xuống<br/>≤ 20KB</i></html>");
+        lblPhotoHint.setFont(new Font("Segoe UI", Font.PLAIN, 9));
+        lblPhotoHint.setForeground(Color.GRAY);
+        lblPhotoHint.setAlignmentX(Component.LEFT_ALIGNMENT);
+        btnPanelPhoto.add(lblPhotoHint);
+
+        photoPanel.add(btnPanelPhoto);
+
+        pnlPersonal.add(photoPanel);
+        pnlPersonal.add(Box.createVerticalStrut(15));
 
         // --- RIGHT COLUMN: MEDICAL & ACCOUNT ---
         JPanel pnlMedical = new ModernUITheme.CardPanel();
@@ -168,20 +208,16 @@ public class CardManagePanel extends JPanel {
 
         txtBalance = addLabeledField(pnlMedical, "Số dư (VNĐ):", 25);
 
-        // Security Inputs
-        addLabel(pnlMedical, "PIN User (để load data):");
+        // Security Inputs - V7: ẨN PIN User field, dùng dialog popup khi cần
+        // addLabel(pnlMedical, "PIN User (để load data):");
         txtPinUserForLoad = new ModernUITheme.RoundedPasswordField(20);
-        txtPinUserForLoad.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
-        alignLeft(txtPinUserForLoad);
-        pnlMedical.add(txtPinUserForLoad);
-        pnlMedical.add(Box.createVerticalStrut(15));
+        txtPinUserForLoad.setVisible(false); // Hidden - dùng dialog popup thay thế
+        // txtPinUserForLoad.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        // alignLeft(txtPinUserForLoad);
+        // pnlMedical.add(txtPinUserForLoad);
+        // pnlMedical.add(Box.createVerticalStrut(15));
 
-        addLabel(pnlMedical, "PIN User mặc định (cấp mới):");
-        txtPinUserDefault = new ModernUITheme.RoundedPasswordField(20);
-        txtPinUserDefault.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
-        alignLeft(txtPinUserDefault);
-        pnlMedical.add(txtPinUserDefault);
-        pnlMedical.add(Box.createVerticalStrut(15));
+        // V6: PIN User mặc định đã bị xóa - không cần thiết cho quản lý thẻ cũ
 
         // Admin PIN Status
         addLabel(pnlMedical, "Admin PIN status:");
@@ -239,6 +275,14 @@ public class CardManagePanel extends JPanel {
             @Override
             public void actionPerformed(ActionEvent e) {
                 saveSnapshotOnly();
+            }
+        });
+
+        // V6: Event handler cho upload ảnh
+        btnUploadPhoto.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                uploadPhoto();
             }
         });
     }
@@ -492,7 +536,6 @@ public class CardManagePanel extends JPanel {
         txtQueQuan.setText("");
         txtMaBHYT.setText("");
         txtBalance.setText("0");
-        txtPinUserDefault.setText("");
         lblGioiTinh.setText("-"); // V5: Clear gender
         // V4: Clear thông tin y tế khẩn cấp
         cboNhomMau.setSelectedIndex(0);
@@ -527,27 +570,8 @@ public class CardManagePanel extends JPanel {
                 return;
             }
 
-            // V3: Derive Admin PIN từ K_master và cardID
-            String pinAdmin = null;
-            try {
-                EnvFileLoader.load();
-                pinAdmin = AdminPinDerivation.deriveAdminResetPIN(cardId);
-                System.out.println("[CardManagePanel] Derived Admin PIN: " + pinAdmin);
-            } catch (Exception e) {
-                JOptionPane.showMessageDialog(this,
-                        "Lỗi khi derive Admin PIN!\n\n" +
-                                "Vui lòng kiểm tra K_MASTER environment variable.\n\n" +
-                                "Lỗi: " + e.getMessage(),
-                        "Lỗi", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-
-            String pinUserDefault = new String(txtPinUserDefault.getPassword());
-            if (pinUserDefault.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Vui lòng nhập PIN User mặc định!", "Lỗi",
-                        JOptionPane.ERROR_MESSAGE);
-                return;
-            }
+            // V3: CardManagePanel chỉ dùng UPDATE_USER_DATA, không issue card mới
+            // Nếu cần issue card → dùng CardIssuePanel
 
             // Đảm bảo kết nối thẻ, channel sẵn sàng, và applet đã được select
             if (!CardConnectionHelper.ensureCardAndAppletReady(
@@ -608,51 +632,44 @@ public class CardManagePanel extends JPanel {
                     return;
                 }
 
-                byte[] result = apduCommands.issueCard(
-                        cardIdToIssue, // V3: Gửi cardID xuống thẻ
-                        userData.toBytes(),
-                        pinUserDefault.getBytes(StandardCharsets.UTF_8),
-                        pinAdminReset.getBytes(StandardCharsets.UTF_8) // V3: PIN admin đã derive
-                );
+                // CardManagePanel KHÔNG nên issue card mới
+                // Logic này nên được xóa hoặc chuyển sang CardIssuePanel
+                JOptionPane.showMessageDialog(this,
+                        "Không thể phát hành thẻ mới từ CardManagePanel!\n\n" +
+                                "Vui lòng sử dụng chức năng 'Phát hành thẻ mới' (CardIssuePanel).",
+                        "Lỗi", JOptionPane.ERROR_MESSAGE);
+                return;
 
-                if (result != null && result.length >= 1 && result[0] == 0x00) {
-                    // V3: Response chỉ là status byte, đọc cardID từ GET_STATUS
-                    byte[] newCardId = apduCommands.getStatus();
-                    if (newCardId == null || newCardId.length != 16) {
-                        JOptionPane.showMessageDialog(this,
-                                "Phát hành thẻ thành công nhưng không thể đọc cardID!",
-                                "Cảnh báo", JOptionPane.WARNING_MESSAGE);
-                        return;
-                    }
-
-                    String newCardIdHex = bytesToHex(newCardId);
-                    txtCardId.setText(newCardIdHex);
-
-                    // V3: Không lưu Admin PIN vào database nữa, chỉ derive động
-                    // Derive PIN cho card mới
-                    try {
-                        EnvFileLoader.load();
-                        String pinAdminResetNew = AdminPinDerivation.deriveAdminResetPIN(newCardId);
-                        System.out.println("[CardManagePanel] Derived Admin PIN for new card: " + pinAdminResetNew);
-                        lblAdminPinStatus.setText("✓ PIN được derive động (V3): " + pinAdminResetNew);
-                        lblAdminPinStatus.setForeground(new Color(0, 153, 0));
-                    } catch (Exception e) {
-                        System.err.println("[CardManagePanel] Lỗi khi derive Admin PIN: " + e.getMessage());
-                        JOptionPane.showMessageDialog(this,
-                                "CẢNH BÁO: Không thể derive Admin PIN!\n\n" +
-                                        "Vui lòng kiểm tra K_MASTER environment variable.\n\n" +
-                                        "Lỗi: " + e.getMessage(),
-                                "Cảnh báo", JOptionPane.WARNING_MESSAGE);
-                    }
-
-                    JOptionPane.showMessageDialog(this,
-                            "Đã phát hành thẻ mới thành công!\nCard ID: " + newCardIdHex,
-                            "Thành công", JOptionPane.INFORMATION_MESSAGE);
-                    success = true;
-                } else {
-                    JOptionPane.showMessageDialog(this,
-                            "Phát hành thẻ thất bại!", "Lỗi", JOptionPane.ERROR_MESSAGE);
-                }
+                /*
+                 * LEGACY CODE - XÓA SAU
+                 * byte[] result = apduCommands.issueCard(...);
+                 * if (result != null && result.length >= 1 && result[0] == 0x00) {
+                 * byte[] newCardId = apduCommands.getStatus();
+                 * if (newCardId == null || newCardId.length != 16) {
+                 * JOptionPane.showMessageDialog(this,
+                 * "Phát hành thẻ thành công nhưng không thể đọc cardID!",
+                 * "Cảnh báo", JOptionPane.WARNING_MESSAGE);
+                 * return;
+                 * }
+                 * 
+                 * String newCardIdHex = bytesToHex(newCardId);
+                 * txtCardId.setText(newCardIdHex);
+                 * 
+                 * try {
+                 * EnvFileLoader.load();
+                 * String pinAdminResetNew = AdminPinDerivation.deriveAdminResetPIN(newCardId);
+                 * System.out.println("[CardManagePanel] Derived Admin PIN for new card: " +
+                 * pinAdminResetNew);
+                 * lblAdminPinStatus.setText("✓ PIN được derive động (V3): " +
+                 * pinAdminResetNew);
+                 * lblAdminPinStatus.setForeground(new Color(0, 153, 0));
+                 * } catch (Exception e) {
+                 * System.err.println("[CardManagePanel] Lỗi khi derive Admin PIN: " +
+                 * e.getMessage());
+                 * }
+                 * success = true;
+                 * }
+                 */
             } else {
                 // Thẻ đã được phát hành -> dùng UPDATE_USER_DATA
                 if (apduCommands.updateUserData(userData.toBytes())) {
@@ -689,7 +706,7 @@ public class CardManagePanel extends JPanel {
             }
 
             String cardIdHex = txtCardId.getText().trim();
-            String pinUserDefault = new String(txtPinUserDefault.getPassword());
+            // V6: Không lưu PIN User mặc định nữa - không cần thiết
 
             // Tạo UserData mới
             UserData userData = new UserData();
@@ -721,7 +738,7 @@ public class CardManagePanel extends JPanel {
             snapshot.setQueQuan(userData.getQueQuan());
             snapshot.setMaBHYT(userData.getMaBHYT());
             snapshot.setBalance(userData.getBalance());
-            snapshot.setPinUserDefault(pinUserDefault);
+            // snapshot.setPinUserDefault() - KHÔNG lưu nữa
 
             // V4: Thông tin y tế khẩn cấp
             snapshot.setNhomMau(userData.getNhomMau());
@@ -802,5 +819,198 @@ public class CardManagePanel extends JPanel {
                     + Character.digit(hex.charAt(i + 1), 16));
         }
         return data;
+    }
+
+    /**
+     * V6: Upload và resize ảnh đại diện xuống ≤ 20KB
+     */
+    private void uploadPhoto() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Chọn ảnh đại diện bệnh nhân");
+        fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
+                "Ảnh (JPG, JPEG, PNG, GIF)", "jpg", "jpeg", "png", "gif"));
+
+        if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            java.io.File file = fileChooser.getSelectedFile();
+            System.out.println("[CardManagePanel] Đã chọn file: " + file.getAbsolutePath());
+
+            // Hiển thị progress dialog
+            JDialog progressDialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this),
+                    "Đang xử lý ảnh...", true);
+            progressDialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+            progressDialog.setSize(350, 120);
+            progressDialog.setLocationRelativeTo(this);
+
+            JPanel contentPanel = new JPanel(new BorderLayout(10, 10));
+            contentPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+            JLabel lblProgress = new JLabel("Đang resize và nén ảnh xuống ≤ 20KB...", SwingConstants.CENTER);
+            lblProgress.setFont(ModernUITheme.FONT_BODY);
+            contentPanel.add(lblProgress, BorderLayout.CENTER);
+
+            JProgressBar progressBar = new JProgressBar();
+            progressBar.setIndeterminate(true);
+            contentPanel.add(progressBar, BorderLayout.SOUTH);
+
+            progressDialog.add(contentPanel);
+
+            // Xử lý ảnh trong background thread
+            SwingWorker<String, Void> worker = new SwingWorker<String, Void>() {
+                @Override
+                protected String doInBackground() throws Exception {
+                    // Resize và compress ảnh xuống ≤ 20KB
+                    return ImageHelper.resizeAndCompressToBase64(file);
+                }
+
+                @Override
+                protected void done() {
+                    try {
+                        photoBase64 = get(); // Lấy kết quả Base64
+
+                        // Hiển thị preview
+                        java.awt.image.BufferedImage previewImage = ImageHelper.decodeBase64ToImage(photoBase64);
+                        if (previewImage != null) {
+                            lblPhotoPreview.setIcon(ImageHelper.createScaledIcon(previewImage, 120, 120));
+                            lblPhotoPreview.setText(null);
+                        }
+
+                        progressDialog.dispose();
+
+                        // Tính kích thước Base64
+                        int sizeBytes = photoBase64.getBytes().length;
+                        int sizeKB = sizeBytes / 1024;
+
+                        System.out.println("[CardManagePanel] Upload ảnh thành công: " + sizeKB + " KB");
+
+                        // V7: Tự động upload lên thẻ ngay lập tức (không hỏi nữa)
+                        uploadPhotoToCard();
+
+                    } catch (Exception ex) {
+                        progressDialog.dispose();
+                        ex.printStackTrace();
+
+                        String errorMsg;
+                        String errorTitle = "Lỗi upload ảnh";
+
+                        // Kiểm tra lỗi do ảnh > 20KB
+                        if (ex.getMessage() != null &&
+                                (ex.getMessage().contains("không thể nén") ||
+                                        ex.getMessage().contains("Không thể nén") ||
+                                        ex.getMessage().contains("quá phức tạp"))) {
+
+                            errorTitle = "Ảnh quá lớn";
+                            errorMsg = "⚠️ KHÔNG THỂ NÉN ẢNH XUỐNG 20KB!\n\n" +
+                                    "Ảnh bạn chọn quá phức tạp hoặc có quá nhiều màu sắc.\n\n" +
+                                    "VUI LÒNG CHỌN ẢNH KHÁC:\n" +
+                                    "• Ảnh đơn giản hơn (ít chi tiết, màu trơn)\n" +
+                                    "• Ảnh chân dung passport (nền trơn)\n" +
+                                    "• Ảnh đã được tối ưu sẵn\n" +
+                                    "• Ảnh có kích thước gốc nhỏ hơn\n\n" +
+                                    "❌ Không thể sử dụng ảnh này!";
+                        } else {
+                            // Lỗi khác (file hỏng, format không hợp lệ, etc.)
+                            errorMsg = "Lỗi khi xử lý ảnh: " + ex.getMessage() + "\n\n" +
+                                    "Vui lòng kiểm tra:\n" +
+                                    "• File ảnh có hợp lệ không?\n" +
+                                    "• File có bị hỏng không?\n" +
+                                    "• Định dạng file có đúng (JPG, PNG, GIF)?";
+                        }
+
+                        JOptionPane.showMessageDialog(CardManagePanel.this,
+                                errorMsg,
+                                errorTitle,
+                                JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+            };
+
+            worker.execute();
+            progressDialog.setVisible(true); // Block until worker completes
+        }
+    }
+
+    /**
+     * V6: Upload ảnh lên thẻ ngay lập tức (yêu cầu PIN User)
+     */
+    private void uploadPhotoToCard() {
+        try {
+            // Kiểm tra đã có ảnh chưa
+            if (photoBase64 == null || photoBase64.isEmpty()) {
+                JOptionPane.showMessageDialog(this,
+                        "Chưa có ảnh để upload!",
+                        "Lỗi", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            // Đảm bảo kết nối thẻ
+            if (!CardConnectionHelper.ensureCardAndAppletReady(
+                    cardManager, apduCommands, this, true, APDUCommands.AID_USER)) {
+                return;
+            }
+
+            // Yêu cầu nhập PIN User để verify trước khi upload
+            String pinUser = new String(txtPinUserForLoad.getPassword());
+            if (pinUser.isEmpty() || pinUser.length() != 6) {
+                // Hiển thị dialog để nhập PIN User
+                JPasswordField pinField = new JPasswordField(20);
+                int option = JOptionPane.showConfirmDialog(this,
+                        new Object[] {
+                                "Cần nhập PIN User (6 chữ số) để upload ảnh lên thẻ.\nVui lòng nhập PIN User:",
+                                pinField
+                        },
+                        "Nhập PIN User",
+                        JOptionPane.OK_CANCEL_OPTION,
+                        JOptionPane.QUESTION_MESSAGE);
+
+                if (option == JOptionPane.OK_OPTION) {
+                    pinUser = new String(pinField.getPassword());
+                    if (pinUser.length() != 6 || !pinUser.matches("^[0-9]+$")) {
+                        JOptionPane.showMessageDialog(this,
+                                "PIN User phải là 6 chữ số!",
+                                "Lỗi", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+                } else {
+                    return; // User cancelled
+                }
+            }
+
+            // Verify PIN trước
+            System.out.println("[CardManagePanel] Verifying PIN before photo upload...");
+            byte[] pinBytes = pinUser.getBytes(StandardCharsets.UTF_8);
+            byte[] verifyResult = apduCommands.verifyPinAndReadData(pinBytes);
+
+            if (verifyResult == null || verifyResult.length == 0) {
+                JOptionPane.showMessageDialog(this,
+                        "Không thể verify PIN User!\n\n" +
+                                "Vui lòng kiểm tra lại PIN.",
+                        "Lỗi", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            System.out.println("[CardManagePanel] ✓ PIN verified, uploading photo...");
+
+            // Upload photo
+            boolean photoUploaded = apduCommands.setPhotoChunked(photoBase64);
+
+            if (photoUploaded) {
+                JOptionPane.showMessageDialog(this,
+                        "✓ Upload ảnh lên thẻ thành công!",
+                        "Thành công", JOptionPane.INFORMATION_MESSAGE);
+                System.out.println("[CardManagePanel] ✓ Photo uploaded to card successfully!");
+            } else {
+                JOptionPane.showMessageDialog(this,
+                        "Upload ảnh lên thẻ thất bại!\n\n" +
+                                "Vui lòng thử lại hoặc kiểm tra kết nối thẻ.",
+                        "Lỗi", JOptionPane.ERROR_MESSAGE);
+                System.err.println("[CardManagePanel] ✗ Photo upload failed!");
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(this,
+                    "Lỗi khi upload ảnh lên thẻ: " + e.getMessage(),
+                    "Lỗi", JOptionPane.ERROR_MESSAGE);
+        }
     }
 }
