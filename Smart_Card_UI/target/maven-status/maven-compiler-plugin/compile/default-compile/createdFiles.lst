@@ -57,6 +57,7 @@ util\CryptoUtils.class
 ui\admin\AdminFrame$3.class
 ui\admin\ResetPinPanel$1.class
 ui\user\EditInfoPanel.class
+ui\admin\CardManagePanel$5.class
 ui\tool\DatabaseMigrationTool$7.class
 ui\tool\LoadSnapshotTool$4.class
 ui\user\TransactionPanel$2.class
@@ -68,6 +69,7 @@ ui\user\HistoryPanel$2.class
 ui\tool\DatabaseMigrationTool$1.class
 ui\ModernUITheme$RoundedTextField.class
 ui\user\UserLoginFrame$2.class
+card\APDUCommands$ResetPinResult.class
 ui\admin\CardConnectionHelper.class
 ui\tool\CreateAdminUserTool$4.class
 ui\admin\CardIssuePanel.class
@@ -93,6 +95,7 @@ util\AdminPinDerivation.class
 ui\user\TransactionPanel$4.class
 ui\tool\CreateAdminUserTool$2.class
 util\ImageHelper.class
+ui\admin\CardManagePanel$4.class
 ui\tool\DatabaseMigrationTool$3.class
 model\UserData.class
 ui\admin\AdminFrame$2.class

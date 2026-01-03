@@ -419,13 +419,13 @@ public class APDUCommands {
     }
 
     /**
-     * V3: Reset PIN User bởi Admin
+     * V4: Reset PIN User bởi Admin + Đổi khóa RSA
      * 
      * @param pinAdminReset PIN admin reset (6 bytes)
      * @param pinUserNew    PIN mới cho user (6 bytes)
-     * @return true nếu thành công
+     * @return ResetPinResult chứa status + public key mới (nếu có)
      */
-    public boolean resetPinByAdmin(byte[] pinAdminReset, byte[] pinUserNew) {
+    public ResetPinResult resetPinByAdmin(byte[] pinAdminReset, byte[] pinUserNew) {
         try {
             System.out.println("[APDUCommands] resetPinByAdmin: Bắt đầu reset PIN user (V3)");
             System.out.println("[APDUCommands] resetPinByAdmin: PIN Admin Reset length = "
@@ -450,15 +450,76 @@ public class APDUCommands {
                     "  - Data (hex): " + bytesToHex(data);
             System.out.println(logMsg);
 
-            ResponseAPDU resp = send(INS_ADMIN_RESET_PIN, (byte) 0, (byte) 0, data, 1);
+            // ✨ NEW: Yêu cầu response lớn hơn để nhận public key
+            ResponseAPDU resp = send(INS_ADMIN_RESET_PIN, (byte) 0, (byte) 0, data, 256);
             int sw = resp.getSW();
             System.out.println("[APDUCommands] ADMIN_RESET_PIN response SW: " + String.format("0x%04X", sw));
 
             if (sw == 0x9000) {
                 byte[] result = resp.getData();
+
                 if (result != null && result.length > 0 && result[0] == 0x00) {
-                    System.out.println("[APDUCommands] Reset PIN user thành công!");
-                    return true;
+                    System.out.println("[APDUCommands] ✓ Reset PIN thành công!");
+
+                    // ✨ NEW: Parse public key từ response (nếu có)
+                    byte[] newPublicKey = null;
+
+                    if (result.length > 1) {
+                        System.out.println("[APDUCommands] Phát hiện public key trong response, đang parse...");
+                        System.out.println("[APDUCommands] Response length: " + result.length + " bytes");
+
+                        try {
+                            // Format: [status(1)] [pk_mod_len(2)] [pk_modulus] [pk_exp_len(2)]
+                            // [pk_exponent]
+                            short pos = 1; // Bỏ qua status byte
+
+                            // Đọc độ dài modulus
+                            short pkModLen = getShort(result, pos);
+                            pos += 2;
+                            System.out.println("[APDUCommands]   Modulus length: " + pkModLen);
+
+                            // Đọc modulus
+                            byte[] pkModulus = new byte[pkModLen];
+                            System.arraycopy(result, pos, pkModulus, 0, pkModLen);
+                            pos += pkModLen;
+
+                            // Đọc độ dài exponent
+                            short pkExpLen = getShort(result, pos);
+                            pos += 2;
+                            System.out.println("[APDUCommands]   Exponent length: " + pkExpLen);
+
+                            // Đọc exponent
+                            byte[] pkExponent = new byte[pkExpLen];
+                            System.arraycopy(result, pos, pkExponent, 0, pkExpLen);
+
+                            // Chuyển đổi sang Java PublicKey và encode theo chuẩn X.509
+                            java.math.BigInteger n = new java.math.BigInteger(1, pkModulus);
+                            java.math.BigInteger e = new java.math.BigInteger(1, pkExponent);
+
+                            java.security.spec.RSAPublicKeySpec pubSpec = new java.security.spec.RSAPublicKeySpec(n, e);
+                            java.security.KeyFactory kf = java.security.KeyFactory.getInstance("RSA");
+                            java.security.PublicKey javaPublicKey = kf.generatePublic(pubSpec);
+
+                            // Encode sang X.509 format (chuẩn để lưu database)
+                            newPublicKey = javaPublicKey.getEncoded();
+
+                            System.out.println("[APDUCommands] ✓ Parse public key thành công!");
+                            System.out.println("[APDUCommands]   X.509 encoded length: " +
+                                    newPublicKey.length + " bytes");
+
+                        } catch (Exception e) {
+                            System.err.println("[APDUCommands] ✗ Lỗi khi parse public key: " +
+                                    e.getMessage());
+                            e.printStackTrace();
+                            // Không throw exception, vì reset PIN đã thành công
+                            // Chỉ là không lấy được public key
+                        }
+                    } else {
+                        System.out.println("[APDUCommands] ℹ️ Response chỉ có status byte, không có public key");
+                        System.out.println("[APDUCommands]    → Applet có thể chưa được cập nhật lên V4");
+                    }
+
+                    return new ResetPinResult(true, newPublicKey);
                 }
             } else {
                 String errorMsg = "[APDUCommands] ADMIN_RESET_PIN THẤT BẠI! SW: " + String.format("0x%04X", sw);
@@ -480,14 +541,21 @@ public class APDUCommands {
                 } else if (sw == 0x6F00) {
                     System.err.println("  -> Lỗi không xác định từ applet");
                 }
-                return false;
+                return new ResetPinResult(false, null);
             }
         } catch (Exception e) {
             System.err.println("[APDUCommands] Exception trong resetPinByAdmin: " + e.getMessage());
             e.printStackTrace();
-            return false;
+            return new ResetPinResult(false, null);
         }
-        return false;
+        return new ResetPinResult(false, null);
+    }
+
+    /**
+     * Helper: Parse short từ byte array (Big-Endian)
+     */
+    private short getShort(byte[] data, int offset) {
+        return (short) (((data[offset] & 0xFF) << 8) | (data[offset + 1] & 0xFF));
     }
 
     /**
@@ -660,6 +728,24 @@ public class APDUCommands {
         public TransactionStatus(short txnCounter, byte[] lastTxnHash) {
             this.txnCounter = txnCounter;
             this.lastTxnHash = lastTxnHash;
+        }
+    }
+
+    /**
+     * V4: Reset PIN result class
+     * Chứa kết quả reset PIN và RSA public key mới (nếu có)
+     */
+    public static class ResetPinResult {
+        public final boolean success; // True nếu reset PIN thành công
+        public final byte[] newPublicKey; // Public key mới (null nếu không rotate hoặc parse lỗi)
+
+        public ResetPinResult(boolean success, byte[] newPublicKey) {
+            this.success = success;
+            this.newPublicKey = newPublicKey;
+        }
+
+        public boolean hasNewKey() {
+            return newPublicKey != null && newPublicKey.length > 0;
         }
     }
 

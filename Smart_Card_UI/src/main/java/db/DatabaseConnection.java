@@ -235,6 +235,124 @@ public class DatabaseConnection {
     }
 
     /**
+     * V4: Cập nhật RSA public key của user (dùng khi đổi khóa RSA)
+     * 
+     * @param cardId      Card ID (16 bytes)
+     * @param pkUserBytes Public key mới (X.509 encoded)
+     * @return true nếu thành công
+     */
+    public static boolean updateUserPublicKey(byte[] cardId, byte[] pkUserBytes) {
+        System.out.println("[DatabaseConnection] updateUserPublicKey: BẮT ĐẦU");
+        System.out.println("[DatabaseConnection]   cardId hex: " + bytesToHex(cardId));
+        System.out.println("[DatabaseConnection]   new pkUserBytes length: " +
+                (pkUserBytes != null ? pkUserBytes.length : "null"));
+
+        // Bước 1: Kiểm tra card_id có tồn tại không
+        String checkSql = "SELECT card_id, patient_id, status FROM user_cards WHERE card_id = ?";
+        try (Connection conn = getConnection();
+                PreparedStatement checkPst = conn.prepareStatement(checkSql)) {
+
+            checkPst.setBytes(1, cardId);
+            try (ResultSet rs = checkPst.executeQuery()) {
+                if (!rs.next()) {
+                    System.err.println("[DatabaseConnection]   ✗ CardId KHÔNG TỒN TẠI trong user_cards!");
+                    System.err.println("[DatabaseConnection]     → Thẻ chưa được phát hành hoặc đã bị xóa");
+                    return false;
+                }
+
+                System.out.println("[DatabaseConnection]   ✓ CardId tồn tại:");
+                System.out.println("[DatabaseConnection]     - patient_id: " + rs.getString("patient_id"));
+                System.out.println("[DatabaseConnection]     - status: " + rs.getString("status"));
+            }
+        } catch (Exception e) {
+            System.err.println("[DatabaseConnection] Lỗi kiểm tra cardId: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+
+        // Bước 2: Update public key và updated_at
+        String sql = "UPDATE user_cards SET pk_user = ?, last_updated_at = NOW() WHERE card_id = ?";
+        System.out.println("[DatabaseConnection] SQL: " + sql);
+
+        try (Connection conn = getConnection();
+                PreparedStatement pst = conn.prepareStatement(sql)) {
+
+            System.out.println("[DatabaseConnection] Đang thực thi UPDATE...");
+            pst.setBytes(1, pkUserBytes);
+            pst.setBytes(2, cardId);
+
+            int rows = pst.executeUpdate();
+            System.out.println("[DatabaseConnection] UPDATE affected rows: " + rows);
+
+            if (rows > 0) {
+                System.out.println("[DatabaseConnection] ✓ ĐÃ CẬP NHẬT public key cho cardId: " +
+                        bytesToHex(cardId));
+
+                // Bước 3: Verify - Đọc lại để xác nhận
+                String verifySql = "SELECT pk_user FROM user_cards WHERE card_id = ?";
+                try (PreparedStatement verifyPst = conn.prepareStatement(verifySql)) {
+                    verifyPst.setBytes(1, cardId);
+                    try (ResultSet rs = verifyPst.executeQuery()) {
+                        if (rs.next()) {
+                            byte[] savedPk = rs.getBytes("pk_user");
+
+                            if (savedPk != null && savedPk.length > 0) {
+                                System.out.println("[DatabaseConnection]   Verify: pk_user length = " +
+                                        savedPk.length);
+                                System.out.println("[DatabaseConnection]   Verify: ✓ Dữ liệu đã được ghi vào DB");
+
+                                // So sánh để đảm bảo dữ liệu khớp
+                                if (savedPk.length == pkUserBytes.length) {
+                                    boolean match = true;
+                                    for (int i = 0; i < savedPk.length; i++) {
+                                        if (savedPk[i] != pkUserBytes[i]) {
+                                            match = false;
+                                            break;
+                                        }
+                                    }
+                                    if (match) {
+                                        System.out.println("[DatabaseConnection]   Verify: ✓✓ Dữ liệu khớp 100%");
+                                    } else {
+                                        System.err.println("[DatabaseConnection]   Verify: ✗ Dữ liệu KHÔNG khớp!");
+                                        return false;
+                                    }
+                                }
+                            } else {
+                                System.err.println("[DatabaseConnection]   Verify: ✗ pk_user = NULL hoặc rỗng!");
+                                return false;
+                            }
+                        }
+                    }
+                }
+
+                return true;
+
+            } else {
+                System.err.println("[DatabaseConnection] ✗ UPDATE không tác động row nào (rows = 0)");
+                System.err.println("[DatabaseConnection]   → WHERE card_id không tìm thấy row");
+                System.err.println("[DatabaseConnection]   → CardId có đúng không?");
+                return false;
+            }
+
+        } catch (Exception e) {
+            System.err.println("[DatabaseConnection] ✗ EXCEPTION khi cập nhật public key:");
+            System.err.println("[DatabaseConnection]   Exception type: " + e.getClass().getName());
+            System.err.println("[DatabaseConnection]   Message: " + e.getMessage());
+            e.printStackTrace();
+
+            // Phân tích lỗi cụ thể
+            if (e.getMessage() != null) {
+                if (e.getMessage().contains("column") && e.getMessage().contains("does not exist")) {
+                    System.err.println("[DatabaseConnection]   → Lỗi: Cột 'last_updated_at' không tồn tại!");
+                    System.err.println("[DatabaseConnection]   → Giải pháp: Sử dụng cột có sẵn hoặc thêm migration");
+                }
+            }
+
+            return false;
+        }
+    }
+
+    /**
      * Lấy RSA public key của user từ database
      * 
      * @param cardId Card ID (16 bytes)

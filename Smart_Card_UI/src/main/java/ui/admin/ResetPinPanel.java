@@ -350,35 +350,88 @@ public class ResetPinPanel extends JPanel {
                 return;
             }
 
-            if (apduCommands.resetPinByAdmin(adminPinBytes, pinUserNewBytes)) {
-                log("\n✓✓✓ RESET PIN THÀNH CÔNG! ✓✓✓");
-                log("PIN User mới đã được đặt: " + pinUserNew);
+            // ✨ NEW: Nhận kết quả với public key
+            card.APDUCommands.ResetPinResult result = apduCommands.resetPinByAdmin(
+                    adminPinBytes, pinUserNewBytes);
 
-                // QUAN TRỌNG: Refresh channel sau khi reset PIN thành công
-                // Đảm bảo channel vẫn hợp lệ cho các thao tác tiếp theo
-                log("\nBước 5: Refresh channel sau khi reset PIN...");
+            if (result.success) {
+                log("\n✓✓✓ RESET PIN THÀNH CÔNG! ✓✓✓");
+                log("PIN User mới: " + pinUserNew);
+
+                // ✨ NEW: Cập nhật public key nếu có
+                if (result.hasNewKey()) {
+                    log("\nBước 5: Cập nhật RSA Public Key mới vào database...");
+                    log("  - Public key length: " + result.newPublicKey.length + " bytes");
+
+                    boolean updateSuccess = db.DatabaseConnection.updateUserPublicKey(
+                            cardIdOnCard, result.newPublicKey);
+
+                    if (updateSuccess) {
+                        log("  - ✓✓ RSA Public Key đã được cập nhật trong database!");
+                    } else {
+                        log("  - ✗✗ CẢNH BÁO: Không thể cập nhật public key vào database!");
+
+                        JOptionPane.showMessageDialog(this,
+                                "⚠️ CẢNH BÁO NGHIÊM TRỌNG ⚠️\n\n" +
+                                        "Reset PIN thành công NHƯNG cập nhật RSA key thất bại!\n\n" +
+                                        "Card ID: " + bytesToHex(cardIdOnCard) + "\n\n" +
+                                        "Hậu quả:\n" +
+                                        "- User KHÔNG THỂ đăng nhập được\n" +
+                                        "- Cần PHÁT HÀNH LẠI THẺ ngay\n\n" +
+                                        "Vui lòng liên hệ IT support!",
+                                "Lỗi Nghiêm Trọng", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+                } else {
+                    log("\nℹ️ Lưu ý: Không nhận được RSA public key mới từ thẻ");
+                    log("  - Applet có thể chưa được cập nhật lên V4");
+                    log("  - Hoặc JavaCard không cho phép export public key");
+                    log("  - RSA keys KHÔNG được đổi, chỉ đổi PIN");
+                }
+
+                // Refresh channel
+                log("\nBước 6: Refresh channel...");
                 try {
                     // Cập nhật lại channel cho APDUCommands
                     apduCommands.setChannel(cardManager.getChannel());
                     log("✓ Channel đã được refresh");
                 } catch (Exception e) {
-                    log("⚠️ Cảnh báo: Không thể refresh channel - " + e.getMessage());
+                    log("⚠️ Cảnh báo: Không refresh được channel - " + e.getMessage());
                     // Không fail vì reset PIN đã thành công
                 }
 
-                JOptionPane.showMessageDialog(this,
-                        "Reset PIN thành công!\n\nPIN User mới: " + pinUserNew + "\n\n" +
-                                "⚠️ Lưu ý: Nếu user đang đăng nhập, họ cần đăng nhập lại với PIN mới.",
+                // Thông báo thành công
+                String successMsg = "✓ Reset PIN thành công!\n\n" +
+                        "PIN User mới: " + pinUserNew + "\n";
+
+                if (result.hasNewKey()) {
+                    successMsg += "\n🔐 Bảo mật đã được tăng cường:\n" +
+                            "✓ Cặp khóa RSA đã được tạo mới\n" +
+                            "✓ Public Key mới đã lưu vào database\n" +
+                            "✓ Private Key cũ đã bị xóa khỏi thẻ\n\n" +
+                            "⚠️ Lưu ý: User cần đăng nhập lại với PIN mới";
+                } else {
+                    successMsg += "\n⚠️ Lưu ý:\n" +
+                            "- RSA keys KHÔNG được đổi\n" +
+                            "- Chỉ đổi PIN thành công\n" +
+                            "- Applet có thể chưa hỗ trợ V4\n\n" +
+                            "User vẫn đăng nhập được với PIN mới";
+                }
+
+                JOptionPane.showMessageDialog(this, successMsg,
                         "Thành công", JOptionPane.INFORMATION_MESSAGE);
+
             } else {
                 log("\n✗✗✗ RESET PIN THẤT BẠI! ✗✗✗");
-                log("Có thể do Admin PIN không đúng hoặc lỗi giải mã trên thẻ.");
+                log("Có thể do Admin PIN không đúng hoặc lỗi trên thẻ.");
+
                 JOptionPane.showMessageDialog(this,
                         "Reset PIN thất bại!\n\n" +
-                                "Có thể do:\n" +
+                                "Nguyên nhân có thể:\n" +
                                 "- Admin PIN không đúng\n" +
-                                "- Lỗi trên thẻ\n" +
-                                "- Thẻ bị corrupt",
+                                "- Lỗi tạo RSA key trên thẻ\n" +
+                                "- Thẻ bị lỗi hoặc corrupt\n\n" +
+                                "Vui lòng kiểm tra log để biết chi tiết.",
                         "Lỗi", JOptionPane.ERROR_MESSAGE);
             }
 

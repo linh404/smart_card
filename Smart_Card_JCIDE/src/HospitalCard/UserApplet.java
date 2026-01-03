@@ -444,7 +444,7 @@ public class UserApplet extends Applet {
             PINHelper.safeHash(sha256, buf, pinAdminResetOffset, pinAdminResetLength, tempHash, (short) 0);
 
             if (Util.arrayCompare(tempHash, (short) 0, hashPinAdminReset, (short) 0, HASH_LENGTH) != 0) {
-                ISOException.throwIt((short) 0x6300);
+                ISOException.throwIt((short) 0x6300); // Admin PIN incorrect
             }
 
             // Unwrap MK with PIN_admin_reset
@@ -457,7 +457,29 @@ public class UserApplet extends Applet {
                     tempDecryptBuffer, (short) 0);
 
             if (!success) {
-                ISOException.throwIt((short) 0x6F04);
+                ISOException.throwIt((short) 0x6F04); // Unwrap failed
+            }
+
+            // V4: Regenerate RSA key pair for enhanced security
+            try {
+                // Generate new RSA key pair
+                if (!RSAHelper.generateKeyPair(rsaKeyPair)) {
+                    ISOException.throwIt((short) 0x6F01); // RSA generation failed
+                }
+
+                // Update references to new keys
+                skUser = (RSAPrivateKey) rsaKeyPair.getPrivate();
+                pkUser = (RSAPublicKey) rsaKeyPair.getPublic();
+
+                // Verify keys are initialized
+                if (skUser == null || pkUser == null ||
+                        !skUser.isInitialized() || !pkUser.isInitialized()) {
+                    ISOException.throwIt((short) 0x6F01); // Keys not initialized
+                }
+
+            } catch (CryptoException ce) {
+                // RSA key generation error
+                ISOException.throwIt((short) (0x6F10 | (ce.getReason() & 0x0F)));
             }
 
             // Re-wrap MK with new PIN_user
@@ -476,10 +498,23 @@ public class UserApplet extends Applet {
             blockedFlag = 0;
             pinChangedFlag = 0;
 
+            // Clear master key from memory
             Util.arrayFillNonAtomic(mkUser, (short) 0, (short) (MK_USER_LENGTH + 16), (byte) 0);
 
-            buf[0] = (byte) 0x00;
-            apdu.setOutgoingAndSend((short) 0, (short) 1);
+            // V4: Build response with new public key
+            short respOffset = 0;
+            buf[respOffset++] = (byte) 0x00; // Status: success
+
+            try {
+                // Export public key (modulus + exponent)
+                short pkLen = RSAHelper.getPublicKeyBytes(pkUser, buf, respOffset);
+                respOffset += pkLen;
+            } catch (Exception e) {
+                // If export fails, still return success status
+                // UI will detect missing key and warn user
+            }
+
+            apdu.setOutgoingAndSend((short) 0, respOffset);
 
         } catch (CryptoException e) {
             ISOException.throwIt((short) (0x6F00 | e.getReason()));
