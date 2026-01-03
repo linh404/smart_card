@@ -152,8 +152,13 @@ public class BHYTPanel extends JPanel {
             lblNgaySinh.setText(userData.getNgaySinh() != null ? userData.getNgaySinh() : "---");
             lblGioiTinh.setText(userData.getGenderLabel());
             lblSoThe.setText(maBHYT);
-            lblNgayHetHan.setText("31/12/2026"); // Mock data or add to DB later
-            lblMucHuong.setText("80%"); // Mock data or add to DB later
+
+            // V7: Đọc mức hưởng và ngày hết hạn từ UserData (với fallback)
+            String expiryDate = userData.getBhytExpiryDate();
+            int coverageRate = userData.getBhytCoverageRate();
+
+            lblNgayHetHan.setText(expiryDate != null && !expiryDate.isEmpty() ? expiryDate : "31/12/2027");
+            lblMucHuong.setText(coverageRate > 0 ? coverageRate + "%" : "60%");
 
         } catch (Exception e) {
             e.printStackTrace();

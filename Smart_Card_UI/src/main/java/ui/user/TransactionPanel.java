@@ -398,10 +398,37 @@ public class TransactionPanel extends JPanel {
 
         long currentBalance = userData.getBalance();
 
+        // V7: Lấy mức hưởng BHYT từ UserData
+        int coverageRate = 60; // Default
+        if (userData != null) {
+            coverageRate = userData.getBhytCoverageRate();
+            if (coverageRate <= 0)
+                coverageRate = 60; // Fallback
+        }
+
+        // Tính toán số tiền thực tế
+        long totalCost = amount; // Tổng chi phí
+        long insurancePays = 0; // BHYT chi trả
+        long userPays = amount; // Người dùng trả
+
         if (!rbCredit.isSelected()) {
-            if (amount > currentBalance) {
-                showError(String.format("Số dư không đủ!\n\nSố dư hiện tại: %s\nSố tiền cần thanh toán: %s",
-                        currencyFormat.format(currentBalance), currencyFormat.format(amount)));
+            // Chỉ áp dụng BHYT cho debit (thanh toán)
+            insurancePays = (amount * coverageRate) / 100;
+            userPays = amount - insurancePays;
+
+            // Kiểm tra số dư theo số tiền người dùng cần trả
+            if (userPays > currentBalance) {
+                showError(String.format(
+                        "Số dư không đủ!\n\n" +
+                                "Tổng chi phí: %s\n" +
+                                "BHYT chi trả (%d%%): %s\n" +
+                                "Bạn cần thanh toán: %s\n" +
+                                "Số dư hiện tại: %s",
+                        currencyFormat.format(totalCost),
+                        coverageRate,
+                        currencyFormat.format(insurancePays),
+                        currencyFormat.format(userPays),
+                        currencyFormat.format(currentBalance)));
                 return;
             }
         }
@@ -409,8 +436,25 @@ public class TransactionPanel extends JPanel {
         // --- Xác thực PIN ---
         String actionType = rbCredit.isSelected() ? "Nạp tiền" : "Thanh toán";
         String dialogTitle = "Xác thực " + actionType;
-        String dialogMsg = String.format("<html>Thực hiện %s: <b>%s</b><br>Vui lòng nhập PIN để xác nhận:</html>",
-                actionType.toLowerCase(), currencyFormat.format(amount));
+        String dialogMsg;
+
+        if (rbCredit.isSelected()) {
+            dialogMsg = String.format(
+                    "<html>Thực hiện %s: <b>%s</b><br>Vui lòng nhập PIN để xác nhận:</html>",
+                    actionType.toLowerCase(),
+                    currencyFormat.format(amount));
+        } else {
+            dialogMsg = String.format(
+                    "<html>Thực hiện thanh toán:<br>" +
+                            "<b>Tổng chi phí: %s</b><br>" +
+                            "BHYT chi trả (%d%%): %s<br>" +
+                            "<b style='color: #2196F3;'>Bạn thanh toán: %s</b><br><br>" +
+                            "Vui lòng nhập PIN để xác nhận:</html>",
+                    currencyFormat.format(totalCost),
+                    coverageRate,
+                    currencyFormat.format(insurancePays),
+                    currencyFormat.format(userPays));
+        }
 
         String pin = showPinDialog(dialogTitle, dialogMsg);
         if (pin == null) {
@@ -440,14 +484,20 @@ public class TransactionPanel extends JPanel {
             if (rbCredit.isSelected()) {
                 result = apduCommands.creditTransaction((int) amount);
             } else {
-                result = apduCommands.debitTransaction((int) amount);
+                // V7: Debit với số tiền sau khi áp dụng BHYT
+                result = apduCommands.debitTransaction((int) userPays);
             }
 
             if (result != null) {
                 Transaction txn = new Transaction();
                 txn.setThoiGian(new Date());
                 txn.setLoai(rbCredit.isSelected() ? "CREDIT" : "DEBIT");
-                txn.setSoTien((int) amount);
+
+                // V7: Lưu số tiền thực tế đã trừ/nạp (quan trọng cho hashchain validation)
+                // Credit: lưu full amount
+                // Debit: lưu userPays (số tiền thực tế trừ sau khi áp dụng BHYT)
+                txn.setSoTien(rbCredit.isSelected() ? (int) amount : (int) userPays);
+
                 txn.setSoDuSau(result.balanceAfter);
                 txn.setSeq(result.seq);
                 txn.setTxnHash(result.currHash);
@@ -463,8 +513,23 @@ public class TransactionPanel extends JPanel {
 
                 updateBalance();
 
-                String message = rbCredit.isSelected() ? "✓ Nạp tiền thành công!" : "✓ Thanh toán thành công!";
-                showSuccess(String.format("%s\n\nSố dư mới: %s", message, currencyFormat.format(result.balanceAfter)));
+                // V7: Success message với breakdown cho debit
+                if (rbCredit.isSelected()) {
+                    showSuccess(String.format(
+                            "✓ Nạp tiền thành công!\n\nSố dư mới: %s",
+                            currencyFormat.format(result.balanceAfter)));
+                } else {
+                    showSuccess(String.format(
+                            "✓ Thanh toán thành công!\n\n" +
+                                    "Tổng chi phí: %s\n" +
+                                    "BHYT đã chi trả: %s\n" +
+                                    "Bạn đã thanh toán: %s\n\n" +
+                                    "Số dư mới: %s",
+                            currencyFormat.format(totalCost),
+                            currencyFormat.format(insurancePays),
+                            currencyFormat.format(userPays),
+                            currencyFormat.format(result.balanceAfter)));
+                }
 
                 txtAmount.setText("");
             } else {

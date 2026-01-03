@@ -1230,6 +1230,51 @@
       "nhomMau": 0,
       "createdAt": "2026-01-03 09:11:23",
       "updatedAt": "2026-01-03 09:11:23"
+    },
+    "842B4135E676BDB8917F03FD817C8FC7": {
+      "cardId": "842B4135E676BDB8917F03FD817C8FC7",
+      "hoTen": "Test",
+      "idBenhNhan": "35",
+      "ngaySinh": "11/02/2002",
+      "queQuan": "Trái Đất",
+      "maBHYT": "123456",
+      "balance": 0,
+      "pinUserDefault": "123456",
+      "pinAdminReset": "172309",
+      "pkUserBase64": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDGG4th0xBwADa0IWjp+I9kTlogtRI5aNvjnAzVewRBJDBeoD9IGSQGADI/7DA6AJeGQXfQ4PWTRNOUm9hgVuz/sqv2NutPH3vppQ/29oEEXhrQVwabKwrAhxGSAmgh1JBlLV3Uo9QyRKnOR9gsrl4feCyvNZDjwzKV5GEMmUpqTwIDAQAB",
+      "nhomMau": 0,
+      "createdAt": "2026-01-03 11:27:26",
+      "updatedAt": "2026-01-03 11:27:26"
+    },
+    "1E9555A98327F10DFBEBFCDAE1225DC4": {
+      "cardId": "1E9555A98327F10DFBEBFCDAE1225DC4",
+      "hoTen": "123123",
+      "idBenhNhan": "36",
+      "ngaySinh": "12/03/1234",
+      "queQuan": "123123",
+      "maBHYT": "123456",
+      "balance": 0,
+      "pinUserDefault": "123456",
+      "pinAdminReset": "009110",
+      "pkUserBase64": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC0Sd+ClAgVwUOhGihHDpoYyZfuH87hDIXJL3OHooehzNkFLvS09EDOuQ78P8rJ3HHJK8QJ3HELKeJF9kqRsgi3Ca4w8MMcJQXI6YG40lFD9O39kxv0rEt1WcfZ3P1L8CxYhHzmP/tXfEElhq26mzRikYq85YfpokpTEtvOk7XyWwIDAQAB",
+      "nhomMau": 0,
+      "createdAt": "2026-01-03 12:15:30",
+      "updatedAt": "2026-01-03 12:15:30"
+    },
+    "45C329AA5FC3700C589F8BB6ACAF52A4": {
+      "cardId": "45C329AA5FC3700C589F8BB6ACAF52A4",
+      "hoTen": "123",
+      "idBenhNhan": "37",
+      "ngaySinh": "12/03/1234",
+      "queQuan": "123123",
+      "maBHYT": "123456",
+      "balance": 0,
+      "pinUserDefault": "123456",
+      "pinAdminReset": "809951",
+      "pkUserBase64": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDjoPM5bVJPX7N1J5SAGFZVHCVpo4bQPd+NrF07sPvPrsRYv5P0ldpbaiaipdAqN1n/a2CGtF8zHqXpmGUNUFQgBYZEWWwMRGH5g+vCFKQf027Be7hM3dY8FX3AUsVQKWsoBmSMmMcvT/puXWVer2K7YQTlkWDPMoCVSMiBItjr1wIDAQAB",
+      "nhomMau": 0,
+      "createdAt": "2026-01-03 12:21:13",
+      "updatedAt": "2026-01-03 12:21:13"
     }
   }
 }

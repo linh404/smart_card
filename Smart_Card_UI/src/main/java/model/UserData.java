@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 /**
  * UserData - Model cho dữ liệu bệnh nhân
  * V4: Thêm thông tin y tế khẩn cấp (nhóm máu, dị ứng, bệnh nền)
+ * V7: Thêm thông tin BHYT (mức hưởng, ngày hết hạn)
  */
 public class UserData implements Serializable {
     private String hoTen;
@@ -25,6 +26,10 @@ public class UserData implements Serializable {
 
     // V6: Ảnh đại diện
     private String anhDaiDien; // Ảnh đại diện (Base64 encoded, resize ≤20KB)
+
+    // V7: BHYT coverage info
+    private int bhytCoverageRate; // Mức hưởng BHYT (%) - mặc định 60
+    private String bhytExpiryDate; // Ngày hết hạn BHYT (DD/MM/YYYY) - mặc định "31/12/2027"
 
     /**
      * Nhãn nhóm máu để hiển thị trên UI (JComboBox)
@@ -152,15 +157,32 @@ public class UserData implements Serializable {
         this.anhDaiDien = anhDaiDien;
     }
 
+    // V7: Getters/Setters cho BHYT info
+    public int getBhytCoverageRate() {
+        return bhytCoverageRate;
+    }
+
+    public void setBhytCoverageRate(int bhytCoverageRate) {
+        this.bhytCoverageRate = bhytCoverageRate;
+    }
+
+    public String getBhytExpiryDate() {
+        return bhytExpiryDate;
+    }
+
+    public void setBhytExpiryDate(String bhytExpiryDate) {
+        this.bhytExpiryDate = bhytExpiryDate;
+    }
+
     /**
      * Chuyển UserData thành byte[] để gửi xuống thẻ
      * Note: Balance KHÔNG được bao gồm vì balance được lưu riêng biệt trên thẻ
-     * V6 Format:
-     * hoTen|idBenhNhan|ngaySinh|queQuan|maBHYT|nhomMau|diUng|benhNen|gender|anhDaiDien
+     * V7 Format:
+     * hoTen|idBenhNhan|ngaySinh|queQuan|maBHYT|nhomMau|diUng|benhNen|gender|anhDaiDien|bhytCoverageRate|bhytExpiryDate
      */
     public byte[] toBytes() {
-        // Format V6:
-        // hoTen|idBenhNhan|ngaySinh|queQuan|maBHYT|nhomMau|diUng|benhNen|gender|anhDaiDien
+        // Format V7:
+        // hoTen|idBenhNhan|ngaySinh|queQuan|maBHYT|nhomMau|diUng|benhNen|gender|anhDaiDien|bhytCoverageRate|bhytExpiryDate
         // Balance KHÔNG được bao gồm - balance được lưu riêng và mã hóa bằng MK_user
         // trên thẻ
         StringBuilder sb = new StringBuilder();
@@ -173,7 +195,9 @@ public class UserData implements Serializable {
         sb.append(diUng != null ? diUng : "").append("|");
         sb.append(benhNen != null ? benhNen : "").append("|");
         sb.append(gender).append("|"); // V5: Thêm gender
-        sb.append(anhDaiDien != null ? anhDaiDien : ""); // V6: Thêm ảnh đại diện
+        sb.append(anhDaiDien != null ? anhDaiDien : "").append("|"); // V6: Thêm ảnh đại diện
+        sb.append(bhytCoverageRate).append("|"); // V7: Thêm mức hưởng BHYT
+        sb.append(bhytExpiryDate != null ? bhytExpiryDate : ""); // V7: Thêm ngày hết hạn BHYT
 
         byte[] textBytes = sb.toString().getBytes(StandardCharsets.UTF_8);
         byte[] result = new byte[textBytes.length + 4];
@@ -186,9 +210,10 @@ public class UserData implements Serializable {
      * Parse byte[] thành UserData
      * Format: [patient_data_length (4 bytes)] [patient_data (text)] [balance (4
      * bytes, optional)]
-     * Patient data format V6:
-     * hoTen|idBenhNhan|ngaySinh|queQuan|maBHYT|nhomMau|diUng|benhNen|gender|anhDaiDien
-     * Backward compatible với format cũ (V5: 9 fields, V4: 8 fields, V3: 5 fields)
+     * Patient data format V7:
+     * hoTen|idBenhNhan|ngaySinh|queQuan|maBHYT|nhomMau|diUng|benhNen|gender|anhDaiDien|bhytCoverageRate|bhytExpiryDate
+     * Backward compatible với format cũ (V6: 10 fields, V5: 9 fields, V4: 8 fields,
+     * V3: 5 fields)
      */
     public static UserData fromBytes(byte[] data) {
         if (data == null || data.length < 4)
@@ -245,6 +270,20 @@ public class UserData implements Serializable {
         } else {
             // Thẻ cũ không có ảnh
             ud.setAnhDaiDien("");
+        }
+
+        // V7: Parse BHYT info (backward compatible)
+        if (parts.length >= 12) {
+            try {
+                ud.setBhytCoverageRate(Integer.parseInt(parts[10]));
+            } catch (NumberFormatException e) {
+                ud.setBhytCoverageRate(60); // Default 60%
+            }
+            ud.setBhytExpiryDate(parts[11]);
+        } else {
+            // Thẻ cũ không có BHYT info - dùng giá trị mặc định
+            ud.setBhytCoverageRate(60);
+            ud.setBhytExpiryDate("31/12/2027");
         }
 
         // Parse balance from end of data (4 bytes after patient_data)

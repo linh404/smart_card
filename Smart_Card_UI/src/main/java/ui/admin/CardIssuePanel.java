@@ -522,6 +522,10 @@ public class CardIssuePanel extends JPanel {
             String photoBase64Temp = photoBase64;
             userData.setAnhDaiDien(""); // Xóa ảnh tạm thời
 
+            // V7: Set default BHYT info
+            userData.setBhytCoverageRate(60); // Hardcode 60%
+            userData.setBhytExpiryDate("31/12/2027"); // Hardcode expiry date
+
             long initialBalance = Long.parseLong(txtBalance.getText().trim());
             userData.setBalance(initialBalance);
 
