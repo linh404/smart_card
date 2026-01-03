@@ -82,7 +82,7 @@ public class CardIssuePanel extends JPanel {
         pnlPersonal.setLayout(new BoxLayout(pnlPersonal, BoxLayout.Y_AXIS));
         pnlPersonal.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        addHeader(pnlPersonal, "👤 Thông tin cá nhân");
+        addHeader(pnlPersonal, "Thông tin cá nhân");
 
         txtHoTen = addLabeledField(pnlPersonal, "Họ tên:", 25);
 
@@ -104,7 +104,7 @@ public class CardIssuePanel extends JPanel {
         pnlPersonal.add(Box.createVerticalStrut(15));
 
         // V6: Ảnh đại diện
-        addLabel(pnlPersonal, "📷 Ảnh đại diện:");
+        addLabel(pnlPersonal, "Ảnh đại diện:");
 
         // Photo panel with preview and upload button
         JPanel photoPanel = new JPanel();
@@ -164,10 +164,10 @@ public class CardIssuePanel extends JPanel {
         pnlMedical.setLayout(new BoxLayout(pnlMedical, BoxLayout.Y_AXIS));
         pnlMedical.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        addHeader(pnlMedical, "🏥 Thông tin y tế & Tài khoản");
+        addHeader(pnlMedical, "Thông tin y tế & Tài khoản");
 
         // Nhóm máu
-        addLabel(pnlMedical, "🩸 Nhóm máu:");
+        addLabel(pnlMedical, "Nhóm máu:");
         cboNhomMau = new JComboBox<>(UserData.BLOOD_TYPE_LABELS);
         cboNhomMau.setFont(ModernUITheme.FONT_BODY);
         cboNhomMau.setPreferredSize(new Dimension(200, 40));
@@ -177,7 +177,7 @@ public class CardIssuePanel extends JPanel {
         pnlMedical.add(Box.createVerticalStrut(15));
 
         // Dị ứng
-        addLabel(pnlMedical, "⚠️ Dị ứng:");
+        addLabel(pnlMedical, "Dị ứng:");
         txtDiUng = new JTextArea(3, 20);
         txtDiUng.setLineWrap(true);
         txtDiUng.setWrapStyleWord(true);
@@ -189,7 +189,7 @@ public class CardIssuePanel extends JPanel {
         pnlMedical.add(Box.createVerticalStrut(15));
 
         // Bệnh nền
-        addLabel(pnlMedical, "🏥 Bệnh nền:");
+        addLabel(pnlMedical, "Bệnh nền:");
         txtBenhNen = new JTextArea(3, 20);
         txtBenhNen.setLineWrap(true);
         txtBenhNen.setWrapStyleWord(true);

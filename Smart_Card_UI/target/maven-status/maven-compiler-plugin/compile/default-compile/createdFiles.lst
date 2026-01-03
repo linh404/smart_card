@@ -57,7 +57,6 @@ util\CryptoUtils.class
 ui\admin\AdminFrame$3.class
 ui\admin\ResetPinPanel$1.class
 ui\user\EditInfoPanel.class
-ui\admin\CardManagePanel$5.class
 ui\tool\DatabaseMigrationTool$7.class
 ui\tool\LoadSnapshotTool$4.class
 ui\user\TransactionPanel$2.class

@@ -156,9 +156,9 @@ public class AdminFrame extends JFrame {
         resetPinPanel = new ResetPinPanel(cardManager, apduCommands);
 
         // Add tabs directly (panels handle their own scrolling)
-        tabs.addTab("📝 Phát hành thẻ User", cardIssuePanel);
-        tabs.addTab("🔧 Quản lý thông tin thẻ", cardManagePanel);
-        tabs.addTab("🔑 Reset PIN User", resetPinPanel);
+        tabs.addTab("Phát hành thẻ User", cardIssuePanel);
+        tabs.addTab("Quản lý thông tin thẻ", cardManagePanel);
+        tabs.addTab("Reset PIN User", resetPinPanel);
 
         // Tab change listener
         tabs.addChangeListener(e -> {

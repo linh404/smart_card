@@ -107,7 +107,7 @@ public class MainFrame extends JFrame {
         gbc.insets = new Insets(5, 10, 5, 10);
 
         ModernUITheme.RoundedButton adminButton = new ModernUITheme.RoundedButton(
-                "🔒 Đăng nhập Admin",
+                "Đăng nhập Admin",
                 ModernUITheme.ADMIN_PRIMARY,
                 ModernUITheme.ADMIN_PRIMARY_HOVER,
                 ModernUITheme.TEXT_WHITE);
@@ -121,7 +121,7 @@ public class MainFrame extends JFrame {
         // User button
         gbc.gridx = 1;
         ModernUITheme.RoundedButton userButton = new ModernUITheme.RoundedButton(
-                "👤 Đăng nhập User",
+                "Đăng nhập User",
                 ModernUITheme.USER_PRIMARY,
                 ModernUITheme.USER_PRIMARY_HOVER,
                 ModernUITheme.TEXT_WHITE);

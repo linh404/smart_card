@@ -31,7 +31,7 @@ public class CardManagePanel extends JPanel {
             txtBalance;
     private JLabel lblGioiTinh; // V5: Hiển thị giới tính (read-only)
     private ModernUITheme.RoundedPasswordField txtPinUserForLoad; // PIN User để load data từ thẻ
-    private ModernUITheme.RoundedButton btnLoadFromCard, btnUpdate, btnLoadToCard;
+    private ModernUITheme.RoundedButton btnLoadFromCard, btnLoadToCard;
     private JLabel lblAdminPinStatus; // Hiển thị trạng thái Admin PIN
 
     // V4: Thông tin y tế khẩn cấp
@@ -70,7 +70,7 @@ public class CardManagePanel extends JPanel {
         pnlPersonal.setLayout(new BoxLayout(pnlPersonal, BoxLayout.Y_AXIS));
         pnlPersonal.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        addHeader(pnlPersonal, "👤 Thông tin thẻ & Cá nhân");
+        addHeader(pnlPersonal, "Thông tin thẻ & Cá nhân");
 
         // Card ID Section
         addLabel(pnlPersonal, "Card ID (hex):");
@@ -108,7 +108,7 @@ public class CardManagePanel extends JPanel {
         txtMaBHYT = addLabeledField(pnlPersonal, "Mã BHYT:", 25);
 
         // V6: Photo preview with upload button
-        addLabel(pnlPersonal, "📷 Ảnh đại diện:");
+        addLabel(pnlPersonal, "Ảnh đại diện:");
 
         JPanel photoPanel = new JPanel();
         photoPanel.setLayout(new BoxLayout(photoPanel, BoxLayout.X_AXIS));
@@ -164,10 +164,10 @@ public class CardManagePanel extends JPanel {
         pnlMedical.setLayout(new BoxLayout(pnlMedical, BoxLayout.Y_AXIS));
         pnlMedical.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        addHeader(pnlMedical, "🏥 Thông tin y tế & Bảo mật");
+        addHeader(pnlMedical, "Thông tin y tế & Bảo mật");
 
         // Nhóm máu
-        addLabel(pnlMedical, "🩸 Nhóm máu:");
+        addLabel(pnlMedical, "Nhóm máu:");
         cboNhomMau = new JComboBox<>(UserData.BLOOD_TYPE_LABELS);
         cboNhomMau.setFont(ModernUITheme.FONT_BODY);
         cboNhomMau.setPreferredSize(new Dimension(200, 40));
@@ -177,7 +177,7 @@ public class CardManagePanel extends JPanel {
         pnlMedical.add(Box.createVerticalStrut(15));
 
         // Dị ứng
-        addLabel(pnlMedical, "⚠️ Dị ứng:");
+        addLabel(pnlMedical, "Dị ứng:");
         txtDiUng = new JTextArea(3, 20);
         txtDiUng.setLineWrap(true);
         txtDiUng.setWrapStyleWord(true);
@@ -189,7 +189,7 @@ public class CardManagePanel extends JPanel {
         pnlMedical.add(Box.createVerticalStrut(15));
 
         // Bệnh nền
-        addLabel(pnlMedical, "🏥 Bệnh nền:");
+        addLabel(pnlMedical, "Bệnh nền:");
         txtBenhNen = new JTextArea(3, 20);
         txtBenhNen.setLineWrap(true);
         txtBenhNen.setWrapStyleWord(true);
@@ -244,11 +244,8 @@ public class CardManagePanel extends JPanel {
 
         btnLoadToCard = new ModernUITheme.RoundedButton("Nạp vào thẻ", ModernUITheme.ADMIN_PRIMARY,
                 ModernUITheme.ADMIN_PRIMARY_HOVER, Color.WHITE);
-        btnUpdate = new ModernUITheme.RoundedButton("Lưu Snapshot", ModernUITheme.WARNING,
-                ModernUITheme.darken(ModernUITheme.WARNING, 0.1f), Color.WHITE);
 
         btnPanel.add(btnLoadToCard);
-        btnPanel.add(btnUpdate);
 
         // Add to main panel
         JScrollPane scrollPane = new JScrollPane(contentPanel);
@@ -268,13 +265,6 @@ public class CardManagePanel extends JPanel {
             @Override
             public void actionPerformed(ActionEvent e) {
                 loadToCard();
-            }
-        });
-
-        btnUpdate.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                saveSnapshotOnly();
             }
         });
 
@@ -359,7 +349,7 @@ public class CardManagePanel extends JPanel {
                 lblAdminPinStatus.setText("✓ PIN được derive động (V3): " + pinAdminReset);
                 lblAdminPinStatus.setForeground(new Color(0, 153, 0));
             } catch (Exception e) {
-                lblAdminPinStatus.setText("⚠ Không thể derive PIN (kiểm tra K_MASTER)");
+                lblAdminPinStatus.setText("Không thể derive PIN (kiểm tra K_MASTER)");
                 lblAdminPinStatus.setForeground(new Color(255, 0, 0));
                 System.err.println("[CardManagePanel] Error deriving PIN: " + e.getMessage());
             }
