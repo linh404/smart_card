@@ -4,6 +4,7 @@ import card.CardManager;
 import card.APDUCommands;
 import util.AdminPinDerivation;
 import util.EnvFileLoader;
+import util.MessageHelper;
 import ui.ModernUITheme;
 
 import javax.swing.*;
@@ -199,11 +200,7 @@ public class ResetPinPanel extends JPanel {
                 return;
             }
 
-            JOptionPane.showMessageDialog(this,
-                    "Đã đọc thông tin thẻ thành công!\n\n" +
-                            "Card ID: " + cardIdHex + "\n" +
-                            "Admin PIN đã được derive từ K_master.",
-                    "Thành công", JOptionPane.INFORMATION_MESSAGE);
+            MessageHelper.showLoadCardInfoSuccess(this);
 
         } catch (Exception e) {
             log("\nEXCEPTION: " + e.getMessage());
@@ -401,38 +398,13 @@ public class ResetPinPanel extends JPanel {
                 }
 
                 // Thông báo thành công
-                String successMsg = "✓ Reset PIN thành công!\n\n" +
-                        "PIN User mới: " + pinUserNew + "\n";
-
-                if (result.hasNewKey()) {
-                    successMsg += "\n🔐 Bảo mật đã được tăng cường:\n" +
-                            "✓ Cặp khóa RSA đã được tạo mới\n" +
-                            "✓ Public Key mới đã lưu vào database\n" +
-                            "✓ Private Key cũ đã bị xóa khỏi thẻ\n\n" +
-                            "⚠️ Lưu ý: User cần đăng nhập lại với PIN mới";
-                } else {
-                    successMsg += "\n⚠️ Lưu ý:\n" +
-                            "- RSA keys KHÔNG được đổi\n" +
-                            "- Chỉ đổi PIN thành công\n" +
-                            "- Applet có thể chưa hỗ trợ V4\n\n" +
-                            "User vẫn đăng nhập được với PIN mới";
-                }
-
-                JOptionPane.showMessageDialog(this, successMsg,
-                        "Thành công", JOptionPane.INFORMATION_MESSAGE);
+                MessageHelper.showResetPinSuccess(this);
 
             } else {
                 log("\n✗✗✗ RESET PIN THẤT BẠI! ✗✗✗");
                 log("Có thể do Admin PIN không đúng hoặc lỗi trên thẻ.");
 
-                JOptionPane.showMessageDialog(this,
-                        "Reset PIN thất bại!\n\n" +
-                                "Nguyên nhân có thể:\n" +
-                                "- Admin PIN không đúng\n" +
-                                "- Lỗi tạo RSA key trên thẻ\n" +
-                                "- Thẻ bị lỗi hoặc corrupt\n\n" +
-                                "Vui lòng kiểm tra log để biết chi tiết.",
-                        "Lỗi", JOptionPane.ERROR_MESSAGE);
+                MessageHelper.showResetPinFailure(this);
             }
 
         } catch (Exception e) {

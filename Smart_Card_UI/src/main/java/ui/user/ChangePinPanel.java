@@ -4,6 +4,7 @@ import card.CardManager;
 import card.APDUCommands;
 import ui.ModernUITheme;
 import util.CryptoUtils;
+import util.MessageHelper;
 
 import javax.swing.*;
 import java.awt.*;
@@ -147,12 +148,10 @@ public class ChangePinPanel extends JPanel {
             byte[] newPinBytes = newPin.getBytes(StandardCharsets.UTF_8);
 
             if (apduCommands.changePin(oldPinBytes, newPinBytes)) {
-                JOptionPane.showMessageDialog(this,
-                        "Đổi PIN thành công!\nVui lòng sử dụng PIN mới cho lần đăng nhập sau.",
-                        "Thành công", JOptionPane.INFORMATION_MESSAGE);
+                MessageHelper.showChangePinSuccess(this);
                 clearFields();
             } else {
-                showError("Đổi PIN thất bại! PIN cũ không đúng hoặc thẻ bị lỗi.");
+                MessageHelper.showChangePinFailure(this);
                 txtOldPin.setText("");
                 txtOldPin.requestFocus();
             }

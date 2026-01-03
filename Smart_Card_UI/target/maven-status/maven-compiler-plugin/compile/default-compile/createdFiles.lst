@@ -101,6 +101,7 @@ model\UserData.class
 ui\admin\AdminFrame$2.class
 ui\ModernUITheme.class
 ui\user\UserFrame.class
+util\MessageHelper.class
 card\APDUCommands$VerifyPinResult.class
 ui\admin\CardIssuePanel$1.class
 db\DatabaseConnection$AdminUserInfo.class

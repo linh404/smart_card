@@ -24,6 +24,7 @@ D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\ui\admin\AdminFrame.java
 D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\card\APDUCommands.java
 D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\ui\admin\LoginFrame.java
 D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\ui\admin\CardManagePanel.java
+D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\util\MessageHelper.java
 D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\util\EnvFileLoader.java
 D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\util\ImageHelper.java
 D:\Workspace\Smart_Card\Smart_Card_UI\src\main\java\ui\user\TransactionPanel.java

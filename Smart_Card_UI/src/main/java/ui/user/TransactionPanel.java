@@ -7,6 +7,7 @@ import model.Transaction;
 import db.DatabaseConnection;
 import ui.ModernUITheme;
 import ui.SmartCardVisual;
+import util.MessageHelper;
 
 import javax.swing.*;
 import java.awt.*;
@@ -505,27 +506,16 @@ public class TransactionPanel extends JPanel {
 
                 updateBalance();
 
-                // V7: Success message với breakdown cho debit
+                // V7: Success message - Sử dụng MessageHelper (giữ BHYT details)
                 if (rbCredit.isSelected()) {
-                    showSuccess(String.format(
-                            "Nạp tiền thành công!\n\nSố dư mới: %s",
-                            currencyFormat.format(result.balanceAfter)));
+                    MessageHelper.showCreditSuccess(this, result.balanceAfter);
                 } else {
-                    showSuccess(String.format(
-                            "Thanh toán thành công!\n\n" +
-                                    "Tổng chi phí: %s\n" +
-                                    "BHYT đã chi trả: %s\n" +
-                                    "Bạn đã thanh toán: %s\n\n" +
-                                    "Số dư mới: %s",
-                            currencyFormat.format(totalCost),
-                            currencyFormat.format(insurancePays),
-                            currencyFormat.format(userPays),
-                            currencyFormat.format(result.balanceAfter)));
+                    MessageHelper.showDebitSuccess(this, totalCost, insurancePays, userPays, result.balanceAfter);
                 }
 
                 txtAmount.setText("");
             } else {
-                showError("Giao dịch thất bại! Vui lòng thử lại.");
+                MessageHelper.showTransactionFailure(this);
             }
         } catch (javax.smartcardio.CardException e) {
             String errorMsg = e.getMessage();

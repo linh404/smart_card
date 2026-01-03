@@ -8,6 +8,7 @@ import model.UserData;
 import model.UserCardSnapshot;
 import util.AdminPinDerivation;
 import util.EnvFileLoader;
+import util.MessageHelper;
 import util.UserDemoSnapshotManager;
 import util.ImageHelper; // V6: Import ImageHelper cho upload ảnh
 
@@ -596,15 +597,7 @@ public class CardIssuePanel extends JPanel {
             if (result == null || result.length < 1 || result[0] != 0x00) {
                 System.err.println("[CardIssuePanel] issueCard: Phát hành thẻ thất bại - status = " +
                         (result != null && result.length > 0 ? String.format("0x%02X", result[0]) : "null"));
-                String errorDetail = "Phát hành thẻ thất bại!\n\n" +
-                        "Nguyên nhân có thể:\n" +
-                        "1. Thẻ đã được phát hành trước đó (initialized = 1)\n" +
-                        "2. Dữ liệu quá lớn hoặc format không đúng\n" +
-                        "3. Lỗi applet trên thẻ\n" +
-                        "4. Applet chưa được cài đặt đúng (V3)\n\n" +
-                        "Vui lòng kiểm tra console để xem chi tiết lỗi.";
-                JOptionPane.showMessageDialog(this, errorDetail,
-                        "Phát hành thẻ thất bại", JOptionPane.ERROR_MESSAGE);
+                MessageHelper.showCardIssueFailure(this);
                 return;
             }
             System.out.println("[CardIssuePanel] issueCard: ISSUE_CARD thành công! Status = 0x00");
@@ -901,27 +894,8 @@ public class CardIssuePanel extends JPanel {
 
             System.out.println("[CardIssuePanel] ========== PHÁT HÀNH THẺ THÀNH CÔNG ==========");
 
-            String rsaKeysMsg = "RSA Keys:\n" +
-                    "  ✓ Public Key: Đã lưu vào database\n";
-
-            if (skUserBase64 != null) {
-                rsaKeysMsg += "  ⚠️ Private Key: Đã lưu vào snapshot (DEMO only)\n";
-            } else {
-                rsaKeysMsg += "  ℹ️ Private Key: KHÔNG export được (bảo mật JavaCard)\n" +
-                        "     → Thẻ vẫn hoạt động bình thường\n" +
-                        "     → Challenge-response vẫn OK (SK trong thẻ)\n";
-            }
-
-            String successMsg = "Phát hành thẻ thành công!\n\n" +
-                    "Card ID: " + cardIdHex + "\n" +
-                    "ID bệnh nhân: " + userData.getIdBenhNhan() + "\n" +
-                    "Họ tên: " + userData.getHoTen() + "\n\n" +
-                    rsaKeysMsg + "\n" +
-                    "PIN_admin_reset (V3 - derive từ K_master): " + pinAdminReset + "\n" +
-                    "LƯU Ý: PIN này được derive tự động, không lưu trong DB.";
-
-            JOptionPane.showMessageDialog(this, successMsg,
-                    "Thành công", JOptionPane.INFORMATION_MESSAGE);
+            // Thông báo đơn giản cho người dùng
+            MessageHelper.showCardIssueSuccess(this);
 
             // Clear form
             clearForm();
