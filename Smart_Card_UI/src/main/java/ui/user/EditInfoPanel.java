@@ -52,13 +52,13 @@ public class EditInfoPanel extends JPanel {
     }
 
     private void initUI() {
-        setLayout(new BorderLayout(20, 20));
-        setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        setLayout(new BorderLayout(8, 8));
+        setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
 
         // ===== Main Card =====
         ModernUITheme.CardPanel mainCard = new ModernUITheme.CardPanel();
-        mainCard.setLayout(new BorderLayout(20, 20));
-        mainCard.setBorder(BorderFactory.createEmptyBorder(25, 25, 25, 25));
+        mainCard.setLayout(new BorderLayout(10, 10));
+        mainCard.setBorder(BorderFactory.createEmptyBorder(12, 15, 12, 15));
 
         // ===== Title Section =====
         JPanel titlePanel = new JPanel(new BorderLayout());
@@ -76,14 +76,18 @@ public class EditInfoPanel extends JPanel {
 
         mainCard.add(titlePanel, BorderLayout.NORTH);
 
-        // ===== Form Section =====
+        // ===== Content Area: 2 columns (Form left, Photo right) =====
+        JPanel contentPanel = new JPanel(new BorderLayout(15, 0));
+        contentPanel.setOpaque(false);
+
+        // ===== LEFT: Form Section =====
         JPanel formPanel = new JPanel();
         formPanel.setOpaque(false);
         formPanel.setLayout(new BoxLayout(formPanel, BoxLayout.Y_AXIS));
 
         // --- INFO READONLY SECTION ---
-        formPanel.add(createSectionHeader("Thông tin cơ bản (Chỉ xem)"));
-        formPanel.add(Box.createVerticalStrut(10));
+        formPanel.add(createSectionHeader("Thông tin cơ bản"));
+        formPanel.add(Box.createVerticalStrut(5));
 
         JPanel readonlyPanel = new JPanel(new GridLayout(1, 3, 20, 10));
         readonlyPanel.setOpaque(false);
@@ -99,132 +103,112 @@ public class EditInfoPanel extends JPanel {
         readonlyPanel.add(createLabeledReadonly("Mã BHYT:", lblMaBHYT));
 
         formPanel.add(readonlyPanel);
-        formPanel.add(Box.createVerticalStrut(20));
+        formPanel.add(Box.createVerticalStrut(8));
 
         // Separator
         JSeparator sep1 = new JSeparator();
         sep1.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
         sep1.setForeground(ModernUITheme.BORDER_LIGHT);
         formPanel.add(sep1);
-        formPanel.add(Box.createVerticalStrut(15));
+        formPanel.add(Box.createVerticalStrut(6));
 
         // --- EDITABLE SECTION ---
-        formPanel.add(createSectionHeader("Thông tin có thể chỉnh sửa"));
-        formPanel.add(Box.createVerticalStrut(15));
+        formPanel.add(createSectionHeader("Chỉnh sửa"));
+        formPanel.add(Box.createVerticalStrut(6));
 
         // Địa chỉ
-        formPanel.add(createFormRow("Địa chỉ (Quê quán):", txtQueQuan = createTextField()));
-        formPanel.add(Box.createVerticalStrut(12));
+        formPanel.add(createFormRow("Địa chỉ:", txtQueQuan = createTextField()));
+        formPanel.add(Box.createVerticalStrut(5));
 
         // Giới tính
         cboGioiTinh = new JComboBox<String>(new String[] { "Không rõ", "Nam", "Nữ", "Khác" });
         styleComboBox(cboGioiTinh);
         formPanel.add(createFormRow("Giới tính:", cboGioiTinh));
-        formPanel.add(Box.createVerticalStrut(20));
+        formPanel.add(Box.createVerticalStrut(8));
 
         // Separator 2
         JSeparator sep2 = new JSeparator();
         sep2.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
         sep2.setForeground(ModernUITheme.BORDER_LIGHT);
         formPanel.add(sep2);
-        formPanel.add(Box.createVerticalStrut(15));
+        formPanel.add(Box.createVerticalStrut(6));
 
         // --- MEDICAL INFO SECTION ---
-        formPanel.add(createSectionHeader("Thông tin y tế khẩn cấp"));
-        formPanel.add(Box.createVerticalStrut(15));
+        formPanel.add(createSectionHeader("Y tế"));
+        formPanel.add(Box.createVerticalStrut(6));
 
         // Nhóm máu
         cboNhomMau = new JComboBox<String>(UserData.BLOOD_TYPE_LABELS);
         styleComboBox(cboNhomMau);
         formPanel.add(createFormRow("Nhóm máu:", cboNhomMau));
-        formPanel.add(Box.createVerticalStrut(12));
+        formPanel.add(Box.createVerticalStrut(5));
 
         // Dị ứng
         formPanel.add(createFormRow("Dị ứng:", txtDiUng = createTextField()));
-        formPanel.add(Box.createVerticalStrut(12));
+        formPanel.add(Box.createVerticalStrut(5));
 
         // Bệnh nền
         formPanel.add(createFormRow("Bệnh nền:", txtBenhNen = createTextField()));
-        formPanel.add(Box.createVerticalStrut(20));
 
-        // Remove note section completely
+        contentPanel.add(formPanel, BorderLayout.CENTER);
 
-        // Separator 3
-        JSeparator sep3 = new JSeparator();
-        sep3.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
-        sep3.setForeground(ModernUITheme.BORDER_LIGHT);
-        formPanel.add(sep3);
-        formPanel.add(Box.createVerticalStrut(15));
+        // ===== RIGHT: Photo Section =====
+        JPanel photoPanel = new JPanel();
+        photoPanel.setOpaque(false);
+        photoPanel.setLayout(new BoxLayout(photoPanel, BoxLayout.Y_AXIS));
+        photoPanel.setPreferredSize(new Dimension(130, 0));
 
-        // --- PHOTO SECTION ---
-        formPanel.add(createSectionHeader("Ảnh đại diện"));
-        formPanel.add(Box.createVerticalStrut(15));
-
-        JPanel photoSection = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 0));
-        photoSection.setOpaque(false);
-        photoSection.setAlignmentX(Component.LEFT_ALIGNMENT);
-        photoSection.setMaximumSize(new Dimension(Integer.MAX_VALUE, 140));
+        JLabel photoTitle = new JLabel("Ảnh đại diện");
+        photoTitle.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        photoTitle.setForeground(ModernUITheme.USER_PRIMARY);
+        photoTitle.setAlignmentX(Component.CENTER_ALIGNMENT);
+        photoPanel.add(photoTitle);
+        photoPanel.add(Box.createVerticalStrut(8));
 
         // Photo preview
-        JPanel photoPreviewPanel = new JPanel(new BorderLayout());
-        photoPreviewPanel.setOpaque(false);
-
         lblPhotoPreview = new JLabel("Chưa có ảnh", SwingConstants.CENTER);
         lblPhotoPreview.setPreferredSize(new Dimension(100, 100));
         lblPhotoPreview.setMinimumSize(new Dimension(100, 100));
-        lblPhotoPreview.setBorder(BorderFactory.createLineBorder(ModernUITheme.BORDER_LIGHT, 2));
+        lblPhotoPreview.setMaximumSize(new Dimension(100, 100));
+        lblPhotoPreview.setBorder(BorderFactory.createLineBorder(ModernUITheme.USER_PRIMARY, 2));
         lblPhotoPreview.setOpaque(true);
         lblPhotoPreview.setBackground(new Color(250, 250, 250));
         lblPhotoPreview.setForeground(ModernUITheme.TEXT_SECONDARY);
         lblPhotoPreview.setFont(new Font("Segoe UI", Font.PLAIN, 10));
-        photoPreviewPanel.add(lblPhotoPreview, BorderLayout.CENTER);
-
-        photoSection.add(photoPreviewPanel);
+        lblPhotoPreview.setAlignmentX(Component.CENTER_ALIGNMENT);
+        photoPanel.add(lblPhotoPreview);
+        photoPanel.add(Box.createVerticalStrut(10));
 
         // Photo buttons
-        JPanel photoButtonPanel = new JPanel();
-        photoButtonPanel.setOpaque(false);
-        photoButtonPanel.setLayout(new BoxLayout(photoButtonPanel, BoxLayout.Y_AXIS));
-
         ModernUITheme.RoundedButton btnUploadPhoto = new ModernUITheme.RoundedButton(
-                "Chọn ảnh mới",
+                "Chọn ảnh",
                 ModernUITheme.USER_PRIMARY,
                 ModernUITheme.USER_PRIMARY_HOVER,
                 ModernUITheme.TEXT_WHITE);
-        btnUploadPhoto.setPreferredSize(new Dimension(140, 36));
-        btnUploadPhoto.setMaximumSize(new Dimension(140, 36));
+        btnUploadPhoto.setPreferredSize(new Dimension(100, 28));
+        btnUploadPhoto.setMaximumSize(new Dimension(100, 28));
+        btnUploadPhoto.setAlignmentX(Component.CENTER_ALIGNMENT);
         btnUploadPhoto.addActionListener(e -> selectPhoto());
-        photoButtonPanel.add(btnUploadPhoto);
+        photoPanel.add(btnUploadPhoto);
 
-        photoButtonPanel.add(Box.createVerticalStrut(8));
+        photoPanel.add(Box.createVerticalStrut(5));
 
         ModernUITheme.OutlineButton btnRemovePhoto = new ModernUITheme.OutlineButton(
                 "Xóa ảnh",
                 ModernUITheme.TEXT_SECONDARY,
                 ModernUITheme.BG_SECONDARY,
                 new Color(220, 53, 69));
-        btnRemovePhoto.setPreferredSize(new Dimension(140, 36));
-        btnRemovePhoto.setMaximumSize(new Dimension(140, 36));
+        btnRemovePhoto.setPreferredSize(new Dimension(100, 28));
+        btnRemovePhoto.setMaximumSize(new Dimension(100, 28));
+        btnRemovePhoto.setAlignmentX(Component.CENTER_ALIGNMENT);
         btnRemovePhoto.addActionListener(e -> removePhoto());
-        photoButtonPanel.add(btnRemovePhoto);
+        photoPanel.add(btnRemovePhoto);
 
-        photoButtonPanel.add(Box.createVerticalStrut(8));
+        photoPanel.add(Box.createVerticalGlue());
 
-        JLabel photoHint = new JLabel("<html><i>Ảnh sẽ được tự động<br>resize ≤ 20KB</i></html>");
-        photoHint.setFont(ModernUITheme.FONT_SMALL);
-        photoHint.setForeground(ModernUITheme.TEXT_MUTED);
-        photoButtonPanel.add(photoHint);
+        contentPanel.add(photoPanel, BorderLayout.EAST);
 
-        photoSection.add(photoButtonPanel);
-        formPanel.add(photoSection);
-
-        JScrollPane scrollPane = new JScrollPane(formPanel);
-        scrollPane.setBorder(BorderFactory.createEmptyBorder());
-        scrollPane.setOpaque(false);
-        scrollPane.getViewport().setOpaque(false);
-        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-
-        mainCard.add(scrollPane, BorderLayout.CENTER);
+        mainCard.add(contentPanel, BorderLayout.CENTER);
 
         // ===== Button Panel =====
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 0));
@@ -235,7 +219,7 @@ public class EditInfoPanel extends JPanel {
                 ModernUITheme.TEXT_SECONDARY,
                 ModernUITheme.BG_SECONDARY,
                 ModernUITheme.USER_PRIMARY);
-        btnReset.setPreferredSize(new Dimension(140, 44));
+        btnReset.setPreferredSize(new Dimension(120, 36));
         btnReset.addActionListener(e -> loadCurrentInfo());
         buttonPanel.add(btnReset);
 
@@ -244,7 +228,7 @@ public class EditInfoPanel extends JPanel {
                 ModernUITheme.USER_PRIMARY,
                 ModernUITheme.USER_PRIMARY_HOVER,
                 ModernUITheme.TEXT_WHITE);
-        btnSave.setPreferredSize(new Dimension(160, 44));
+        btnSave.setPreferredSize(new Dimension(130, 36));
         btnSave.addActionListener(e -> saveChanges());
         buttonPanel.add(btnSave);
 

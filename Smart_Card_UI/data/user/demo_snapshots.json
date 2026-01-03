@@ -1290,6 +1290,21 @@
       "nhomMau": 0,
       "createdAt": "2026-01-03 13:18:41",
       "updatedAt": "2026-01-03 13:18:41"
+    },
+    "64BEE345074E26BCAA0AEDA71A3060F5": {
+      "cardId": "64BEE345074E26BCAA0AEDA71A3060F5",
+      "hoTen": "Nguyễn Vũ",
+      "idBenhNhan": "39",
+      "ngaySinh": "01/01/2003",
+      "queQuan": "Nam Định",
+      "maBHYT": "1234567",
+      "balance": 123456,
+      "pinUserDefault": "123456",
+      "pinAdminReset": "508218",
+      "pkUserBase64": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDnKmzJ+akblopyzqvS4RnUT6bST6F0t4+7QrszDrNCaqMLK8m5ZdkkWtX13RFqX3nggpKGu6PBeemgoQXyyY2hitVoFwau3TDrdBdjqzxfcRtLCIyLFL4leAr0PQX/cLvAwbhk+G+Pra5iStbZuoepbf6KQzmnQ0cdoxoQcsqIJwIDAQAB",
+      "nhomMau": 0,
+      "createdAt": "2026-01-03 14:54:01",
+      "updatedAt": "2026-01-03 14:54:01"
     }
   }
 }
