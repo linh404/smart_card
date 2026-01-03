@@ -56,7 +56,7 @@ public class UserLoginFrame extends JFrame {
         // Center card
         ModernUITheme.CardPanel card = new ModernUITheme.CardPanel();
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
-        card.setPreferredSize(new Dimension(420, 450));
+        card.setPreferredSize(new Dimension(480, 480));
 
         // Header with icon
         JPanel headerPanel = new JPanel();
@@ -138,7 +138,8 @@ public class UserLoginFrame extends JFrame {
         formPanel.add(Box.createVerticalStrut(6));
 
         txtPin = new ModernUITheme.RoundedPasswordField(20);
-        txtPin.setMaximumSize(new Dimension(280, 44));
+        txtPin.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        txtPin.setMaximumSize(new Dimension(320, 50));
         txtPin.setAlignmentX(Component.LEFT_ALIGNMENT);
         formPanel.add(txtPin);
 
@@ -159,7 +160,7 @@ public class UserLoginFrame extends JFrame {
                 ModernUITheme.USER_PRIMARY,
                 ModernUITheme.USER_PRIMARY_HOVER,
                 ModernUITheme.TEXT_WHITE);
-        btnLogin.setPreferredSize(new Dimension(130, 44));
+        btnLogin.setPreferredSize(new Dimension(140, 48));
         btnPanel.add(btnLogin);
 
         btnCancel = new ModernUITheme.OutlineButton(
@@ -167,7 +168,7 @@ public class UserLoginFrame extends JFrame {
                 ModernUITheme.TEXT_SECONDARY,
                 ModernUITheme.BG_SECONDARY,
                 ModernUITheme.TEXT_SECONDARY);
-        btnCancel.setPreferredSize(new Dimension(90, 44));
+        btnCancel.setPreferredSize(new Dimension(100, 48));
         btnPanel.add(btnCancel);
 
         card.add(btnPanel);

@@ -45,7 +45,7 @@ public class BHYTPanel extends JPanel {
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
 
         // Title
-        JLabel titleLabel = new JLabel("🏥 THÔNG TIN BẢO HIỂM Y TẾ");
+        JLabel titleLabel = new JLabel("THÔNG TIN BẢO HIỂM Y TẾ");
         titleLabel.setFont(ModernUITheme.FONT_HEADING);
         titleLabel.setForeground(ModernUITheme.TEXT_PRIMARY);
         titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);

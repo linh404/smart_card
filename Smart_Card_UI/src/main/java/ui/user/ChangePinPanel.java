@@ -46,7 +46,7 @@ public class ChangePinPanel extends JPanel {
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
 
         // Title
-        JLabel titleLabel = new JLabel("🔐 ĐỔI MÃ PIN");
+        JLabel titleLabel = new JLabel("\u0110\u1ed4I M\u00c3 PIN");
         titleLabel.setFont(ModernUITheme.FONT_HEADING);
         titleLabel.setForeground(ModernUITheme.TEXT_PRIMARY);
         titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -84,7 +84,7 @@ public class ChangePinPanel extends JPanel {
 
         // Button
         btnChange = new ModernUITheme.RoundedButton(
-                "✓ Đổi mã PIN",
+                "\u0110\u1ed5i m\u00e3 PIN",
                 ModernUITheme.USER_PRIMARY,
                 ModernUITheme.USER_PRIMARY_HOVER,
                 ModernUITheme.TEXT_WHITE);

@@ -169,12 +169,12 @@ public class UserFrame extends JFrame {
         historyPanel = new HistoryPanel(cardManager, apduCommands, this);
         changePinPanel = new ChangePinPanel(cardManager, apduCommands, this);
 
-        tabs.addTab("📋 Thông tin thẻ", wrapInScrollPane(userInfoPanel));
-        tabs.addTab("✏️ Đổi thông tin", wrapInScrollPane(editInfoPanel));
-        tabs.addTab("💳 Nạp tiền/Thanh toán", wrapInScrollPane(transactionPanel));
-        tabs.addTab("🏥 Thông tin BHYT", wrapInScrollPane(bhytPanel));
-        tabs.addTab("📜 Lịch sử giao dịch", wrapInScrollPane(historyPanel));
-        tabs.addTab("🔐 Đổi PIN", wrapInScrollPane(changePinPanel));
+        tabs.addTab("Thông tin thẻ", wrapInScrollPane(userInfoPanel));
+        tabs.addTab("Đổi thông tin", wrapInScrollPane(editInfoPanel));
+        tabs.addTab("Nạp tiền/Thanh toán", wrapInScrollPane(transactionPanel));
+        tabs.addTab("Thông tin BHYT", wrapInScrollPane(bhytPanel));
+        tabs.addTab("Lịch sử giao dịch", wrapInScrollPane(historyPanel));
+        tabs.addTab("Đổi PIN", wrapInScrollPane(changePinPanel));
 
         // Auto-refresh data on tab change
         tabs.addChangeListener(e -> {

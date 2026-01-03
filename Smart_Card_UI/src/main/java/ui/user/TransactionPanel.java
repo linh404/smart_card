@@ -63,12 +63,12 @@ public class TransactionPanel extends JPanel {
         topSection.add(balanceCard);
 
         // Quick action cards
-        topSection.add(createQuickActionCard("💰", "Nạp tiền nhanh", "100.000đ", () -> {
+        topSection.add(createQuickActionCard("Nạp tiền nhanh", "100.000đ", () -> {
             txtAmount.setText("100000");
             rbCredit.setSelected(true);
         }));
 
-        topSection.add(createQuickActionCard("💳", "Thanh toán nhanh", "50.000đ", () -> {
+        topSection.add(createQuickActionCard("Thanh toán nhanh", "50.000đ", () -> {
             txtAmount.setText("50000");
             rbDebit.setSelected(true);
         }));
@@ -80,7 +80,7 @@ public class TransactionPanel extends JPanel {
         formCard.setLayout(new BoxLayout(formCard, BoxLayout.Y_AXIS));
 
         // Title
-        JLabel titleLabel = new JLabel("📝 THỰC HIỆN GIAO DỊCH");
+        JLabel titleLabel = new JLabel("THỰC HIỆN GIAO DỊCH");
         titleLabel.setFont(ModernUITheme.FONT_HEADING);
         titleLabel.setForeground(ModernUITheme.TEXT_PRIMARY);
         titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -100,8 +100,8 @@ public class TransactionPanel extends JPanel {
         typePanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         typePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
 
-        rbCredit = createStyledRadioButton("💵 Nạp tiền", true, ModernUITheme.USER_PRIMARY);
-        rbDebit = createStyledRadioButton("💳 Thanh toán", false, ModernUITheme.WARNING);
+        rbCredit = createStyledRadioButton("Nạp tiền", true, ModernUITheme.USER_PRIMARY);
+        rbDebit = createStyledRadioButton("Thanh toán", false, ModernUITheme.WARNING);
 
         ButtonGroup group = new ButtonGroup();
         group.add(rbCredit);
@@ -141,16 +141,12 @@ public class TransactionPanel extends JPanel {
         formCard.add(Box.createVerticalStrut(20));
 
         // Note
-        JLabel lblNote = new JLabel("<html><i>🔒 Giao dịch được bảo mật và mã hóa trên chip thẻ</i></html>");
-        lblNote.setFont(ModernUITheme.FONT_SMALL);
-        lblNote.setForeground(ModernUITheme.TEXT_MUTED);
-        lblNote.setAlignmentX(Component.LEFT_ALIGNMENT);
-        formCard.add(lblNote);
+        // Remove security note
         formCard.add(Box.createVerticalStrut(25));
 
         // Execute button
         btnExecute = new ModernUITheme.RoundedButton(
-                "✓ Thực hiện giao dịch",
+                "Thực hiện giao dịch",
                 ModernUITheme.USER_PRIMARY,
                 ModernUITheme.USER_PRIMARY_HOVER,
                 ModernUITheme.TEXT_WHITE);
@@ -224,7 +220,7 @@ public class TransactionPanel extends JPanel {
         return card;
     }
 
-    private JPanel createQuickActionCard(String emoji, String title, String value, Runnable action) {
+    private JPanel createQuickActionCard(String title, String value, Runnable action) {
         JPanel card = new JPanel() {
             private boolean isHovered = false;
             {
@@ -271,11 +267,7 @@ public class TransactionPanel extends JPanel {
         card.setOpaque(false);
         card.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
-        JLabel emojiLbl = new JLabel(emoji);
-        emojiLbl.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 28));
-        emojiLbl.setAlignmentX(Component.LEFT_ALIGNMENT);
-        card.add(emojiLbl);
-        card.add(Box.createVerticalStrut(8));
+        // Removed emoji label
 
         JLabel titleLbl = new JLabel(title);
         titleLbl.setFont(ModernUITheme.FONT_SMALL);
@@ -516,11 +508,11 @@ public class TransactionPanel extends JPanel {
                 // V7: Success message với breakdown cho debit
                 if (rbCredit.isSelected()) {
                     showSuccess(String.format(
-                            "✓ Nạp tiền thành công!\n\nSố dư mới: %s",
+                            "Nạp tiền thành công!\n\nSố dư mới: %s",
                             currencyFormat.format(result.balanceAfter)));
                 } else {
                     showSuccess(String.format(
-                            "✓ Thanh toán thành công!\n\n" +
+                            "Thanh toán thành công!\n\n" +
                                     "Tổng chi phí: %s\n" +
                                     "BHYT đã chi trả: %s\n" +
                                     "Bạn đã thanh toán: %s\n\n" +

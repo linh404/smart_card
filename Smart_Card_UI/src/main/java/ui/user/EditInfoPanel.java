@@ -29,7 +29,7 @@ public class EditInfoPanel extends JPanel {
     private JComboBox<String> cboGioiTinh;
 
     // Display only fields
-    private JLabel lblHoTen, lblIdBenhNhan, lblNgaySinh, lblMaBHYT;
+    private JLabel lblHoTen, lblNgaySinh, lblMaBHYT;
 
     // Photo fields
     private JLabel lblPhotoPreview;
@@ -64,7 +64,7 @@ public class EditInfoPanel extends JPanel {
         JPanel titlePanel = new JPanel(new BorderLayout());
         titlePanel.setOpaque(false);
 
-        JLabel titleLabel = new JLabel("✏️ CHỈNH SỬA THÔNG TIN CÁ NHÂN");
+        JLabel titleLabel = new JLabel("CHỈNH SỬA THÔNG TIN CÁ NHÂN");
         titleLabel.setFont(ModernUITheme.FONT_HEADING);
         titleLabel.setForeground(ModernUITheme.TEXT_PRIMARY);
         titlePanel.add(titleLabel, BorderLayout.WEST);
@@ -82,23 +82,21 @@ public class EditInfoPanel extends JPanel {
         formPanel.setLayout(new BoxLayout(formPanel, BoxLayout.Y_AXIS));
 
         // --- INFO READONLY SECTION ---
-        formPanel.add(createSectionHeader("📋 Thông tin cơ bản (Chỉ xem)"));
+        formPanel.add(createSectionHeader("Thông tin cơ bản (Chỉ xem)"));
         formPanel.add(Box.createVerticalStrut(10));
 
-        JPanel readonlyPanel = new JPanel(new GridLayout(2, 2, 20, 10));
+        JPanel readonlyPanel = new JPanel(new GridLayout(1, 3, 20, 10));
         readonlyPanel.setOpaque(false);
-        readonlyPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 70));
+        readonlyPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
         readonlyPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         lblHoTen = createReadonlyField("Họ tên");
-        lblIdBenhNhan = createReadonlyField("ID Bệnh nhân");
         lblNgaySinh = createReadonlyField("Ngày sinh");
         lblMaBHYT = createReadonlyField("Mã BHYT");
 
-        readonlyPanel.add(createLabeledReadonly("👤 Họ tên:", lblHoTen));
-        readonlyPanel.add(createLabeledReadonly("🆔 ID Bệnh nhân:", lblIdBenhNhan));
-        readonlyPanel.add(createLabeledReadonly("📅 Ngày sinh:", lblNgaySinh));
-        readonlyPanel.add(createLabeledReadonly("🏥 Mã BHYT:", lblMaBHYT));
+        readonlyPanel.add(createLabeledReadonly("Họ tên:", lblHoTen));
+        readonlyPanel.add(createLabeledReadonly("Ngày sinh:", lblNgaySinh));
+        readonlyPanel.add(createLabeledReadonly("Mã BHYT:", lblMaBHYT));
 
         formPanel.add(readonlyPanel);
         formPanel.add(Box.createVerticalStrut(20));
@@ -111,17 +109,17 @@ public class EditInfoPanel extends JPanel {
         formPanel.add(Box.createVerticalStrut(15));
 
         // --- EDITABLE SECTION ---
-        formPanel.add(createSectionHeader("✏️ Thông tin có thể chỉnh sửa"));
+        formPanel.add(createSectionHeader("Thông tin có thể chỉnh sửa"));
         formPanel.add(Box.createVerticalStrut(15));
 
         // Địa chỉ
-        formPanel.add(createFormRow("📍 Địa chỉ (Quê quán):", txtQueQuan = createTextField()));
+        formPanel.add(createFormRow("Địa chỉ (Quê quán):", txtQueQuan = createTextField()));
         formPanel.add(Box.createVerticalStrut(12));
 
         // Giới tính
         cboGioiTinh = new JComboBox<String>(new String[] { "Không rõ", "Nam", "Nữ", "Khác" });
         styleComboBox(cboGioiTinh);
-        formPanel.add(createFormRow("👫 Giới tính:", cboGioiTinh));
+        formPanel.add(createFormRow("Giới tính:", cboGioiTinh));
         formPanel.add(Box.createVerticalStrut(20));
 
         // Separator 2
@@ -132,31 +130,24 @@ public class EditInfoPanel extends JPanel {
         formPanel.add(Box.createVerticalStrut(15));
 
         // --- MEDICAL INFO SECTION ---
-        formPanel.add(createSectionHeader("🏥 Thông tin y tế khẩn cấp"));
+        formPanel.add(createSectionHeader("Thông tin y tế khẩn cấp"));
         formPanel.add(Box.createVerticalStrut(15));
 
         // Nhóm máu
         cboNhomMau = new JComboBox<String>(UserData.BLOOD_TYPE_LABELS);
         styleComboBox(cboNhomMau);
-        formPanel.add(createFormRow("🩸 Nhóm máu:", cboNhomMau));
+        formPanel.add(createFormRow("Nhóm máu:", cboNhomMau));
         formPanel.add(Box.createVerticalStrut(12));
 
         // Dị ứng
-        formPanel.add(createFormRow("⚠️ Dị ứng:", txtDiUng = createTextField()));
+        formPanel.add(createFormRow("Dị ứng:", txtDiUng = createTextField()));
         formPanel.add(Box.createVerticalStrut(12));
 
         // Bệnh nền
-        formPanel.add(createFormRow("💊 Bệnh nền:", txtBenhNen = createTextField()));
+        formPanel.add(createFormRow("Bệnh nền:", txtBenhNen = createTextField()));
         formPanel.add(Box.createVerticalStrut(20));
 
-        // Note
-        JLabel noteLabel = new JLabel(
-                "<html><i>💡 <b>Lưu ý:</b> Thông tin y tế khẩn cấp giúp nhân viên y tế xử lý nhanh hơn trong trường hợp cấp cứu.</i></html>");
-        noteLabel.setFont(ModernUITheme.FONT_SMALL);
-        noteLabel.setForeground(ModernUITheme.TEXT_SECONDARY);
-        noteLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        formPanel.add(noteLabel);
-        formPanel.add(Box.createVerticalStrut(20));
+        // Remove note section completely
 
         // Separator 3
         JSeparator sep3 = new JSeparator();
@@ -166,7 +157,7 @@ public class EditInfoPanel extends JPanel {
         formPanel.add(Box.createVerticalStrut(15));
 
         // --- PHOTO SECTION ---
-        formPanel.add(createSectionHeader("📷 Ảnh đại diện"));
+        formPanel.add(createSectionHeader("Ảnh đại diện"));
         formPanel.add(Box.createVerticalStrut(15));
 
         JPanel photoSection = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 0));
@@ -196,7 +187,7 @@ public class EditInfoPanel extends JPanel {
         photoButtonPanel.setLayout(new BoxLayout(photoButtonPanel, BoxLayout.Y_AXIS));
 
         ModernUITheme.RoundedButton btnUploadPhoto = new ModernUITheme.RoundedButton(
-                "📤 Chọn ảnh mới",
+                "Chọn ảnh mới",
                 ModernUITheme.USER_PRIMARY,
                 ModernUITheme.USER_PRIMARY_HOVER,
                 ModernUITheme.TEXT_WHITE);
@@ -208,7 +199,7 @@ public class EditInfoPanel extends JPanel {
         photoButtonPanel.add(Box.createVerticalStrut(8));
 
         ModernUITheme.OutlineButton btnRemovePhoto = new ModernUITheme.OutlineButton(
-                "🗑️ Xóa ảnh",
+                "Xóa ảnh",
                 ModernUITheme.TEXT_SECONDARY,
                 ModernUITheme.BG_SECONDARY,
                 new Color(220, 53, 69));
@@ -240,7 +231,7 @@ public class EditInfoPanel extends JPanel {
         buttonPanel.setOpaque(false);
 
         btnReset = new ModernUITheme.OutlineButton(
-                "🔄 Làm mới",
+                "Làm mới",
                 ModernUITheme.TEXT_SECONDARY,
                 ModernUITheme.BG_SECONDARY,
                 ModernUITheme.USER_PRIMARY);
@@ -249,7 +240,7 @@ public class EditInfoPanel extends JPanel {
         buttonPanel.add(btnReset);
 
         btnSave = new ModernUITheme.RoundedButton(
-                "💾 Lưu thay đổi",
+                "Lưu thay đổi",
                 ModernUITheme.USER_PRIMARY,
                 ModernUITheme.USER_PRIMARY_HOVER,
                 ModernUITheme.TEXT_WHITE);
@@ -347,7 +338,6 @@ public class EditInfoPanel extends JPanel {
 
         // Readonly fields
         lblHoTen.setText(userData.getHoTen() != null ? userData.getHoTen() : "---");
-        lblIdBenhNhan.setText(userData.getIdBenhNhan() != null ? userData.getIdBenhNhan() : "---");
         lblNgaySinh.setText(userData.getNgaySinh() != null ? userData.getNgaySinh() : "---");
         lblMaBHYT.setText(userData.getMaBHYT() != null ? userData.getMaBHYT() : "---");
 
@@ -448,7 +438,7 @@ public class EditInfoPanel extends JPanel {
             @Override
             protected void done() {
                 btnSave.setEnabled(true);
-                btnSave.setText("💾 Lưu thay đổi");
+                btnSave.setText("Lưu thay đổi");
 
                 try {
                     boolean success = get();

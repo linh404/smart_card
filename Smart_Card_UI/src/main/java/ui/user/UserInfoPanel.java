@@ -5,7 +5,7 @@ import card.APDUCommands;
 import model.UserData;
 import ui.ModernUITheme;
 import ui.SmartCardVisual;
-import util.ImageHelper; // V6: Import ImageHelper
+import util.ImageHelper;
 
 import javax.swing.*;
 import java.awt.*;
@@ -14,8 +14,7 @@ import java.util.Locale;
 
 /**
  * UserInfoPanel - Panel hiển thị thông tin thẻ User
- * V3: Premium UI với 3D smart card mockup và modern design
- * V4: Thêm hiển thị thông tin y tế khẩn cấp
+ * V7: Split layout - Photo (left) and Info (right)
  */
 public class UserInfoPanel extends JPanel {
 
@@ -23,12 +22,11 @@ public class UserInfoPanel extends JPanel {
     private APDUCommands apduCommands;
     private UserFrame userFrame;
 
-    // Visual components
-    private SmartCardVisual cardVisual;
-    private JLabel lblBirthDate, lblAddress, lblGioiTinh; // V5: Thêm giới tính
-    // V4: Thông tin y tế khẩn cấp
+    // Info labels
+    private JLabel lblHoTen, lblBirthDate, lblAddress, lblGioiTinh, lblMaBHYT, lblBalance;
     private JLabel lblNhomMau, lblDiUng, lblBenhNen;
-    private JLabel lblPhotoPreview; // V6: Ảnh đại diện
+    private JLabel lblPhotoPreview;
+    private SmartCardVisual cardVisual;
     private NumberFormat currencyFormat;
 
     public UserInfoPanel(CardManager cardManager, APDUCommands apduCommands) {
@@ -49,162 +47,179 @@ public class UserInfoPanel extends JPanel {
     }
 
     private void initUI() {
-        setLayout(new BorderLayout(20, 20));
-        setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        setLayout(new BorderLayout(30, 30));
+        setBorder(BorderFactory.createEmptyBorder(30, 30, 30, 30));
 
-        // ===== TOP SECTION: 3D Card Visual =====
-        JPanel cardSection = new JPanel(new BorderLayout(30, 0));
-        cardSection.setOpaque(false);
+        // Main content - Split 40% left (photo) / 60% right (info)
+        JPanel mainContent = new JPanel(new GridBagLayout());
+        mainContent.setOpaque(false);
 
-        // Card visual
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.BOTH;
+        gbc.weighty = 1.0;
+        gbc.gridy = 0;
+        gbc.insets = new Insets(0, 0, 0, 15);
+
+        // ===== LEFT SIDE: PHOTO =====
+        gbc.gridx = 0;
+        gbc.weightx = 0.4;
+
+        ModernUITheme.CardPanel photoCard = new ModernUITheme.CardPanel();
+        photoCard.setLayout(new GridBagLayout());
+
+        GridBagConstraints photoGbc = new GridBagConstraints();
+        photoGbc.gridx = 0;
+        photoGbc.gridy = 0;
+        photoGbc.anchor = GridBagConstraints.CENTER;
+
+        JPanel photoContainer = new JPanel();
+        photoContainer.setLayout(new BoxLayout(photoContainer, BoxLayout.Y_AXIS));
+        photoContainer.setOpaque(false);
+
+        // SmartCardVisual - 3D card
         cardVisual = new SmartCardVisual(SmartCardVisual.CardType.USER);
+        cardVisual.setAlignmentX(Component.CENTER_ALIGNMENT);
+        photoContainer.add(cardVisual);
+        photoContainer.add(Box.createVerticalStrut(30));
 
-        JPanel cardWrapper = new JPanel(new FlowLayout(FlowLayout.CENTER));
-        cardWrapper.setOpaque(false);
-        cardWrapper.add(cardVisual);
-        cardSection.add(cardWrapper, BorderLayout.WEST);
-
-        // V6: Photo preview will be in info card header (removed standalone panel)
-
-        // Info card on the right
-        ModernUITheme.CardPanel infoCard = new ModernUITheme.CardPanel();
-        infoCard.setLayout(new BoxLayout(infoCard, BoxLayout.Y_AXIS));
-        infoCard.setPreferredSize(new Dimension(500, 350)); // Tăng width cho ảnh
-
-        // V6: Header with title (left) and photo (right)
-        JPanel headerPanel = new JPanel(new BorderLayout(10, 0));
-        headerPanel.setOpaque(false);
-        headerPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 130));
-        headerPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        // Title on left
-        JLabel titleLabel = new JLabel("📋 CHI TIẾT THÔNG TIN");
-        titleLabel.setFont(ModernUITheme.FONT_SUBHEADING);
-        titleLabel.setForeground(ModernUITheme.TEXT_PRIMARY);
-        headerPanel.add(titleLabel, BorderLayout.WEST);
-
-        // Photo on right
-        JPanel photoPanel = new JPanel();
-        photoPanel.setOpaque(false);
-        photoPanel.setLayout(new BoxLayout(photoPanel, BoxLayout.Y_AXIS));
-
-        JLabel lblPhotoLabel = new JLabel("Ảnh đại diện", SwingConstants.CENTER);
-        lblPhotoLabel.setFont(new Font("Segoe UI", Font.PLAIN, 10));
-        lblPhotoLabel.setForeground(ModernUITheme.TEXT_SECONDARY);
-        lblPhotoLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        photoPanel.add(lblPhotoLabel);
-        photoPanel.add(Box.createVerticalStrut(3));
+        JLabel photoTitle = new JLabel("ẢNH ĐẠI DIỆN", SwingConstants.CENTER);
+        photoTitle.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        photoTitle.setForeground(ModernUITheme.USER_PRIMARY);
+        photoTitle.setAlignmentX(Component.CENTER_ALIGNMENT);
+        photoContainer.add(photoTitle);
+        photoContainer.add(Box.createVerticalStrut(20));
 
         lblPhotoPreview = new JLabel("Chưa có ảnh", SwingConstants.CENTER);
-        lblPhotoPreview.setPreferredSize(new Dimension(100, 100));
-        lblPhotoPreview.setMinimumSize(new Dimension(100, 100));
-        lblPhotoPreview.setMaximumSize(new Dimension(100, 100));
-        lblPhotoPreview.setBorder(BorderFactory.createLineBorder(ModernUITheme.BORDER_LIGHT, 2));
+        lblPhotoPreview.setPreferredSize(new Dimension(160, 160));
+        lblPhotoPreview.setMinimumSize(new Dimension(160, 160));
+        lblPhotoPreview.setMaximumSize(new Dimension(160, 160));
+        lblPhotoPreview.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(ModernUITheme.USER_PRIMARY, 3),
+                BorderFactory.createEmptyBorder(5, 5, 5, 5)));
         lblPhotoPreview.setOpaque(true);
         lblPhotoPreview.setBackground(new Color(250, 250, 250));
         lblPhotoPreview.setForeground(ModernUITheme.TEXT_SECONDARY);
-        lblPhotoPreview.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+        lblPhotoPreview.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         lblPhotoPreview.setAlignmentX(Component.CENTER_ALIGNMENT);
-        photoPanel.add(lblPhotoPreview);
 
-        headerPanel.add(photoPanel, BorderLayout.EAST);
+        photoContainer.add(lblPhotoPreview);
 
-        infoCard.add(headerPanel);
-        infoCard.add(Box.createVerticalStrut(15));
+        photoCard.add(photoContainer, photoGbc);
+        mainContent.add(photoCard, gbc);
 
-        // Info rows
-        infoCard.add(createInfoRow("📅 Ngày sinh", "---"));
-        lblBirthDate = (JLabel) ((JPanel) infoCard.getComponent(infoCard.getComponentCount() - 1)).getComponent(1);
-        infoCard.add(Box.createVerticalStrut(8));
+        // ===== RIGHT SIDE: INFO (2 columns) =====
+        gbc.gridx = 1;
+        gbc.weightx = 0.6;
+        gbc.insets = new Insets(0, 15, 0, 0);
 
-        infoCard.add(createInfoRow("📍 Địa chỉ", "---"));
-        lblAddress = (JLabel) ((JPanel) infoCard.getComponent(infoCard.getComponentCount() - 1)).getComponent(1);
-        infoCard.add(Box.createVerticalStrut(8));
+        JPanel infoPanel = new JPanel(new GridLayout(2, 1, 0, 20));
+        infoPanel.setOpaque(false);
 
-        // V5: Giới tính
-        infoCard.add(createInfoRow("👤 Giới tính", "---"));
-        lblGioiTinh = (JLabel) ((JPanel) infoCard.getComponent(infoCard.getComponentCount() - 1)).getComponent(1);
-        infoCard.add(Box.createVerticalStrut(15));
+        // Personal info card
+        ModernUITheme.CardPanel personalCard = new ModernUITheme.CardPanel();
+        personalCard.setLayout(new BoxLayout(personalCard, BoxLayout.Y_AXIS));
 
-        // Separator
-        JSeparator sep = new JSeparator();
-        sep.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
-        sep.setForeground(ModernUITheme.BORDER_LIGHT);
-        infoCard.add(sep);
-        infoCard.add(Box.createVerticalStrut(10));
+        JLabel personalTitle = new JLabel("THÔNG TIN CÁ NHÂN");
+        personalTitle.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        personalTitle.setForeground(ModernUITheme.USER_PRIMARY);
+        personalTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        personalCard.add(personalTitle);
+        personalCard.add(Box.createVerticalStrut(15));
 
-        // ===== V4: THÔNG TIN Y TẾ KHẨN CẤP =====
-        JLabel emergencyTitle = new JLabel("🏥 THÔNG TIN Y TẾ KHẨN CẤP");
-        emergencyTitle.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        emergencyTitle.setForeground(new Color(220, 53, 69)); // Màu đỏ cảnh báo
-        emergencyTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        infoCard.add(emergencyTitle);
-        infoCard.add(Box.createVerticalStrut(10));
+        lblHoTen = addInfoRow(personalCard, "Họ và tên", "---");
+        personalCard.add(Box.createVerticalStrut(10));
 
-        infoCard.add(createInfoRow("🩸 Nhóm máu", "---"));
-        lblNhomMau = (JLabel) ((JPanel) infoCard.getComponent(infoCard.getComponentCount() - 1)).getComponent(1);
-        infoCard.add(Box.createVerticalStrut(8));
+        lblBirthDate = addInfoRow(personalCard, "Ngày sinh", "---");
+        personalCard.add(Box.createVerticalStrut(10));
 
-        infoCard.add(createInfoRow("⚠️ Dị ứng", "---"));
-        lblDiUng = (JLabel) ((JPanel) infoCard.getComponent(infoCard.getComponentCount() - 1)).getComponent(1);
-        infoCard.add(Box.createVerticalStrut(8));
+        lblGioiTinh = addInfoRow(personalCard, "Giới tính", "---");
+        personalCard.add(Box.createVerticalStrut(10));
 
-        infoCard.add(createInfoRow("🏥 Bệnh nền", "---"));
-        lblBenhNen = (JLabel) ((JPanel) infoCard.getComponent(infoCard.getComponentCount() - 1)).getComponent(1);
-        infoCard.add(Box.createVerticalStrut(10));
+        lblAddress = addInfoRow(personalCard, "Địa chỉ", "---");
+        personalCard.add(Box.createVerticalStrut(10));
 
-        // Separator 2
-        JSeparator sep2 = new JSeparator();
-        sep2.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
-        sep2.setForeground(ModernUITheme.BORDER_LIGHT);
-        infoCard.add(sep2);
-        infoCard.add(Box.createVerticalStrut(10));
+        lblMaBHYT = addInfoRow(personalCard, "Mã BHYT", "---");
+        personalCard.add(Box.createVerticalStrut(10));
 
-        // Tips
-        JLabel tipLabel = new JLabel("<html>" +
-                "<b>💡 Mẹo sử dụng:</b><br>" +
-                "• Di chuột vào thẻ để xem hiệu ứng 3D<br>" +
-                "• Click vào thẻ để xem mặt sau<br>" +
-                "• Thông tin y tế giúp cấp cứu nhanh hơn" +
-                "</html>");
-        tipLabel.setFont(ModernUITheme.FONT_SMALL);
-        tipLabel.setForeground(ModernUITheme.TEXT_SECONDARY);
-        tipLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        infoCard.add(tipLabel);
+        lblBalance = addInfoRow(personalCard, "Số dư", "---");
 
-        cardSection.add(infoCard, BorderLayout.CENTER);
+        infoPanel.add(personalCard);
 
-        add(cardSection, BorderLayout.CENTER);
+        // Medical info card
+        ModernUITheme.CardPanel medicalCard = new ModernUITheme.CardPanel();
+        medicalCard.setLayout(new BoxLayout(medicalCard, BoxLayout.Y_AXIS));
+
+        JLabel medicalTitle = new JLabel("THÔNG TIN Y TẾ");
+        medicalTitle.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        medicalTitle.setForeground(new Color(220, 53, 69));
+        medicalTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        medicalCard.add(medicalTitle);
+        medicalCard.add(Box.createVerticalStrut(15));
+
+        lblNhomMau = addInfoRow(medicalCard, "Nhóm máu", "---");
+        medicalCard.add(Box.createVerticalStrut(10));
+
+        lblDiUng = addInfoRowMultiline(medicalCard, "Dị ứng", "---");
+        medicalCard.add(Box.createVerticalStrut(10));
+
+        lblBenhNen = addInfoRowMultiline(medicalCard, "Bệnh nền", "---");
+        medicalCard.add(Box.createVerticalGlue());
+
+        infoPanel.add(medicalCard);
+
+        mainContent.add(infoPanel, gbc);
+
+        add(mainContent, BorderLayout.CENTER);
     }
 
-    private JPanel createInfoRow(String label, String value) {
-        JPanel row = new JPanel(new BorderLayout(10, 0));
+    private JLabel addInfoRow(JPanel parent, String label, String value) {
+        JPanel row = new JPanel(new BorderLayout(12, 0));
         row.setOpaque(false);
-        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 24));
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
         row.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JLabel lblLabel = new JLabel(label);
-        lblLabel.setFont(ModernUITheme.FONT_BODY);
+        JLabel lblLabel = new JLabel(label + ":");
+        lblLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         lblLabel.setForeground(ModernUITheme.TEXT_SECONDARY);
-        lblLabel.setPreferredSize(new Dimension(110, 20));
+        lblLabel.setPreferredSize(new Dimension(120, 26));
         row.add(lblLabel, BorderLayout.WEST);
 
         JLabel lblValue = new JLabel(value);
-        lblValue.setFont(ModernUITheme.FONT_BODY);
+        lblValue.setFont(new Font("Segoe UI", Font.BOLD, 14));
         lblValue.setForeground(ModernUITheme.TEXT_PRIMARY);
         row.add(lblValue, BorderLayout.CENTER);
 
-        return row;
+        parent.add(row);
+        return lblValue;
+    }
+
+    private JLabel addInfoRowMultiline(JPanel parent, String label, String value) {
+        JPanel row = new JPanel(new BorderLayout(12, 0));
+        row.setOpaque(false);
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel lblLabel = new JLabel("<html>" + label + ":</html>");
+        lblLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        lblLabel.setForeground(ModernUITheme.TEXT_SECONDARY);
+        lblLabel.setPreferredSize(new Dimension(120, 26));
+        lblLabel.setVerticalAlignment(SwingConstants.TOP);
+        row.add(lblLabel, BorderLayout.WEST);
+
+        JLabel lblValue = new JLabel("<html>" + value + "</html>");
+        lblValue.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        lblValue.setForeground(ModernUITheme.TEXT_PRIMARY);
+        row.add(lblValue, BorderLayout.CENTER);
+
+        parent.add(row);
+        return lblValue;
     }
 
     public void loadInfo() {
         try {
             UserData userData = null;
 
-            // V6: Always refresh to ensure PIN is verified (needed for getPhoto)
-            // MK_user is transient and cleared when card deselected
             if (userFrame != null && userFrame.getUserPin() != null) {
-                System.out.println("[UserInfoPanel] Refreshing user data to verify PIN...");
+                System.out.println("[UserInfoPanel] Refreshing user data...");
                 if (userFrame.refreshUserData()) {
                     userData = userFrame.getUserData();
                 } else {
@@ -213,17 +228,21 @@ public class UserInfoPanel extends JPanel {
             }
 
             if (userData == null) {
+                // Clear all fields
                 cardVisual.setCardHolderName("---");
                 cardVisual.setPatientId("---");
                 cardVisual.setBalance(0);
                 cardVisual.setBhytCode("");
+
+                lblHoTen.setText("---");
                 lblBirthDate.setText("---");
                 lblAddress.setText("---");
-                lblGioiTinh.setText("---"); // V5
-                // V4: Clear thông tin y tế
+                lblGioiTinh.setText("---");
+                lblMaBHYT.setText("---");
+                lblBalance.setText("---");
                 lblNhomMau.setText("---");
-                lblDiUng.setText("---");
-                lblBenhNen.setText("---");
+                lblDiUng.setText("<html>---</html>");
+                lblBenhNen.setText("<html>---</html>");
 
                 JOptionPane.showMessageDialog(this,
                         "Không thể đọc dữ liệu từ thẻ!\n\nVui lòng đăng nhập lại.",
@@ -237,21 +256,24 @@ public class UserInfoPanel extends JPanel {
             cardVisual.setBalance(userData.getBalance());
             cardVisual.setBhytCode(userData.getMaBHYT());
 
-            // Update info labels
+            // Update personal info
+            lblHoTen.setText(userData.getHoTen() != null ? userData.getHoTen() : "---");
             lblBirthDate.setText(userData.getNgaySinh() != null ? userData.getNgaySinh() : "---");
             lblAddress.setText(userData.getQueQuan() != null ? userData.getQueQuan() : "---");
-            lblGioiTinh.setText(userData.getGenderLabel()); // V5: Hiển thị giới tính
+            lblGioiTinh.setText(userData.getGenderLabel());
+            lblMaBHYT.setText(userData.getMaBHYT() != null ? userData.getMaBHYT() : "---");
+            lblBalance.setText(currencyFormat.format(userData.getBalance()));
 
-            // V4: Update thông tin y tế khẩn cấp
+            // Update medical info
             lblNhomMau.setText(userData.getNhomMauLabel());
 
             String diUng = userData.getDiUng();
-            lblDiUng.setText((diUng != null && !diUng.isEmpty()) ? diUng : "Không có");
+            lblDiUng.setText("<html>" + ((diUng != null && !diUng.isEmpty()) ? diUng : "Không có") + "</html>");
 
             String benhNen = userData.getBenhNen();
-            lblBenhNen.setText((benhNen != null && !benhNen.isEmpty()) ? benhNen : "Không có");
+            lblBenhNen.setText("<html>" + ((benhNen != null && !benhNen.isEmpty()) ? benhNen : "Không có") + "</html>");
 
-            // V6: Load ảnh đại diện từ thẻ
+            // Load photo
             try {
                 System.out.println("[UserInfoPanel] Loading photo from card...");
                 String photoBase64 = apduCommands.getPhoto();
@@ -261,25 +283,20 @@ public class UserInfoPanel extends JPanel {
                     java.awt.image.BufferedImage photoImage = ImageHelper.decodeBase64ToImage(photoBase64);
 
                     if (photoImage != null) {
-                        ImageIcon photoIcon = ImageHelper.createScaledIcon(photoImage, 100, 100);
+                        ImageIcon photoIcon = ImageHelper.createScaledIcon(photoImage, 160, 160);
                         lblPhotoPreview.setIcon(photoIcon);
                         lblPhotoPreview.setText("");
-                        // Force UI refresh
                         lblPhotoPreview.revalidate();
                         lblPhotoPreview.repaint();
                         System.out.println("[UserInfoPanel] ✓ Photo displayed successfully");
                     } else {
                         lblPhotoPreview.setIcon(null);
                         lblPhotoPreview.setText("Lỗi ảnh");
-                        lblPhotoPreview.revalidate();
-                        lblPhotoPreview.repaint();
                         System.err.println("[UserInfoPanel] Failed to decode photo");
                     }
                 } else {
                     lblPhotoPreview.setIcon(null);
                     lblPhotoPreview.setText("Chưa có ảnh");
-                    lblPhotoPreview.revalidate();
-                    lblPhotoPreview.repaint();
                     System.out.println("[UserInfoPanel] No photo on card");
                 }
             } catch (Exception photoEx) {
@@ -287,8 +304,6 @@ public class UserInfoPanel extends JPanel {
                 photoEx.printStackTrace();
                 lblPhotoPreview.setIcon(null);
                 lblPhotoPreview.setText("Lỗi load ảnh");
-                lblPhotoPreview.revalidate();
-                lblPhotoPreview.repaint();
             }
 
         } catch (Exception e) {

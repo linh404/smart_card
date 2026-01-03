@@ -61,7 +61,7 @@ public class HistoryPanel extends JPanel {
         JPanel headerPanel = new JPanel(new BorderLayout());
         headerPanel.setOpaque(false);
 
-        JLabel titleLabel = new JLabel("📜 LỊCH SỬ GIAO DỊCH");
+        JLabel titleLabel = new JLabel("L\u1ecaCH S\u1eeac GIAO D\u1ecbCH");
         titleLabel.setFont(ModernUITheme.FONT_HEADING);
         titleLabel.setForeground(ModernUITheme.TEXT_PRIMARY);
         headerPanel.add(titleLabel, BorderLayout.WEST);
