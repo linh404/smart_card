@@ -39,39 +39,35 @@ public class RSAHelper {
     }
 
     /**
-     * Verify signature using RSA public key
-     * 
-     * @param cipher     RSA cipher instance
-     * @param pubKey     RSA public key
-     * @param signature  signature to verify
-     * @param sigOffset  signature offset
-     * @param sigLen     signature length
-     * @param data       original data
-     * @param dataOffset data offset
-     * @param dataLen    data length
-     * @return true if verification successful
+     * @deprecated UNUSED - Signature verification done in UI layer, not on card
+     *             Card only signs challenges, UI verifies signatures
      */
-    public static boolean verify(Cipher cipher, RSAPublicKey pubKey,
-            byte[] signature, short sigOffset, short sigLen,
-            byte[] data, short dataOffset, short dataLen) {
-        if (pubKey == null || !pubKey.isInitialized()) {
-            return false;
-        }
-
-        try {
-            cipher.init(pubKey, Cipher.MODE_DECRYPT); // RSA verify = decrypt with public key
-            byte[] decrypted = new byte[128]; // RSA 1024 = 128 bytes
-            short decryptedLen = cipher.doFinal(signature, sigOffset, sigLen, decrypted, (short) 0);
-
-            // Compare decrypted with original data
-            if (decryptedLen != dataLen) {
-                return false;
-            }
-            return (Util.arrayCompare(decrypted, (short) 0, data, dataOffset, dataLen) == 0);
-        } catch (Exception e) {
-            return false;
-        }
-    }
+    /*
+     * public static boolean verify(Cipher cipher, RSAPublicKey pubKey,
+     * byte[] signature, short sigOffset, short sigLen,
+     * byte[] data, short dataOffset, short dataLen) {
+     * if (pubKey == null || !pubKey.isInitialized()) {
+     * return false;
+     * }
+     * 
+     * try {
+     * cipher.init(pubKey, Cipher.MODE_DECRYPT); // RSA verify = decrypt with public
+     * key
+     * byte[] decrypted = new byte[128]; // RSA 1024 = 128 bytes
+     * short decryptedLen = cipher.doFinal(signature, sigOffset, sigLen, decrypted,
+     * (short) 0);
+     * 
+     * // Compare decrypted with original data
+     * if (decryptedLen != dataLen) {
+     * return false;
+     * }
+     * return (Util.arrayCompare(decrypted, (short) 0, data, dataOffset, dataLen) ==
+     * 0);
+     * } catch (Exception e) {
+     * return false;
+     * }
+     * }
+     */
 
     /**
      * Get RSA public key (modulus + exponent)

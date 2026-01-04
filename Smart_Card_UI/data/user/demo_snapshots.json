@@ -1305,6 +1305,51 @@
       "nhomMau": 0,
       "createdAt": "2026-01-03 14:54:01",
       "updatedAt": "2026-01-03 14:54:01"
+    },
+    "4FBA6A5E1A2F4FE03509FCE6DE746855": {
+      "cardId": "4FBA6A5E1A2F4FE03509FCE6DE746855",
+      "hoTen": "Đoàn Minh Minh",
+      "idBenhNhan": "40",
+      "ngaySinh": "21/12/2003",
+      "queQuan": "Sóc chơn",
+      "maBHYT": "123456",
+      "balance": 0,
+      "pinUserDefault": "123456",
+      "pinAdminReset": "733140",
+      "pkUserBase64": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCuSbEf2lc4k9Q2LtQqikohcHk6OnHnnWbQyBGiYRMSS8HPmTEenSSet9HExt2ETHDPlf9FEcIxN4A+k1sI9YMqE4rj3looOYvIU0NeddzYEnDz0lkII4iq7cGqiFE+E1IehScS9ElDHXFOP9IPQqGn8jiRTIVVf96BSsfTUGG89wIDAQAB",
+      "nhomMau": 0,
+      "createdAt": "2026-01-04 12:34:20",
+      "updatedAt": "2026-01-04 12:34:20"
+    },
+    "B0FC55B9004FA021EEC542B5B36D4AF4": {
+      "cardId": "B0FC55B9004FA021EEC542B5B36D4AF4",
+      "hoTen": "Đoàn Minh Phương",
+      "idBenhNhan": "41",
+      "ngaySinh": "21/12/2003",
+      "queQuan": "Sóc Sơn",
+      "maBHYT": "12345",
+      "balance": 0,
+      "pinAdminReset": "985524",
+      "nhomMau": 2,
+      "diUng": "phấn hoa",
+      "benhNen": "suy thận",
+      "createdAt": "2026-01-04 12:52:47",
+      "updatedAt": "2026-01-04 12:53:07"
+    },
+    "D921A6E2010A502D6C3F6AD0AC90E9A7": {
+      "cardId": "D921A6E2010A502D6C3F6AD0AC90E9A7",
+      "hoTen": "Đoàn Minh Mõm",
+      "idBenhNhan": "42",
+      "ngaySinh": "12/03/1234",
+      "queQuan": "Sóc Ơn",
+      "maBHYT": "12345",
+      "balance": 0,
+      "pinUserDefault": "123456",
+      "pinAdminReset": "883730",
+      "pkUserBase64": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDWsL0Xllzn8xr4lv/uhH5Y9hTuMMLC2LXPdpVkcTMldAURBpk56ZonwiSGERd3cYrRcTHouZIAvQyP58gUm+XumGidBrUkPKWQnsTymB3YebBSqf32tE3HU1/FEOnXrTgnHhFcLZT59t1N8KCshDLyepd0LNdYoPn5Dy6Z/a4ygwIDAQAB",
+      "nhomMau": 0,
+      "createdAt": "2026-01-04 13:20:02",
+      "updatedAt": "2026-01-04 13:20:02"
     }
   }
 }

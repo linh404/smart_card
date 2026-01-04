@@ -12,52 +12,51 @@ import javacardx.crypto.Cipher;
  */
 public class CryptoHelper {
 
-    /**
-     * Hash PIN with salt using SHA-1
-     * Result: SHA-1(PIN || salt)
-     * 
-     * @param pin       PIN bytes
-     * @param pinOffset PIN offset in buffer
-     * @param pinLen    PIN length
-     * @param salt      salt bytes (16 bytes)
-     * @param hashOut   output buffer for hash (20 bytes for SHA-1)
-     * @return hash length (20 bytes)
-     */
-    public static short hashPin(byte[] pin, short pinOffset, short pinLen,
-            byte[] salt, byte[] hashOut) {
-        MessageDigest sha = MessageDigest.getInstance(MessageDigest.ALG_SHA, false);
-        sha.reset();
-        sha.update(pin, pinOffset, pinLen);
-        sha.doFinal(salt, (short) 0, (short) 16, hashOut, (short) 0);
-        return (short) 20; // SHA-1 = 20 bytes
-    }
+    // ==================== ACTIVE METHODS ====================
+    // Keep: KDF(), wrapMasterKeyWithPIN(), unwrapMasterKeyWithPIN()
+
+    // ==================== DEPRECATED/UNUSED METHODS ====================
 
     /**
-     * Derive key from PIN using ALG_SHA from Java Card library
-     * Uses SHA-1(PIN || salt) - single hash only
-     * 
-     * @param pin       PIN bytes
-     * @param pinOffset PIN offset in buffer
-     * @param pinLen    PIN length
-     * @param salt      salt bytes (16 bytes)
-     * @param keyOut    output buffer for key (must have minimum 20 bytes, first 16
-     *                  bytes used as AES-128 key)
+     * @deprecated UNUSED - PIN hashing done via PINHelper.hashPinSimple()
+     *             This method was designed with salt support but is never called.
+     *             Kept for reference only.
      */
-    public static void deriveKeyFromPin(byte[] pin, short pinOffset, short pinLen,
-            byte[] salt, byte[] keyOut) {
-        // Use ALG_SHA from Java Card library
-        MessageDigest sha = MessageDigest.getInstance(MessageDigest.ALG_SHA, false);
+    /*
+     * public static short hashPin(byte[] pin, short pinOffset, short pinLen,
+     * byte[] salt, byte[] hashOut) {
+     * MessageDigest sha = MessageDigest.getInstance(MessageDigest.ALG_SHA, false);
+     * sha.reset();
+     * sha.update(pin, pinOffset, pinLen);
+     * sha.doFinal(salt, (short) 0, (short) 16, hashOut, (short) 0);
+     * return (short) 20; // SHA-1 = 20 bytes
+     * }
+     */
 
-        // Hash PIN + salt: SHA-1(PIN || salt)
-        sha.reset();
-        sha.update(pin, pinOffset, pinLen);
-        sha.doFinal(salt, (short) 0, (short) 16, keyOut, (short) 0);
-
-        // keyOut now has 20 bytes hash (SHA-1 output)
-        // Take first 16 bytes as AES-128 key (no copy needed, just ensure keyOut has
-        // at least 20 bytes)
-        // Note: keyOut must have minimum size of 20 bytes
-    }
+    /**
+     * @deprecated INSECURE - Uses only 1 SHA-1 iteration
+     *             Use KDF() with multiple iterations instead for secure key
+     *             derivation
+     *             Kept for reference only
+     */
+    /*
+     * public static void deriveKeyFromPin(byte[] pin, short pinOffset, short
+     * pinLen,
+     * byte[] salt, byte[] keyOut) {
+     * // Use ALG_SHA from Java Card library
+     * MessageDigest sha = MessageDigest.getInstance(MessageDigest.ALG_SHA, false);
+     * 
+     * // Hash PIN + salt: SHA-1(PIN || salt)
+     * sha.reset();
+     * sha.update(pin, pinOffset, pinLen);
+     * sha.doFinal(salt, (short) 0, (short) 16, keyOut, (short) 0);
+     * 
+     * // keyOut now has 20 bytes hash (SHA-1 output)
+     * // Take first 16 bytes as AES-128 key (no copy needed, just ensure keyOut has
+     * // at least 20 bytes)
+     * // Note: keyOut must have minimum size of 20 bytes
+     * }
+     */
 
     /**
      * KDF - Simulates PBKDF2 using SHA-1 (ALG_SHA)
@@ -191,19 +190,19 @@ public class CryptoHelper {
     }
 
     /**
-     * Encrypt data using AES-128 ECB
+     * Encrypt data with AES-128 and PKCS#7 padding
      * 
      * @param key        AES key (16 bytes)
      * @param data       data to encrypt
      * @param dataOffset data offset
      * @param dataLen    data length
-     * @param encOut     output buffer for encrypted data
+     * @param encOut     output buffer
      * @param cipher     AES cipher instance
      * @param aesKey     AES key object
-     * @return encrypted data length
+     * @return encrypted length (0 if error)
      */
-    public static short encryptAES(byte[] key, byte[] data, short dataOffset, short dataLen,
-            byte[] encOut, Cipher cipher, AESKey aesKey) {
+    public static short encryptAES(byte[] key, byte[] data, short dataOffset,
+            short dataLen, byte[] encOut, Cipher cipher, AESKey aesKey) {
         aesKey.setKey(key, (short) 0);
         cipher.init(aesKey, Cipher.MODE_ENCRYPT);
 
@@ -233,24 +232,25 @@ public class CryptoHelper {
     }
 
     /**
-     * Decrypt data using AES-128 ECB
+     * Decrypt AES data and remove PKCS#7 padding
      * 
      * @param key       AES key (16 bytes)
      * @param encData   encrypted data
      * @param encOffset encrypted data offset
      * @param encLen    encrypted data length
-     * @param dataOut   output buffer for decrypted data
+     * @param dataOut   output buffer
      * @param cipher    AES cipher instance
      * @param aesKey    AES key object
-     * @return decrypted data length (without padding)
+     * @return decrypted length (0 if error)
      */
-    public static short decryptAES(byte[] key, byte[] encData, short encOffset, short encLen,
-            byte[] dataOut, Cipher cipher, AESKey aesKey) {
+    public static short decryptAES(byte[] key, byte[] encData, short encOffset,
+            short encLen, byte[] dataOut, Cipher cipher, AESKey aesKey) {
         aesKey.setKey(key, (short) 0);
         cipher.init(aesKey, Cipher.MODE_DECRYPT);
 
         try {
-            short decryptedLen = cipher.doFinal(encData, encOffset, encLen, dataOut, (short) 0);
+            short decryptedLen = cipher.doFinal(encData, encOffset, encLen, dataOut,
+                    (short) 0);
 
             // Remove PKCS#7 padding
             if (decryptedLen > 0) {
@@ -269,67 +269,58 @@ public class CryptoHelper {
     }
 
     /**
-     * Decrypt master key using key derived from PIN
-     * Combines KDF + AES decryption into one helper method
-     * 
-     * @param pin       PIN bytes
-     * @param pinOffset PIN offset
-     * @param pinLen    PIN length
-     * @param salt      salt for key derivation
-     * @param mkEnc     encrypted master key (16 bytes)
-     * @param mkOut     decrypted master key output (16 bytes)
-     * @param cipher    AES cipher instance
-     * @param aesKey    AES key object
-     * @param sha       MessageDigest instance
+     * @deprecated INSECURE - Uses only 1 SHA-1 iteration via derived KeyFromPin()
+     *             Use unwrapMasterKeyWithPIN() instead which uses KDF with 1000+
+     *             iterations
      */
-    public static void decryptMasterKeyWithPin(byte[] pin, short pinOffset, short pinLen,
-            byte[] salt, byte[] mkEnc, byte[] mkOut,
-            javacardx.crypto.Cipher cipher,
-            javacard.security.AESKey aesKey,
-            MessageDigest sha) {
-        // MasterKey is stored in mkOut temporarily (will be overwritten)
-        // Uses mkOut as temporary buffer to save derived key (leverage mkOut[0..19])
-        deriveKeyFromPin(pin, pinOffset, pinLen, salt, mkOut);
-
-        try {
-            // Set key and decrypt - MK into mkOut itself (overwrite derivedKey)
-            aesKey.setKey(mkOut, (short) 0); // Take first 16 bytes as key
-            cipher.init(aesKey, javacardx.crypto.Cipher.MODE_DECRYPT);
-            // Decrypt MK_user into mkOut itself (overwrite derivedKey)
-            cipher.doFinal(mkEnc, (short) 0, (short) 16, mkOut, (short) 0);
-
-            // Update aesKey with MK_user for use in encrypting/decrypting data
-            aesKey.setKey(mkOut, (short) 0);
-        } catch (Exception e) {
-            // Handle error silently
-        }
-    }
+    /*
+     * public static void decryptMasterKeyWithPin(byte[] pin, short pinOffset, short
+     * pinLen,
+     * byte[] salt, byte[] mkEnc, byte[] mkOut,
+     * javacardx.crypto.Cipher cipher,
+     * javacard.security.AESKey aesKey,
+     * MessageDigest sha) {
+     * // MasterKey is stored in mkOut temporarily (will be overwritten)
+     * // Uses mkOut as temporary buffer to save derived key (leverage mkOut[0..19])
+     * deriveKeyFromPin(pin, pinOffset, pinLen, salt, mkOut);
+     * 
+     * try {
+     * // Set key and decrypt - MK into mkOut itself (overwrite derivedKey)
+     * aesKey.setKey(mkOut, (short) 0); // Take first 16 bytes as key
+     * cipher.init(aesKey, javacardx.crypto.Cipher.MODE_DECRYPT);
+     * // Decrypt MK_user into mkOut itself (overwrite derivedKey)
+     * cipher.doFinal(mkEnc, (short) 0, (short) 16, mkOut, (short) 0);
+     * 
+     * // Update aesKey with MK_user for use in encrypting/decrypting data
+     * aesKey.setKey(mkOut, (short) 0);
+     * } catch (Exception e) {
+     * // Handle error silently
+     * }
+     * }
+     */
 
     /**
-     * Encrypt Master Key using key derived from PIN
-     * 
-     * @param pin       PIN bytes
-     * @param pinOffset PIN offset
-     * @param pinLen    PIN length
-     * @param salt      salt for key derivation
-     * @param mk        master key (16 bytes)
-     * @param mkEncOut  output buffer for encrypted master key (32 bytes)
-     * @param cipher    AES cipher instance
-     * @param aesKey    AES key object
+     * @deprecated INSECURE - Uses only 1 SHA-1 iteration via deriveKeyFromPin()
+     *             Use wrapMasterKeyWithPIN() instead which uses KDF with 1000+
+     *             iterations
      */
-    public static void encryptMasterKey(byte[] pin, short pinOffset, short pinLen,
-            byte[] salt, byte[] mk,
-            byte[] mkEncOut, Cipher cipher, AESKey aesKey) {
-        // Use mkEncOut as temp buffer to save derivedKey (leverage mkEncOut[0..19])
-        // deriveKeyFromPin needs 20 byte buffer, mkEncOut has 32 bytes so sufficient
-        deriveKeyFromPin(pin, pinOffset, pinLen, salt, mkEncOut); // Save to mkEncOut temporarily
-
-        // Set key and encrypt - MK into mkEncOut itself (overwrite derivedKey)
-        aesKey.setKey(mkEncOut, (short) 0); // Take first 16 bytes as key
-        cipher.init(aesKey, Cipher.MODE_ENCRYPT);
-        // Pad MK to 16 bytes if needed (ECB NOPAD requires 16 bytes block)
-        cipher.doFinal(mk, (short) 0, (short) 16, mkEncOut, (short) 0);
-    }
+    /*
+     * public static void encryptMasterKey(byte[] pin, short pinOffset, short
+     * pinLen,
+     * byte[] salt, byte[] mk,
+     * byte[] mkEncOut, Cipher cipher, AESKey aesKey) {
+     * // Use mkEncOut as temp buffer to save derivedKey (leverage mkEncOut[0..19])
+     * // deriveKeyFromPin needs 20 byte buffer, mkEncOut has 32 bytes so sufficient
+     * deriveKeyFromPin(pin, pinOffset, pinLen, salt, mkEncOut); // Save to mkEncOut
+     * temporarily
+     * 
+     * // Set key and encrypt - MK into mkEncOut itself (overwrite derivedKey)
+     * aesKey.setKey(mkEncOut, (short) 0); // Take first 16 bytes as key
+     * cipher.init(aesKey, Cipher.MODE_ENCRYPT);
+     * // Pad MK to 16 bytes if needed (ECB NOPAD requires 16 bytes block)
+     * cipher.doFinal(mk, (short) 0, (short) 16, mkEncOut, (short) 0);
+     * }
+     */
 
     /**
      * Wrap (encrypt) master key with key derived from PIN
