@@ -1350,6 +1350,21 @@
       "nhomMau": 0,
       "createdAt": "2026-01-04 13:20:02",
       "updatedAt": "2026-01-04 13:20:02"
+    },
+    "9DA1885FF495DAF47830A2932C0FD70E": {
+      "cardId": "9DA1885FF495DAF47830A2932C0FD70E",
+      "hoTen": "Đoàn Minh Mõm",
+      "idBenhNhan": "43",
+      "ngaySinh": "12/03/1234",
+      "queQuan": "123",
+      "maBHYT": "12345",
+      "balance": 0,
+      "pinUserDefault": "123456",
+      "pinAdminReset": "667317",
+      "pkUserBase64": "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC8pbg3iWzS4vJqkV+LNQruc+XjogoSsbnjFvgze1ACA/nfaGTndapqhUwgOPNCsDLZER7/toAy/8zJSNgylZuvfJk6sqnR8J9y4eXrtdQdfNc/90uAJdQqsUUcFMY6jUohOveAgVBagp3dNDd1MvBHlgAShmzSdR5v1Ju17MzxJQIDAQAB",
+      "nhomMau": 0,
+      "createdAt": "2026-01-04 13:53:20",
+      "updatedAt": "2026-01-04 13:53:20"
     }
   }
 }

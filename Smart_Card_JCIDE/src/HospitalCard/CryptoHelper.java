@@ -12,88 +12,6 @@ import javacardx.crypto.Cipher;
  */
 public class CryptoHelper {
 
-    // ==================== ACTIVE METHODS ====================
-    // Keep: KDF(), wrapMasterKeyWithPIN(), unwrapMasterKeyWithPIN()
-
-    // ==================== DEPRECATED/UNUSED METHODS ====================
-
-    /**
-     * @deprecated UNUSED - PIN hashing done via PINHelper.hashPinSimple()
-     *             This method was designed with salt support but is never called.
-     *             Kept for reference only.
-     */
-    /*
-     * public static short hashPin(byte[] pin, short pinOffset, short pinLen,
-     * byte[] salt, byte[] hashOut) {
-     * MessageDigest sha = MessageDigest.getInstance(MessageDigest.ALG_SHA, false);
-     * sha.reset();
-     * sha.update(pin, pinOffset, pinLen);
-     * sha.doFinal(salt, (short) 0, (short) 16, hashOut, (short) 0);
-     * return (short) 20; // SHA-1 = 20 bytes
-     * }
-     */
-
-    /**
-     * @deprecated INSECURE - Uses only 1 SHA-1 iteration
-     *             Use KDF() with multiple iterations instead for secure key
-     *             derivation
-     *             Kept for reference only
-     */
-    /*
-     * public static void deriveKeyFromPin(byte[] pin, short pinOffset, short
-     * pinLen,
-     * byte[] salt, byte[] keyOut) {
-     * // Use ALG_SHA from Java Card library
-     * MessageDigest sha = MessageDigest.getInstance(MessageDigest.ALG_SHA, false);
-     * 
-     * // Hash PIN + salt: SHA-1(PIN || salt)
-     * sha.reset();
-     * sha.update(pin, pinOffset, pinLen);
-     * sha.doFinal(salt, (short) 0, (short) 16, keyOut, (short) 0);
-     * 
-     * // keyOut now has 20 bytes hash (SHA-1 output)
-     * // Take first 16 bytes as AES-128 key (no copy needed, just ensure keyOut has
-     * // at least 20 bytes)
-     * // Note: keyOut must have minimum size of 20 bytes
-     * }
-     */
-
-    /**
-     * KDF - Simulates PBKDF2 using SHA-1 (ALG_SHA)
-     * 
-     * PBKDF2-SHA1 simulation: Iterate hash many times to increase brute force
-     * difficulty
-     * Algorithm (simulates PBKDF2, no HMAC since JavaCard doesn't support it):
-     * T1 = SHA-1(PIN || salt || INT_32_BE(1))
-     * T2 = SHA-1(PIN || T1)
-     * T3 = SHA-1(PIN || T2)
-     * ...
-     * Tn = SHA-1(PIN || T(n-1))
-     * Key = T1 XOR T2 XOR ... XOR Tn
-     * 
-     * Note: This algorithm simulates PBKDF2 but doesn't use HMAC (since JavaCard
-     * doesn't
-     * support HMAC).
-     * Still secure and effective with many iterations.
-     * 
-     * @param pin          PIN bytes
-     * @param pinOffset    PIN offset in buffer
-     * @param pinLen       PIN length
-     * @param salt         salt bytes (16 bytes)
-     * @param saltOffset   salt offset
-     * @param saltLen      salt length
-     * @param iterations   iteration count (recommended: 1000-10000)
-     * @param keyOut       output buffer for key (must have minimum 20 bytes, first
-     *                     16
-     *                     bytes used as AES-128 key)
-     * @param keyOutOffset Offset in keyOut buffer where the derived key should be
-     *                     written
-     * @param sha          MessageDigest instance (ALG_SHA) - passed in for reuse,
-     *                     avoid creating multiple times
-     * @param scratch      Scratch buffer for temporary calculation (must be at
-     *                     least 80 bytes)
-     * @param scratchOff   Offset in scratch buffer
-     */
     public static void KDF(byte[] pin, short pinOffset, short pinLen,
             byte[] salt, short saltOffset, short saltLen,
             short iterations, byte[] keyOut, short keyOutOffset, MessageDigest sha,
@@ -166,27 +84,6 @@ public class CryptoHelper {
             // Copy t into tPrev for next iteration
             Util.arrayCopyNonAtomic(scratch, tOff, scratch, tPrevOff, (short) 20);
         }
-    }
-
-    /**
-     * KDF - Overload version with salt offset = 0 and saltLen = 16
-     * 
-     * @param pin        PIN bytes
-     * @param pinOffset  PIN offset in buffer
-     * @param pinLen     PIN length
-     * @param salt       salt bytes (16 bytes, offset = 0)
-     * @param iterations iteration count (recommended: 1000-10000)
-     * @param keyOut     output buffer for key (must have minimum 20 bytes)
-     * @param sha        MessageDigest instance (ALG_SHA)
-     * @param scratch    Scratch buffer for temporary calculation (must be at least
-     *                   80 bytes)
-     * @param scratchOff Offset in scratch buffer
-     */
-    public static void KDF(byte[] pin, short pinOffset, short pinLen,
-            byte[] salt, short iterations, byte[] keyOut, MessageDigest sha,
-            byte[] scratch, short scratchOff) {
-        KDF(pin, pinOffset, pinLen, salt, (short) 0, (short) 16, iterations, keyOut, (short) 0, sha, scratch,
-                scratchOff);
     }
 
     /**
@@ -267,60 +164,6 @@ public class CryptoHelper {
             return 0;
         }
     }
-
-    /**
-     * @deprecated INSECURE - Uses only 1 SHA-1 iteration via derived KeyFromPin()
-     *             Use unwrapMasterKeyWithPIN() instead which uses KDF with 1000+
-     *             iterations
-     */
-    /*
-     * public static void decryptMasterKeyWithPin(byte[] pin, short pinOffset, short
-     * pinLen,
-     * byte[] salt, byte[] mkEnc, byte[] mkOut,
-     * javacardx.crypto.Cipher cipher,
-     * javacard.security.AESKey aesKey,
-     * MessageDigest sha) {
-     * // MasterKey is stored in mkOut temporarily (will be overwritten)
-     * // Uses mkOut as temporary buffer to save derived key (leverage mkOut[0..19])
-     * deriveKeyFromPin(pin, pinOffset, pinLen, salt, mkOut);
-     * 
-     * try {
-     * // Set key and decrypt - MK into mkOut itself (overwrite derivedKey)
-     * aesKey.setKey(mkOut, (short) 0); // Take first 16 bytes as key
-     * cipher.init(aesKey, javacardx.crypto.Cipher.MODE_DECRYPT);
-     * // Decrypt MK_user into mkOut itself (overwrite derivedKey)
-     * cipher.doFinal(mkEnc, (short) 0, (short) 16, mkOut, (short) 0);
-     * 
-     * // Update aesKey with MK_user for use in encrypting/decrypting data
-     * aesKey.setKey(mkOut, (short) 0);
-     * } catch (Exception e) {
-     * // Handle error silently
-     * }
-     * }
-     */
-
-    /**
-     * @deprecated INSECURE - Uses only 1 SHA-1 iteration via deriveKeyFromPin()
-     *             Use wrapMasterKeyWithPIN() instead which uses KDF with 1000+
-     *             iterations
-     */
-    /*
-     * public static void encryptMasterKey(byte[] pin, short pinOffset, short
-     * pinLen,
-     * byte[] salt, byte[] mk,
-     * byte[] mkEncOut, Cipher cipher, AESKey aesKey) {
-     * // Use mkEncOut as temp buffer to save derivedKey (leverage mkEncOut[0..19])
-     * // deriveKeyFromPin needs 20 byte buffer, mkEncOut has 32 bytes so sufficient
-     * deriveKeyFromPin(pin, pinOffset, pinLen, salt, mkEncOut); // Save to mkEncOut
-     * temporarily
-     * 
-     * // Set key and encrypt - MK into mkEncOut itself (overwrite derivedKey)
-     * aesKey.setKey(mkEncOut, (short) 0); // Take first 16 bytes as key
-     * cipher.init(aesKey, Cipher.MODE_ENCRYPT);
-     * // Pad MK to 16 bytes if needed (ECB NOPAD requires 16 bytes block)
-     * cipher.doFinal(mk, (short) 0, (short) 16, mkEncOut, (short) 0);
-     * }
-     */
 
     /**
      * Wrap (encrypt) master key with key derived from PIN
